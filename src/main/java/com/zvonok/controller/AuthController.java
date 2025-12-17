@@ -9,6 +9,7 @@ import com.zvonok.service.dto.request.LogoutRequest;
 import com.zvonok.service.dto.request.RegisterRequest;
 import com.zvonok.service.dto.request.TokenRefreshRequest;
 import com.zvonok.service.dto.response.LogoutResponse;
+import com.zvonok.service.dto.response.MeResponse;
 import com.zvonok.exception.InvalidJwtException;
 import com.zvonok.exception.InvalidRefreshTokenException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
@@ -18,6 +19,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Timestamp;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 @RestController
@@ -53,39 +56,35 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<LogoutResponse> logout(@Valid @RequestBody LogoutRequest request,
                                                 @AuthenticationPrincipal UserPrincipal principal) {
+
         if (principal == null) {
             throw new InvalidJwtException(HttpResponseMessage.HTTP_INVALID_JWT_RESPONSE_MESSAGE.getMessage());
         }
 
-        if (request.isAllDevices()) {
-            Long userIdFromToken = jwtTokenProvider.getUserId(principal.getToken());
-            if (userIdFromToken == null) {
-                throw new InvalidJwtException(HttpResponseMessage.HTTP_INVALID_JWT_RESPONSE_MESSAGE.getMessage());
-            }
-            authService.logoutFromAllDevices(userIdFromToken);
-        } else {
-            if (!request.hasRefreshToken()) {
+        if (!request.hasRefreshToken()) {
                 throw new InvalidRefreshTokenException(HttpResponseMessage.HTTP_INVALID_REFRESH_TOKEN_RESPONSE_MESSAGE.getMessage());
             }
+
+        if (request.isAllDevices()) {
+            authService.logoutFromAllDevices(request.getRefreshToken());
+        } else {
             authService.logout(request.getRefreshToken());
         }
-
         LogoutResponse response = new LogoutResponse("Logout successful", request.isAllDevices());
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/me")
-    public ResponseEntity<Map<String, Object>> getCurrentUser(
+    public ResponseEntity<MeResponse> getCurrentUser(
             @AuthenticationPrincipal UserPrincipal principal
     ) {
 
         String username = principal.getName();
 
-        Map<String, Object> response = Map.of(
-                "username", username,
-                "message", "Ты успешно аутефицировался!",
-                "timestamp", System.currentTimeMillis()
-        );
+        MeResponse response = new MeResponse();
+        response.setUsername(username);
+        response.setMessage("Ты успешно аутефицировался!");
+        response.setTime(LocalDateTime.now());
 
         return ResponseEntity.ok(response);
     }

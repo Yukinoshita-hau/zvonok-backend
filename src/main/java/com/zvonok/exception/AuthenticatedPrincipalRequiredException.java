@@ -9,5 +9,3 @@ public class AuthenticatedPrincipalRequiredException extends RuntimeException {
         super(message);
     }
 }
-
-

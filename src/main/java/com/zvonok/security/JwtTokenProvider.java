@@ -1,18 +1,23 @@
 package com.zvonok.security;
-
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+
 import javax.crypto.SecretKey;
+
 import java.util.Date;
 
 @Component
 @Slf4j
+@Setter
 public class JwtTokenProvider {
 
     @Value("${app.jwt.secret}")
@@ -21,12 +26,10 @@ public class JwtTokenProvider {
     @Value("${app.jwt.ExpirationMs}")
     private long jwtExpirationMs;
 
-    // ===== УЛУЧШЕННАЯ ВЕРСИЯ С USERID =====
-
     public String generateToken(String username, Long userId) {
         return Jwts.builder()
                 .setSubject(username)
-                .claim("userId", userId) // Добавляем userId в токен
+                .claim("userId", userId)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512)
@@ -43,21 +46,8 @@ public class JwtTokenProvider {
             getClaims(token);
             return true;
         } catch (Exception e) {
-            log.error("Неверный JWT токен: {}", e.getMessage());
             return false;
         }
-    }
-
-    public Long getUserId(String token) {
-        Claims claims = getClaims(token);
-        Object userIdClaim = claims.get("userId");
-        if (userIdClaim instanceof Integer) {
-            return ((Integer) userIdClaim).longValue();
-        }
-        if (userIdClaim instanceof Long) {
-            return (Long) userIdClaim;
-        }
-        return null;
     }
 
     public long getJwtExpirationMs() {
@@ -73,6 +63,7 @@ public class JwtTokenProvider {
     }
 
     private SecretKey getSigningKey() {
-        return Keys.hmacShaKeyFor(jwtSecret.getBytes());
+        byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
+        return Keys.hmacShaKeyFor(keyBytes); 
     }
 }

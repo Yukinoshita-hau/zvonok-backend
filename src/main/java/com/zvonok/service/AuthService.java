@@ -1,8 +1,7 @@
 package com.zvonok.service;
 
+import com.zvonok.exception.InvalidJwtException;
 import com.zvonok.exception.InvalidUserOrPasswordException;
-import com.zvonok.exception.UserWIthThisUsernameAlreadyExistException;
-import com.zvonok.exception.UserWithThisEmailAlreadyExistException;
 import com.zvonok.model.RefreshToken;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.User;
@@ -45,7 +44,9 @@ public class AuthService {
 
     public AuthResponse login(String usernameOrEmail, String password) {
         // Для безопасности не указываем, что именно неверно (username или password)
-        User user = userService.getUserByUsernameOrEmail(usernameOrEmail);
+        User user = userService.getUserByUsernameOrEmail(usernameOrEmail)
+                .orElseThrow(() -> new InvalidUserOrPasswordException(
+                    HttpResponseMessage.HTTP_INVALID_USER_OR_PASSWORD_RESPONSE_MESSAGE.getMessage()));
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new InvalidUserOrPasswordException(
@@ -78,8 +79,9 @@ public class AuthService {
         refreshTokenService.revoke(refreshTokenValue);
     }
 
-    public void logoutFromAllDevices(Long userId) {
-        refreshTokenService.revokeAllForUser(userId);
+    public void logoutFromAllDevices(String refreshTokenValue) {
+        Long userIdFromToken = refreshTokenService.getRefreshTokenByToken(refreshTokenValue).getUser().getId();
+        refreshTokenService.revokeAllForUser(refreshTokenValue, userIdFromToken);
     }
 
     private AuthResponse buildAuthResponse(User user) {

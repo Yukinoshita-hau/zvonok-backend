@@ -23,6 +23,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.util.Optional;
+
 @ExtendWith(MockitoExtension.class) // Подключает Mockito к JUnit 5
 class AuthServiceTest {
 
@@ -61,15 +63,13 @@ class AuthServiceTest {
     // ==================== ТЕСТЫ РЕГИСТРАЦИИ ====================
     @Test
     @DisplayName("create - успешная регистрация пользователя")
-    void register_WithValidData_ReturnsAuthResponse() {
+    void register_shouldReturnsAuthResponse_whenValidData() {
         // Arrange 
         String rawPassword = "password123";
         String encodedPassword = testUser.getPassword();
         
-        // Мокаем passwordEncoder.encode() чтобы возвращал закодированный пароль
         when(passwordEncoder.encode(rawPassword)).thenReturn(encodedPassword);
         
-        // Используем ArgumentMatchers для гибкой проверки DTO
         when(userService.createUser(any(CreateUserDto.class))).thenReturn(testUser);
         when(jwtTokenProvider.generateToken(testUser.getUsername(), testUser.getId()))
                 .thenReturn("jwt-access-token");
@@ -102,12 +102,12 @@ class AuthServiceTest {
 
     @Test
     @DisplayName("login - успешный вход с правильными данными")
-    void login_WithValidCredentials_ReturnsAuthResponse() {
+    void login_shouldReturnsAuthResponse_whenValidCredentials() {
         // Arrange (Подготовка) - настраиваем поведение моков
         String usernameOrEmail = "testuser";
         String password = "password123";
 
-        when(userService.getUserByUsernameOrEmail(usernameOrEmail)).thenReturn(testUser);
+        when(userService.getUserByUsernameOrEmail(usernameOrEmail)).thenReturn(Optional.of(testUser));
         when(passwordEncoder.matches(password, testUser.getPassword())).thenReturn(true);
         when(jwtTokenProvider.generateToken(testUser.getUsername(), testUser.getId()))
                 .thenReturn("jwt-access-token");
@@ -123,7 +123,6 @@ class AuthServiceTest {
         assertEquals("refresh-token-value", response.getRefreshToken());
         assertEquals("Bearer", response.getTokenType());
 
-        // Проверяем, что методы были вызваны
         verify(userService).getUserByUsernameOrEmail(usernameOrEmail);
         verify(passwordEncoder).matches(password, testUser.getPassword());
         verify(userService).updateLastSeenAt(eq(testUser.getId()), any());
@@ -131,12 +130,12 @@ class AuthServiceTest {
 
     @Test
     @DisplayName("login - неверный пароль выбрасывает исключение")
-    void login_WithInvalidPassword_ThrowsException() {
+    void login_shouldThrowsException_whenInvalidPassword() {
         // Arrange
         String usernameOrEmail = "testuser";
         String wrongPassword = "wrongpassword";
 
-        when(userService.getUserByUsernameOrEmail(usernameOrEmail)).thenReturn(testUser);
+        when(userService.getUserByUsernameOrEmail(usernameOrEmail)).thenReturn(Optional.of(testUser));
         when(passwordEncoder.matches(wrongPassword, testUser.getPassword())).thenReturn(false);
 
         // Act & Assert
@@ -153,7 +152,7 @@ class AuthServiceTest {
 
     @Test
     @DisplayName("refresh - успешное обновление токена")
-    void refresh_WithValidToken_ReturnsNewTokens() {
+    void refresh_shouldReturnsNewTokens_whenValidToken() {
         // Arrange
         String refreshTokenValue = "valid-refresh-token";
         RefreshToken rotatedToken = new RefreshToken();
@@ -196,12 +195,13 @@ class AuthServiceTest {
     @DisplayName("logoutFromAllDevices - отзывает все токены пользователя")
     void logoutFromAllDevices_RevokesAllUserTokens() {
         // Arrange
-        Long userId = 1L;
+        when(refreshTokenService.getRefreshTokenByToken(anyString())).thenReturn(testRefreshToken);
+        String refreshTokenValue = "token-to-revoke";
 
         // Act
-        authService.logoutFromAllDevices(userId);
+        authService.logoutFromAllDevices(refreshTokenValue);
 
         // Assert
-        verify(refreshTokenService).revokeAllForUser(userId);
+        verify(refreshTokenService).revokeAllForUser(refreshTokenValue, testRefreshToken.getUser().getId());
     }
 }
