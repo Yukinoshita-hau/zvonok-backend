@@ -1,7 +1,6 @@
 package com.zvonok.service;
 
 import com.zvonok.exception.*;
-import com.zvonok.exception.UserBannedException;
 import com.zvonok.exception_handler.enumeration.BusinessRuleMessage;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.*;
@@ -67,6 +66,8 @@ public class ServerService {
 
     @Transactional
     public ServerResponse createServer(CreateServerRequest request, Long ownerId) {
+        validateCreateServerRequest(request); 
+
         User owner = userService.getUser(ownerId);
 
         // Создаем сервер
@@ -289,6 +290,20 @@ public class ServerService {
     }
 
     // ===== PRIVATE HELPER METHODS =====
+
+    private void validateCreateServerRequest(CreateServerRequest request) {
+        if (request.getName().length() < 5 || request.getName().length() > 100) {
+            throw new InvalidServerNameException(
+                HttpResponseMessage.HTTP_SERVER_NAME_NOT_VALID_RESPONSE_MESSAGE.getMessage()
+            );
+        }
+        
+        if (request.getMaxMembers() != null && (request.getMaxMembers() < 10 || request.getMaxMembers() > 100)) {
+            throw new InvalidServerMaxMemberException(
+                HttpResponseMessage.HTTP_SERVER_MAX_MEMBERS_NOT_VALID_RESPONSE_MESSAGE.getMessage()
+            );
+        }
+    }
 
     private ServerRole createEveryoneRole(Server server) {
         CreateServerRoleDto createDto = new CreateServerRoleDto();
