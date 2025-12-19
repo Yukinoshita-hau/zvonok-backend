@@ -28,6 +28,8 @@ public enum HttpResponseMessage {
     // Server
     HTTP_SERVER_NOT_FOUND_RESPONSE_MESSAGE("Server was not found"),
     HTTP_SERVER_NOT_ACTIVE_RESPONSE_MESSAGE("Server is not active now"),
+    HTTP_SERVER_NAME_NOT_VALID_RESPONSE_MESSAGE("Name must be between 5 and 100 characters"),
+    HTTP_SERVER_MAX_MEMBERS_NOT_VALID_RESPONSE_MESSAGE("MaxMembers must be between 10 and 10000 members"),
 
     // ServerRole
     HTTP_SERVER_ROLE_NOT_FOUND_RESPONSE_MESSAGE("ServerRole was not found"),

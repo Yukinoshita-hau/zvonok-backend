@@ -49,7 +49,7 @@ public class UserServiceTest {
     }
 
     @Test
-    void createUser_throwException_whenUsernameExist() {
+    void createUser_shouldThrowException_whenUsernameExist() {
         // Arrange
         String username = "exception";
         when(userRepository.findByUsername(username)).thenReturn(Optional.of(new User()));
@@ -66,7 +66,7 @@ public class UserServiceTest {
     }
 
     @Test
-    void createUser_throwException_whenEmailExist() {
+    void createUser_shouldThrowException_whenEmailExist() {
         // Arrange
         String email = "exception";
         when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
@@ -84,7 +84,7 @@ public class UserServiceTest {
     }
 
     @Test
-    void updateUser_throwException_whenIdNotFound() {
+    void updateUser_shouldThrowException_whenIdNotFound() {
         // Arrange 
         Long id = 2L;
         when(userRepository.findById(id)).thenReturn(Optional.empty());
@@ -101,7 +101,7 @@ public class UserServiceTest {
     }
 
     @Test
-    void updateUser_throwException_whenUsernameAlreadyExist() {
+    void updateUser_shouldThrowException_whenUsernameAlreadyExist() {
         // Arrange
         String username = "exception";
         User existingUser = new User();
@@ -121,7 +121,7 @@ public class UserServiceTest {
     }
 
     @Test
-    void updateUser_throwException_whenEmailAlreadyExist() {
+    void updateUser_shouldThrowException_whenEmailAlreadyExist() {
         // Arrange
         String email = "exception";
         User existingUser = new User();
@@ -140,7 +140,7 @@ public class UserServiceTest {
     }
 
     @Test
-    void updateUser_DoesNotThrowException_whenUserEqual() {
+    void updateUser_shouldNotThrowException_whenUserEqual() {
         // Arrange
         when(userRepository.findById(testUser.getId())).thenReturn(Optional.of(testUser));
         when(userRepository.findByUsername(testUser.getUsername())).thenReturn(Optional.of(testUser));
@@ -156,7 +156,7 @@ public class UserServiceTest {
     }
     
     @Test
-    void updateUser_DoesNotThrowException_whenEmailEqual() {
+    void updateUser_shouldNotThrowException_whenEmailEqual() {
         // Arrange
         when(userRepository.findById(testUser.getId())).thenReturn(Optional.of(testUser));
         when(userRepository.findByEmail(testUser.getEmail())).thenReturn(Optional.of(testUser));

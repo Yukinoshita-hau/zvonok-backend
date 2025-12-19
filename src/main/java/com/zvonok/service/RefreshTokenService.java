@@ -12,8 +12,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.UUID;
 
 @Service
@@ -25,6 +27,13 @@ public class RefreshTokenService {
 
     @Value("${app.jwt.refreshExpirationMs}")
     private long refreshExpirationMs;
+
+    public RefreshToken getRefreshTokenByToken(String token) {
+        return refreshTokenRepository.findByToken(token)
+                    .orElseThrow(() -> new InvalidRefreshTokenException(
+                        HttpResponseMessage.HTTP_INVALID_REFRESH_TOKEN_RESPONSE_MESSAGE.getMessage()));
+
+    }
 
     public RefreshToken createToken(User user) {
         RefreshToken refreshToken = new RefreshToken();
@@ -62,13 +71,27 @@ public class RefreshTokenService {
     }
 
     public void revoke(String tokenValue) {
-        refreshTokenRepository.findByToken(tokenValue).ifPresent(token -> {
-            token.setRevoked(true);
-            refreshTokenRepository.save(token);
-        });
+        RefreshToken token =  refreshTokenRepository.findByToken(tokenValue)
+            .orElseThrow(() -> new InvalidRefreshTokenException(
+                        HttpResponseMessage.HTTP_INVALID_REFRESH_TOKEN_RESPONSE_MESSAGE.getMessage()));
+
+        if (token.isRevoked()) {
+            throw new RefreshTokenRevokedException(
+                HttpResponseMessage.HTTP_REFRESH_TOKEN_REVOKED_RESPONSE_MESSAGE.getMessage());
+        }
+        token.setRevoked(true);
+        refreshTokenRepository.save(token);
     }
 
-    public void revokeAllForUser(Long userId) {
+    public void revokeAllForUser(String tokenValue, Long userId) {
+        RefreshToken token = refreshTokenRepository.findByToken(tokenValue)
+            .orElseThrow(() -> new InvalidRefreshTokenException(
+                        HttpResponseMessage.HTTP_INVALID_REFRESH_TOKEN_RESPONSE_MESSAGE.getMessage()));
+
+        if (token.isRevoked()) {
+            throw new RefreshTokenRevokedException(
+                HttpResponseMessage.HTTP_REFRESH_TOKEN_REVOKED_RESPONSE_MESSAGE.getMessage());
+        } 
         refreshTokenRepository.revokeAllActiveByUserId(userId);
     }
 
@@ -77,7 +100,12 @@ public class RefreshTokenService {
     }
 
     private String generateTokenValue() {
-        return UUID.randomUUID().toString() + "." + UUID.randomUUID();
+        SecureRandom random = new SecureRandom();
+        byte[] randomBytes = new byte[16];
+        random.nextBytes(randomBytes);
+        String part1 = UUID.randomUUID().toString();
+        String part2 = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+        return part1 + "." + part2;
     }
 }
 
