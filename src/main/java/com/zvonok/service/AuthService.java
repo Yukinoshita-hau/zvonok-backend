@@ -1,6 +1,5 @@
 package com.zvonok.service;
 
-import com.zvonok.exception.InvalidJwtException;
 import com.zvonok.exception.InvalidUserOrPasswordException;
 import com.zvonok.model.RefreshToken;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
@@ -12,7 +11,6 @@ import com.zvonok.service.dto.CreateUserDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -22,7 +20,6 @@ import java.time.LocalDateTime;
  */
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class AuthService {
 
     private final UserService userService;
@@ -67,7 +64,6 @@ public class AuthService {
         RefreshToken rotated = refreshTokenService.rotate(validToken);
 
         String accessToken = jwtTokenProvider.generateToken(user.getUsername(), user.getId());
-
         return new AuthResponse(
                 accessToken,
                 rotated.getToken(),

@@ -1,6 +1,5 @@
 package com.zvonok.controller;
 
-import com.zvonok.security.JwtTokenProvider;
 import com.zvonok.security.dto.UserPrincipal;
 import com.zvonok.service.AuthService;
 import com.zvonok.service.dto.AuthResponse;
@@ -19,9 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.Timestamp;
 import java.time.LocalDateTime;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/auth")
@@ -29,7 +26,6 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
-    private final JwtTokenProvider jwtTokenProvider;
 
     @PostMapping("/register")
     public AuthResponse register(@Valid @RequestBody RegisterRequest request) {
@@ -56,10 +52,6 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<LogoutResponse> logout(@Valid @RequestBody LogoutRequest request,
                                                 @AuthenticationPrincipal UserPrincipal principal) {
-
-        if (principal == null) {
-            throw new InvalidJwtException(HttpResponseMessage.HTTP_INVALID_JWT_RESPONSE_MESSAGE.getMessage());
-        }
 
         if (!request.hasRefreshToken()) {
                 throw new InvalidRefreshTokenException(HttpResponseMessage.HTTP_INVALID_REFRESH_TOKEN_RESPONSE_MESSAGE.getMessage());
