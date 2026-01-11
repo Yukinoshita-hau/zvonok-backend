@@ -82,6 +82,7 @@ class AuthServiceTest {
 	@DisplayName("register - успешная регистрация пользователя")
 	void register_shouldReturnsAuthResponse_whenValidData() {
 		// Arrange
+		when(passwordEncoder.encode(anyString())).thenReturn(testUser.getPassword());
 		when(userService.createUser(any(CreateUserDto.class))).thenReturn(testUser);
 		when(jwtTokenProvider.generateToken(testUser.getUsername(), testUser.getId()))
 				.thenReturn(accessToken);
@@ -102,7 +103,7 @@ class AuthServiceTest {
 
 		verify(userService)
 				.createUser(argThat(dto -> dto.getUsername().equals(testUser.getUsername())
-						&& dto.getEmail().equals(testUser.getEmail())));
+						&& dto.getEmail().equals(testUser.getEmail()) && dto.getPassword().equals(testUser.getPassword())));
 
 		InOrder inOrder =
 				inOrder(userService, jwtTokenProvider, refreshTokenService, passwordEncoder);

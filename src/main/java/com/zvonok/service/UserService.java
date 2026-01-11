@@ -1,8 +1,5 @@
 package com.zvonok.service;
 
-import com.zvonok.exception.IncorrectUserEmailException;
-import com.zvonok.exception.IncorrectUserUsernameException;
-import com.zvonok.exception.IncorrectUserPasswordException;
 import com.zvonok.exception.UserNotFoundException;
 import com.zvonok.exception.UserWIthThisUsernameAlreadyExistException;
 import com.zvonok.exception.UserWithThisEmailAlreadyExistException;
@@ -16,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Optional;
-import java.util.regex.Pattern;
 
 /**
  * Service for managing user entities and user-related operations. Сервис для управления сущностями
@@ -48,8 +44,6 @@ public class UserService {
 	@Transactional
 	public User createUser(CreateUserDto userDto) {
 
-		checkCorrectUserData(userDto.getUsername(), userDto.getEmail(), userDto.getPassword());
-
 		userRepository.findByUsername(userDto.getUsername()).ifPresent(existing -> {
 			throw new UserWIthThisUsernameAlreadyExistException(
 					HttpResponseMessage.HTTP_USER_WITH_THIS_USERNAME_ALREADY_EXIST_RESPONSE_MESSAGE
@@ -72,8 +66,6 @@ public class UserService {
 
 	@Transactional
 	public User updateUser(Long id, UpdateUserDto userDto) {
-
-		checkCorrectUserData(userDto.getUsername(), userDto.getEmail());
 
 		User user = getUser(id);
 
@@ -126,74 +118,4 @@ public class UserService {
 		userRepository.save(user);
 	}
 
-	private void checkCorrectUserData(String username, String email, String password) {
-
-		if (username == null) {
-			throw new IncorrectUserUsernameException(
-					HttpResponseMessage.HTTP_INCORRECT_USER_USERNAME_TYPE_RESPONSE_MESSAGE
-							.getMessage());
-		}
-		if (email == null) {
-			throw new IncorrectUserEmailException(
-					HttpResponseMessage.HTTP_INCORRECT_USER_EMAIL_TYPE_RESPONSE_MESSAGE
-							.getMessage());
-		}
-		if (password == null) {
-			throw new IncorrectUserPasswordException(
-					HttpResponseMessage.HTTP_INCORRECT_USER_PASSWORD_TYPE_RESPONSE_MESSAGE
-							.getMessage());
-		}
-
-
-		if (username.length() < 3 || username.length() > 50) {
-			throw new IncorrectUserUsernameException(
-					HttpResponseMessage.HTTP_INCORRECT_USER_USERNAME_LENGTH_RESPONSE_MESSAGE
-							.getMessage());
-		}
-
-		if (email.length() < 5 || email.length() > 100 || !isValidEmail(email)) {
-			throw new IncorrectUserEmailException(
-					HttpResponseMessage.HTTP_INCORRECT_USER_EMAIL_LENGTH_RESPONSE_MESSAGE
-							.getMessage());
-		}
-
-		if (password.length() < 6 || password.length() > 100) {
-			throw new IncorrectUserPasswordException(
-					HttpResponseMessage.HTTP_INCORRECT_USER_PASSWORD_LENGTH_RESPONSE_MESSAGE
-							.getMessage());
-		}
-	}
-
-	private void checkCorrectUserData(String username, String email) {
-
-		if (username == null) {
-			throw new IncorrectUserUsernameException(
-					HttpResponseMessage.HTTP_INCORRECT_USER_USERNAME_TYPE_RESPONSE_MESSAGE
-							.getMessage());
-		}
-		if (email == null) {
-			throw new IncorrectUserEmailException(
-					HttpResponseMessage.HTTP_INCORRECT_USER_EMAIL_TYPE_RESPONSE_MESSAGE
-							.getMessage());
-		}
-
-
-		if (username.length() < 3 || username.length() > 50) {
-			throw new IncorrectUserUsernameException(
-					HttpResponseMessage.HTTP_INCORRECT_USER_USERNAME_LENGTH_RESPONSE_MESSAGE
-							.getMessage());
-		}
-
-		if (email.length() < 5 || email.length() > 100 || !isValidEmail(email)) {
-			throw new IncorrectUserEmailException(
-					HttpResponseMessage.HTTP_INCORRECT_USER_EMAIL_LENGTH_RESPONSE_MESSAGE
-							.getMessage());
-		}
-	}
-
-	private boolean isValidEmail(String email) {
-		String regex =
-				"^[\\w!#$%&'*+/=?`{|}~^-]+(?:\\.[\\w!#$%&'*+/=?`{|}~^-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,6}$";
-		return Pattern.matches(regex, email);
-	}
 }

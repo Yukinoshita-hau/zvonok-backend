@@ -285,7 +285,7 @@ public class AuthControllerTest {
 
 	@ParameterizedTest
 	@DisplayName("logout - должен выбросить исключение при неверной длине токена")
-	@MethodSource("logoutInvaliRefreshTokenExceptionCases")
+	@MethodSource("logoutInvalidRefreshTokenExceptionCases")
 	void logout_shouldThrowException_whenInvalidRefreshTokenLength(String exceptionMessage,
 			String content) throws Exception {
 		// Arrange
