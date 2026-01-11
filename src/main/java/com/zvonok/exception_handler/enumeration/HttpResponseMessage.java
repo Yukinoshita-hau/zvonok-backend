@@ -23,7 +23,7 @@ public enum HttpResponseMessage {
     HTTP_FRIENDSHIP_NOT_FOUND_RESPONSE_MESSAGE("Friendship was not found"),
 	HTTP_INCORRECT_USER_USERNAME_LENGTH_RESPONSE_MESSAGE("Username must be between 3 and 50 characters"),
 	HTTP_INCORRECT_USER_EMAIL_LENGTH_RESPONSE_MESSAGE("Email must be between 5 and 100 characters"),
-	HTTP_INCORRECT_USER_PASSWORD_LENGTH_RESPONSE_MESSAGE("Email must be between 5 and 100 characters"),
+	HTTP_INCORRECT_USER_PASSWORD_LENGTH_RESPONSE_MESSAGE("Password must be between 5 and 100 characters"),
 	HTTP_INCORRECT_USER_USERNAME_TYPE_RESPONSE_MESSAGE("Username can not be null"),
 	HTTP_INCORRECT_USER_EMAIL_TYPE_RESPONSE_MESSAGE("Email can not be null"),
 	HTTP_INCORRECT_USER_PASSWORD_TYPE_RESPONSE_MESSAGE("Password can not be null"),
