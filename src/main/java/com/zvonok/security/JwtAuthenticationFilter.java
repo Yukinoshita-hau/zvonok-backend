@@ -1,7 +1,5 @@
 package com.zvonok.security;
 
-import com.zvonok.exception.InvalidJwtException;
-import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.security.dto.UserPrincipal;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
