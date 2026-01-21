@@ -12,6 +12,6 @@ public class StrictBooleanDeserializer extends JsonDeserializer<Boolean> {
         if (p.currentToken().isBoolean()) {
             return p.getBooleanValue();
         }
-        throw new InvalidBooleanFormatException("allDevices must be boolean");
+        throw new InvalidBooleanFormatException("Field must be boolean");
     }
 }

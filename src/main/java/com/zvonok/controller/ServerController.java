@@ -8,6 +8,7 @@ import com.zvonok.service.dto.request.CreateServerRequest;
 import com.zvonok.service.dto.request.UpdateServerRequest;
 import com.zvonok.service.dto.request.UpdateServerMemberNicknameRequest;
 import com.zvonok.service.dto.response.ServerResponse;
+import io.swagger.v3.oas.annotations.Parameter;
 import com.zvonok.service.dto.response.ServerMemberResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -46,7 +47,7 @@ public class ServerController {
 
     @GetMapping("/{serverId}")
     public ResponseEntity<ServerResponse> getServer(
-            @PathVariable Long serverId,
+            @PathVariable @Parameter(description = "Идентификатор сервера", example = "1", required = true) Long serverId,
             @AuthenticationPrincipal UserPrincipal principal) {
 //        Long userId = getCurrentUserId(principal);
 

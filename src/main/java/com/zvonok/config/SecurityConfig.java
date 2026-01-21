@@ -20,53 +20,42 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+	private final JwtAuthenticationFilter jwtAuthenticationFilter;
+	private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        return http
-                // .cors(cors -> cors.configurationSource(request -> {
-                //         CorsConfiguration config = new CorsConfiguration();
-                //         config.setAllowedOrigins(List.of(
-                //             "http://localhost:3000",
-                //         ));
-                //         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-                //         config.setAllowedHeaders(List.of("*"));
-                //         config.setAllowCredentials(true);
-                //         config.setMaxAge(3600L);
-                //         return config;
-                // })) 
-                .csrf(csrf -> csrf.disable())
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(customAuthenticationEntryPoint))
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/api/auth/login",
-                                "/api/auth/register",
-                                "/api/auth/refresh",
-                                "/api/health",
-                                "/auth/login",
-                                "/auth/register",
-                                "/auth/refresh",
-                                "/health",
-                                "/swagger-ui.html",
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**",
-                                "/ws/**",
-                                "/ws-raw/**"
-                        ).permitAll()
-                        .requestMatchers("/ws/**", "/api/ws/**").permitAll()
-                        .anyRequest().authenticated()
-                )
-                .build();
-    }
+	@Bean
+	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+		return http
+				// .cors(cors -> cors.configurationSource(request -> {
+				// CorsConfiguration config = new CorsConfiguration();
+				// config.setAllowedOrigins(List.of(
+				// "http://localhost:3000",
+				// ));
+				// config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+				// config.setAllowedHeaders(List.of("*"));
+				// config.setAllowCredentials(true);
+				// config.setMaxAge(3600L);
+				// return config;
+				// }))
+				.csrf(csrf -> csrf.disable())
+				.sessionManagement(
+						session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				.exceptionHandling(
+						ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint))
+				.addFilterBefore(jwtAuthenticationFilter,
+						UsernamePasswordAuthenticationFilter.class)
+				.authorizeHttpRequests(auth -> auth
+						.requestMatchers("/api/auth/login", "/api/auth/register",
+								"/api/auth/refresh", "/api/health", "/auth/login", "/auth/register",
+								"/auth/refresh", "/health", "/swagger-ui.html", "/swagger-ui/**",
+								"/v3/api-docs/**", "/ws/**", "/ws-raw/**")
+						.permitAll().requestMatchers("/ws/**", "/api/ws/**").permitAll()
+						.anyRequest().authenticated())
+				.build();
+	}
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+	@Bean
+	public PasswordEncoder passwordEncoder() {
+		return new BCryptPasswordEncoder();
+	}
 }
