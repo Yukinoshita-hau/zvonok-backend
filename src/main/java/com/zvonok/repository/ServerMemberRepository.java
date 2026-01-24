@@ -11,6 +11,7 @@ import java.util.Optional;
 public interface ServerMemberRepository extends JpaRepository<ServerMember, Long> {
     Optional<ServerMember> findByUserIdAndServerId(Long userId, Long serverId);
     Optional<ServerMember> findByUserIdAndServerIdAndIsActiveTrue(Long userId, Long serverId);
+    Optional<ServerMember> findByUserIdAndServerIdAndIsActiveFalse(Long userId, Long serverId);
     @Query("""
         SELECT sm FROM ServerMember sm 
         JOIN Channel c ON c.folder.server.id = sm.server.id 

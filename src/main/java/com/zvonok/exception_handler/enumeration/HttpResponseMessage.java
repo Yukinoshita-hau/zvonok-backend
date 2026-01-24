@@ -38,15 +38,16 @@ public enum HttpResponseMessage {
     HTTP_SERVER_MAX_MEMBERS_NOT_VALID_RESPONSE_MESSAGE("MaxMembers must be between 10 and 10000 members"),
 
     // ServerRole
-    HTTP_SERVER_ROLE_NOT_FOUND_RESPONSE_MESSAGE("ServerRole was not found"),
+    HTTP_SERVER_ROLE_NOT_FOUND_RESPONSE_MESSAGE("Role was not found"),
 
     // ServerMemberRole
-    HTTP_SERVER_MEMBER_ROLE_NOT_FOUND_RESPONSE_MESSAGE("ServerMemberRole was not found"),
+    HTTP_SERVER_MEMBER_ROLE_NOT_FOUND_RESPONSE_MESSAGE("MemberRole was not found"),
 
     // ServerMember
-    HTTP_SERVER_MEMBER_NOT_FOUND_RESPONSE_MESSAGE("ServerMember was not found"),
-    HTTP_SERVER_MAXIMUM_NUMBER_OF_SERVER_MEMBERS_RESPONSE_MESSAGE("Maximum number of server members reached"),
+    HTTP_SERVER_MEMBER_NOT_FOUND_RESPONSE_MESSAGE("Member was not found"),
+    HTTP_SERVER_MAXIMUM_NUMBER_OF_SERVER_MEMBERS_RESPONSE_MESSAGE("Maximum number of members reached"),
     HTTP_SERVER_BAN_NOT_FOUND_RESPONSE_MESSAGE("Ban record was not found"),
+	HTTP_SERVER_MEMBER_ALREADY_WAS_KICKED_RESPONSE_MESSAGE("Member already kicked"),
 
     // ChannelFolder
     HTTP_CHANNEL_FOLDER_NOT_FOUND_RESPONSE_MESSAGE("Channel folder was not found"),

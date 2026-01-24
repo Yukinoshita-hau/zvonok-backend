@@ -20,24 +20,30 @@ import java.util.List;
 @Table(name = "channel_folder")
 public class ChannelFolder {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long id;
 
-    @Column(nullable = false, length = 100)
-    private String name;
+	@Column(nullable = false, length = 100)
+	private String name;
 
-    @ManyToOne @JoinColumn(name = "server_id", nullable = false) @JsonBackReference
-    private Server server;
+	@ManyToOne
+	@JoinColumn(name = "server_id", nullable = false)
+	@JsonBackReference
+	private Server server;
 
-    @OneToMany(mappedBy = "folder") @JsonManagedReference
-    private List<Channel> channels;
+	@OneToMany(mappedBy = "folder",
+			cascade = {CascadeType.REMOVE, CascadeType.PERSIST, CascadeType.MERGE})
+	@JsonManagedReference
+	private List<Channel> channels;
 
-    @OneToMany(mappedBy = "folder")
-    @JsonIgnore
-    private List<FolderPermissionOverride> permissionOverrides;
+	@OneToMany(mappedBy = "folder",
+			cascade = {CascadeType.REMOVE, CascadeType.PERSIST, CascadeType.MERGE})
+	@JsonIgnore
+	private List<FolderPermissionOverride> permissionOverrides;
 
-    private Integer position = 0; // Порядок отображения папок
-    private Boolean collapsed = false; // Свернута ли папка по умолчанию
-    private Boolean isActive = true;
-    private LocalDateTime createdAt;
+	private Integer position = 0; // Порядок отображения папок
+	private Boolean collapsed = false; // Свернута ли папка по умолчанию
+	private Boolean isActive = true;
+	private LocalDateTime createdAt;
 }
