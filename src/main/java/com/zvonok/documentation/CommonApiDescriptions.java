@@ -1,6 +1,6 @@
 package com.zvonok.documentation;
 
-public final class CommonApiDescription {
+public final class CommonApiDescriptions {
 	
 	public static final String VALIDATION_FAILED = "Ошибка валидности входных данных";
 

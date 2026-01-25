@@ -17,7 +17,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.zvonok.documentation.AuthApiDescriptions;
-import com.zvonok.documentation.CommonApiDescription;
+import com.zvonok.documentation.CommonApiDescriptions;
 import com.zvonok.documentation.annotation.SecuredApiResponses;
 import com.zvonok.exception.InvalidRefreshTokenException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
@@ -42,7 +42,7 @@ public class AuthController {
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200",
 					description = AuthApiDescriptions.AUTH_REGISTER_SUCCESS),
-			@ApiResponse(responseCode = "400", description = CommonApiDescription.VALIDATION_FAILED,
+			@ApiResponse(responseCode = "400", description = CommonApiDescriptions.VALIDATION_FAILED,
 					content = {@Content(mediaType = "application/json",
 							schema = @Schema(implementation = AuthResponse.class))}),
 			@ApiResponse(responseCode = "409",
@@ -56,7 +56,7 @@ public class AuthController {
 	@Operation(summary = "Позволяет пользователю войти в систему")
 	@ApiResponses(value = {@ApiResponse(responseCode = "200", description = "Успешный вход"),
 			@ApiResponse(responseCode = "400",
-					description = CommonApiDescription.VALIDATION_FAILED),})
+					description = CommonApiDescriptions.VALIDATION_FAILED),})
 	@PostMapping("/login")
 	public AuthResponse login(@Valid @RequestBody LoginRequest request) {
 		return authService.login(request.getUsernameOrEmail(), request.getPassword());
@@ -68,7 +68,7 @@ public class AuthController {
 			@ApiResponse(responseCode = "200",
 					description = AuthApiDescriptions.AUTH_REFRESH_SUCCESS),
 			@ApiResponse(responseCode = "400",
-					description = CommonApiDescription.VALIDATION_FAILED),})
+					description = CommonApiDescriptions.VALIDATION_FAILED),})
 	@PostMapping("/refresh")
 	public AuthResponse refresh(@Valid @RequestBody TokenRefreshRequest request) {
 		return authService.refresh(request.getRefreshToken());
@@ -82,7 +82,7 @@ public class AuthController {
 			@ApiResponse(responseCode = "200",
 					description = AuthApiDescriptions.AUTH_LOGOUT_SUCCESS),
 			@ApiResponse(responseCode = "400",
-					description = CommonApiDescription.VALIDATION_FAILED),})
+					description = CommonApiDescriptions.VALIDATION_FAILED),})
 	@PostMapping("/logout")
 	public ResponseEntity<LogoutResponse> logout(@Valid @RequestBody LogoutRequest request,
 			@AuthenticationPrincipal UserPrincipal principal) {

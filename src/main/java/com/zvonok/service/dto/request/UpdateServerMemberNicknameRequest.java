@@ -6,7 +6,7 @@ import lombok.Data;
 @Data
 public class UpdateServerMemberNicknameRequest {
 
-    @Size(max = 32, message = "Nickname must be at most 32 characters")
+    @Size(max = 50, message = "Nickname must be at most 50 characters")
     private String nickname;
 }
 
