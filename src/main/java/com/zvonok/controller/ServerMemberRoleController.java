@@ -3,6 +3,8 @@ package com.zvonok.controller;
 import com.zvonok.documentation.CommonApiDescriptions;
 import com.zvonok.documentation.ServerApiDescriptions;
 import com.zvonok.documentation.ServerMemberRoleApiDescriptions;
+import com.zvonok.documentation.annotation.ApiResponse403;
+import com.zvonok.documentation.annotation.ApiResponse404;
 import com.zvonok.documentation.annotation.SecuredApiResponses;
 import com.zvonok.exception.InsufficientPermissionsException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
@@ -51,12 +53,10 @@ public class ServerMemberRoleController {
 					+ "Сервер должен существовать; участник должен принадлежать этому серверу; "
 					+ "роль должна существовать на сервере.")
 	@SecuredApiResponses
-	@ApiResponses(value = {@ApiResponse(responseCode = "200",
-			description = ServerMemberRoleApiDescriptions.SERVER_MEMBER_ROLE_ASSIGN_SUCCESS),
-			@ApiResponse(responseCode = "403",
-					description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-			@ApiResponse(responseCode = "404",
-					description = ServerApiDescriptions.SERVER_NOT_FOUND),})
+	@ApiResponse(responseCode = "200",
+			description = ServerMemberRoleApiDescriptions.SERVER_MEMBER_ROLE_ASSIGN_SUCCESS)
+	@ApiResponse403
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@PostMapping("/{roleId}")
 	public ResponseEntity<Void> assignRoleToMember(@PathVariable Long serverId,
 			@PathVariable Long memberId, @PathVariable Long roleId,
@@ -77,12 +77,10 @@ public class ServerMemberRoleController {
 					+ "Сервер должен существовать; участник должен принадлежать этому серверу; "
 					+ "роль должна существовать на сервере.")
 	@SecuredApiResponses
-	@ApiResponses(value = {@ApiResponse(responseCode = "204",
-			description = ServerMemberRoleApiDescriptions.SERVER_MEMBER_ROLE_REMOVE_SUCCESS),
-			@ApiResponse(responseCode = "403",
-					description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-			@ApiResponse(responseCode = "404",
-					description = ServerApiDescriptions.SERVER_NOT_FOUND),})
+	@ApiResponse(responseCode = "204",
+			description = ServerMemberRoleApiDescriptions.SERVER_MEMBER_ROLE_REMOVE_SUCCESS)
+	@ApiResponse403
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@DeleteMapping("/{roleId}")
 	public ResponseEntity<Void> removeRoleFromMember(@PathVariable Long serverId,
 			@PathVariable Long memberId, @PathVariable Long roleId,

@@ -1,8 +1,10 @@
 package com.zvonok.controller;
 
-import com.zvonok.documentation.CommonApiDescriptions;
 import com.zvonok.documentation.ServerApiDescriptions;
 import com.zvonok.documentation.ServerRoleApiDescriptions;
+import com.zvonok.documentation.annotation.ApiResponse400;
+import com.zvonok.documentation.annotation.ApiResponse403;
+import com.zvonok.documentation.annotation.ApiResponse404;
 import com.zvonok.documentation.annotation.SecuredApiResponses;
 import com.zvonok.exception.InsufficientPermissionsException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
@@ -20,7 +22,6 @@ import com.zvonok.service.dto.request.CreateServerRoleRequest;
 import com.zvonok.service.dto.request.UpdateServerRoleRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -38,7 +39,7 @@ import java.util.List;
 
 @Tag(name = "Контроллер управления ролями сервера",
 		description = "Контроллер отвечающий за управление ролями сервера")
-	
+
 @SecurityRequirement(name = "JWT")
 @RestController
 @RequestMapping("/server/{serverId}/roles")
@@ -50,13 +51,13 @@ public class ServerRoleController {
 	private final PermissionService permissionService;
 	private final UserService userService;
 
-	@Operation(summary = "Список ролей сервера", description = "Возвращает активные роли сервера; доступно только участникам сервера")
+	@Operation(summary = "Список ролей сервера",
+			description = "Возвращает активные роли сервера; доступно только участникам сервера")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-		@ApiResponse(responseCode = "200", description = ServerRoleApiDescriptions.SERVER_ROLE_GET_ALL_ROLES_SUCCESS),
-		@ApiResponse(responseCode = "403", description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-		@ApiResponse(responseCode = "404", description = ServerApiDescriptions.SERVER_NOT_FOUND)
-	})
+	@ApiResponse(responseCode = "200",
+			description = ServerRoleApiDescriptions.SERVER_ROLE_GET_ALL_ROLES_SUCCESS)
+	@ApiResponse403
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@GetMapping("/all")
 	public ResponseEntity<List<ServerRole>> getServerRoles(@PathVariable Long serverId,
 			@AuthenticationPrincipal UserPrincipal principal) {
@@ -69,14 +70,13 @@ public class ServerRoleController {
 		return ResponseEntity.ok(roles);
 	}
 
-	@Operation(summary = "Создать роль сервера", description = "Создаёт новую роль на сервере.")	
+	@Operation(summary = "Создать роль сервера", description = "Создаёт новую роль на сервере.")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-		@ApiResponse(responseCode = "200", description = ServerRoleApiDescriptions.SERVER_ROLE_CREATE_ROLE_SUCCESS),
-		@ApiResponse(responseCode = "400", description = CommonApiDescriptions.VALIDATION_FAILED),
-		@ApiResponse(responseCode = "403", description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-		@ApiResponse(responseCode = "404", description = ServerApiDescriptions.SERVER_NOT_FOUND) 
-	})
+	@ApiResponse(responseCode = "200",
+			description = ServerRoleApiDescriptions.SERVER_ROLE_CREATE_ROLE_SUCCESS)
+	@ApiResponse400
+	@ApiResponse403
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@PostMapping("/create")
 	public ResponseEntity<ServerRole> createServerRole(@PathVariable Long serverId,
 			@Valid @RequestBody CreateServerRoleRequest request,
@@ -101,14 +101,13 @@ public class ServerRoleController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(role);
 	}
 
-	@Operation(summary = "Обновить роль сервера", description = "Создаёт новую роль на сервере.")	
+	@Operation(summary = "Обновить роль сервера", description = "Создаёт новую роль на сервере.")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-		@ApiResponse(responseCode = "200", description = ServerRoleApiDescriptions.SERVER_ROLE_UPDATE_SUCCES),
-		@ApiResponse(responseCode = "400", description = CommonApiDescriptions.VALIDATION_FAILED),
-		@ApiResponse(responseCode = "403", description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-		@ApiResponse(responseCode = "404", description = ServerApiDescriptions.SERVER_NOT_FOUND) 
-		})
+	@ApiResponse(responseCode = "200",
+			description = ServerRoleApiDescriptions.SERVER_ROLE_UPDATE_SUCCES)
+	@ApiResponse400
+	@ApiResponse403
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@PutMapping("/{roleId}")
 	public ResponseEntity<ServerRole> updateServerRole(@PathVariable Long serverId,
 			@PathVariable Long roleId, @Valid @RequestBody UpdateServerRoleRequest request,
@@ -133,11 +132,10 @@ public class ServerRoleController {
 
 	@Operation(summary = "Удалить роль сервера", description = "Удаляет роль сервера.")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-		@ApiResponse(responseCode = "204", description = ServerRoleApiDescriptions.SERVER_ROLE_DELETE_SUCCESS),
-		@ApiResponse(responseCode = "403", description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-		@ApiResponse(responseCode = "404", description = ServerApiDescriptions.SERVER_NOT_FOUND) 
-		})
+	@ApiResponse(responseCode = "204",
+			description = ServerRoleApiDescriptions.SERVER_ROLE_DELETE_SUCCESS)
+	@ApiResponse403
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@DeleteMapping("/{roleId}")
 	public ResponseEntity<Void> deleteServerRole(@PathVariable Long serverId,
 			@PathVariable Long roleId, @AuthenticationPrincipal UserPrincipal principal) {

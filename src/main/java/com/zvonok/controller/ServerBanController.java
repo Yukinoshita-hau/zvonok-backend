@@ -3,6 +3,7 @@ package com.zvonok.controller;
 import com.zvonok.documentation.CommonApiDescriptions;
 import com.zvonok.documentation.ServerApiDescriptions;
 import com.zvonok.documentation.ServerBanApiDescriptions;
+import com.zvonok.documentation.annotation.ApiResponse400;
 import com.zvonok.documentation.annotation.ApiResponse403;
 import com.zvonok.documentation.annotation.ApiResponse404;
 import com.zvonok.documentation.annotation.SecuredApiResponses;
@@ -23,7 +24,6 @@ import com.zvonok.service.dto.request.CreateServerBanRequest;
 import com.zvonok.service.dto.response.ServerBanResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -56,13 +56,10 @@ public class ServerBanController {
 	@Operation(summary = "Список банов сервера",
 			description = "Возвращает активные баны на сервере. " + "Сервер должен существовать.")
 	@SecuredApiResponses
-	@ApiResponse403(message = CommonApiDescriptions.NOT_ENOUGH_RIGHTS)
-	@ApiResponse404(message = ServerApiDescriptions.SERVER_NOT_FOUND)
-	@ApiResponses(value = {
-		@ApiResponse(responseCode = "200", description = ServerBanApiDescriptions.SERVER_BAN_GET_LIST_SUCCESS),
-		@ApiResponse(responseCode = "403", description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-		@ApiResponse(responseCode = "404", description = ServerApiDescriptions.SERVER_NOT_FOUND),
-	})
+	@ApiResponse(responseCode = "200",
+			description = ServerBanApiDescriptions.SERVER_BAN_GET_LIST_SUCCESS)
+	@ApiResponse403(description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS)
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@GetMapping
 	public ResponseEntity<List<ServerBanResponse>> getServerBans(@PathVariable Long serverId,
 			@AuthenticationPrincipal UserPrincipal principal) {
@@ -81,12 +78,11 @@ public class ServerBanController {
 					+ "Сервер должен существовать. "
 					+ "Нельзя забанить самого себя и владельца сервера.")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-		@ApiResponse(responseCode = "200", description = ServerBanApiDescriptions.SERVER_BAN_USER_SUCCES),
-		@ApiResponse(responseCode = "400", description = CommonApiDescriptions.VALIDATION_FAILED),
-		@ApiResponse(responseCode = "403", description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-		@ApiResponse(responseCode = "404", description = ServerApiDescriptions.SERVER_NOT_FOUND),
-	})
+	@ApiResponse(responseCode = "200",
+			description = ServerBanApiDescriptions.SERVER_BAN_USER_SUCCES)
+	@ApiResponse400
+	@ApiResponse403(description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS)
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@PostMapping
 	public ResponseEntity<ServerBanResponse> banUser(@PathVariable Long serverId,
 			@Valid @RequestBody CreateServerBanRequest request,
@@ -114,11 +110,10 @@ public class ServerBanController {
 			description = "Снимает активный бан с пользователя targetUserId на сервере. "
 					+ "Сервер должен существовать.")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-		@ApiResponse(responseCode = "200", description = ServerBanApiDescriptions.SERVER_UNBAN_USER_SUCCES),
-		@ApiResponse(responseCode = "403", description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-		@ApiResponse(responseCode = "404", description = ServerApiDescriptions.SERVER_NOT_FOUND),
-	})
+	@ApiResponse(responseCode = "200",
+			description = ServerBanApiDescriptions.SERVER_UNBAN_USER_SUCCES)
+	@ApiResponse403(description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS)
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@DeleteMapping("/{targetUserId}")
 	public ResponseEntity<Void> unbanUser(@PathVariable Long serverId,
 			@PathVariable Long targetUserId, @AuthenticationPrincipal UserPrincipal principal) {

@@ -8,6 +8,7 @@ import java.lang.annotation.Target;
 import org.springframework.core.annotation.AliasFor;
 import com.zvonok.exception_handler.JsonErrorResponse;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 
@@ -16,10 +17,16 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 @Documented
 @ApiResponse(responseCode = "404", description = "",
 		content = @Content(mediaType = "application/json",
-				schema = @Schema(implementation = JsonErrorResponse.class)))
+				schema = @Schema(implementation = JsonErrorResponse.class),
+				examples = @ExampleObject(name = "NotFound", value = """
+							{
+								"message": "User not found",
+								"status": 404
+							}
+						""")))
 public @interface ApiResponse404 {
 
 	@AliasFor(annotation = ApiResponse.class, attribute = "description")
-	String message() default "Not Found";
-	
+	String description() default "Not Found";
+
 }

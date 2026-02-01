@@ -1,5 +1,8 @@
 package com.zvonok.controller;
 
+import com.zvonok.documentation.annotation.ApiResponse400;
+import com.zvonok.documentation.annotation.ApiResponse403;
+import com.zvonok.documentation.annotation.ApiResponse404;
 import com.zvonok.documentation.annotation.SecuredApiResponses;
 import com.zvonok.exception.InsufficientPermissionsException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
@@ -53,11 +56,9 @@ public class ChannelController {
 			description = "Возвращает список каналов, отсортированный внутри папки каналов. "
 					+ "Сервер должен существовать, папка должна принадлежать серверу.")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-		@ApiResponse(responseCode = "200", description = ChannelApiDescriptions.CHANNEL_GET_SUCCESS),
-		@ApiResponse(responseCode = "403", description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-		@ApiResponse(responseCode = "404", description = ServerApiDescriptions.SERVER_NOT_FOUND),
-	})
+	@ApiResponse(responseCode = "200", description = ChannelApiDescriptions.CHANNEL_GET_SUCCESS)
+	@ApiResponse403()
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@GetMapping
 	public ResponseEntity<List<Channel>> getChannels(@PathVariable Long serverId,
 			@PathVariable Long folderId, @AuthenticationPrincipal UserPrincipal principal) {
@@ -75,12 +76,11 @@ public class ChannelController {
 			description = "Создаёт новый канал внутри указанной папки каналов. "
 					+ "Сервер должен существовать, папка должна принадлежать серверу;")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-		@ApiResponse(responseCode = "201", description = ChannelApiDescriptions.CHANNEl_CREATE_SUCCESS),
-		@ApiResponse(responseCode = "400", description = CommonApiDescriptions.VALIDATION_FAILED),
-		@ApiResponse(responseCode = "403", description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-		@ApiResponse(responseCode = "404", description = ServerApiDescriptions.SERVER_NOT_FOUND),
-	})
+
+	@ApiResponse400()
+	@ApiResponse403()
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
+	@ApiResponse(responseCode = "201", description = ChannelApiDescriptions.CHANNEl_CREATE_SUCCESS)
 	@PostMapping("/create")
 	public ResponseEntity<Channel> createChannel(@PathVariable Long serverId,
 			@PathVariable Long folderId, @Valid @RequestBody CreateChannelDto createChannelDto,
@@ -100,12 +100,10 @@ public class ChannelController {
 			description = "Обновляет параметры канала по channelId в рамках указанной папки. "
 					+ "Сервер должен существовать, папка должна принадлежать серверу;")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-		@ApiResponse(responseCode = "200", description = ChannelApiDescriptions.CHANNEL_UPDATE_SUCCESS),
-		@ApiResponse(responseCode = "400", description = CommonApiDescriptions.VALIDATION_FAILED),
-		@ApiResponse(responseCode = "403", description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-		@ApiResponse(responseCode = "404", description = ServerApiDescriptions.SERVER_NOT_FOUND),
-	})
+	@ApiResponse(responseCode = "200", description = ChannelApiDescriptions.CHANNEL_UPDATE_SUCCESS)
+	@ApiResponse400()
+	@ApiResponse403()
+	@ApiResponse404(description = ChannelApiDescriptions.CHANNEL_NOT_FOUND)
 	@PutMapping("/{channelId}")
 	public ResponseEntity<Channel> updateChannel(@PathVariable Long serverId,
 			@PathVariable Long folderId, @PathVariable Long channelId,
@@ -126,11 +124,9 @@ public class ChannelController {
 			description = "Удаляет канал по channelId из указанной папки. "
 					+ "Сервер должен существовать, папка должна принадлежать серверу;")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-		@ApiResponse(responseCode = "204", description = ChannelApiDescriptions.CHANNEL_DELETE_SUCCESS),
-		@ApiResponse(responseCode = "403", description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-		@ApiResponse(responseCode = "404", description = ServerApiDescriptions.SERVER_NOT_FOUND),
-	})
+	@ApiResponse(responseCode = "204", description = ChannelApiDescriptions.CHANNEL_DELETE_SUCCESS)
+	@ApiResponse403()
+	@ApiResponse404(description = ChannelApiDescriptions.CHANNEL_NOT_FOUND)
 	@DeleteMapping("/{channelId}")
 	public ResponseEntity<Void> deleteChannel(@PathVariable Long serverId,
 			@PathVariable Long folderId, @PathVariable Long channelId,

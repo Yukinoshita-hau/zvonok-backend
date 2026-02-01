@@ -1,10 +1,11 @@
 package com.zvonok.controller;
 
-import com.zvonok.documentation.CommonApiDescriptions;
 import com.zvonok.documentation.ServerApiDescriptions;
+import com.zvonok.documentation.annotation.ApiResponse400;
+import com.zvonok.documentation.annotation.ApiResponse403;
 import com.zvonok.documentation.annotation.ApiResponse404;
+import com.zvonok.documentation.annotation.ApiResponse409;
 import com.zvonok.documentation.annotation.SecuredApiResponses;
-import com.zvonok.exception_handler.JsonErrorResponse;
 import com.zvonok.model.User;
 import com.zvonok.security.dto.UserPrincipal;
 import com.zvonok.service.ServerService;
@@ -15,10 +16,7 @@ import com.zvonok.service.dto.request.UpdateServerMemberNicknameRequest;
 import com.zvonok.service.dto.response.ServerResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.zvonok.service.dto.response.ServerMemberResponse;
@@ -46,15 +44,8 @@ public class ServerController {
 			description = "Создание серверана на основе введённых данных")
 	@SecurityRequirement(name = "JWT")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "201",
-					description = ServerApiDescriptions.SERVER_CREATE_SUCCESS),
-			@ApiResponse(responseCode = "400",
-					description = CommonApiDescriptions.VALIDATION_FAILED,
-					content = @Content(mediaType = "application/json", schema = @Schema(implementation = JsonErrorResponse.class)))
-
-	})
-
+	@ApiResponse(responseCode = "201", description = ServerApiDescriptions.SERVER_CREATE_SUCCESS)
+	@ApiResponse400
 	@PostMapping("/create")
 	public ResponseEntity<ServerResponse> createServer(
 			@Valid @RequestBody CreateServerRequest request,
@@ -68,8 +59,7 @@ public class ServerController {
 			description = "Выдаёт список серверов пользователя")
 	@SecurityRequirement(name = "JWT")
 	@SecuredApiResponses
-	@ApiResponses(value = {@ApiResponse(responseCode = "200",
-			description = ServerApiDescriptions.SERVER_GET_MY_SUCCESS),})
+	@ApiResponse(responseCode = "200", description = ServerApiDescriptions.SERVER_GET_MY_SUCCESS)
 	@GetMapping("/my")
 	public ResponseEntity<List<ServerResponse>> getMyServers(
 			@AuthenticationPrincipal UserPrincipal principal) {
@@ -82,13 +72,8 @@ public class ServerController {
 			description = "Возвращает сервер по идентификатору")
 	@SecurityRequirement(name = "JWT")
 	@SecuredApiResponses
-	@ApiResponse404(message = ServerApiDescriptions.SERVER_NOT_FOUND)
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200",
-					description = ServerApiDescriptions.SERVER_GET_SUCCESS),
-	//		@ApiResponse(responseCode = "404",
-	//				description = ServerApiDescriptions.SERVER_NOT_FOUND)
-					})
+	@ApiResponse(responseCode = "200", description = ServerApiDescriptions.SERVER_GET_SUCCESS)
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@GetMapping("/{serverId}")
 	public ResponseEntity<ServerResponse> getServer(@PathVariable @Parameter(
 			description = "Идентификатор сервера", example = "1", required = true) Long serverId) {
@@ -105,13 +90,10 @@ public class ServerController {
 			description = "Присоединяет пользователя по коду приглашения")
 	@SecurityRequirement(name = "JWT")
 	@SecuredApiResponses()
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200",
-					description = ServerApiDescriptions.SERVER_JOIN_BY_INVITE_CODE_SUCCESS),
-			@ApiResponse(responseCode = "403",
-					description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-			@ApiResponse(responseCode = "404",
-					description = ServerApiDescriptions.SERVER_NOT_FOUND)})
+	@ApiResponse(responseCode = "200",
+			description = ServerApiDescriptions.SERVER_JOIN_BY_INVITE_CODE_SUCCESS)
+	@ApiResponse403
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@GetMapping("/join/{inviteCode}")
 	public ResponseEntity<ServerResponse> joinServer(@PathVariable String inviteCode,
 			@AuthenticationPrincipal UserPrincipal principal) {
@@ -124,15 +106,10 @@ public class ServerController {
 			description = "Обновляет данные сервера если имееться достаточно прав доступа")
 	@SecurityRequirement(name = "JWT")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200",
-					description = ServerApiDescriptions.SERVER_UPDATE_SUCCESS),
-			@ApiResponse(responseCode = "400",
-					description = CommonApiDescriptions.VALIDATION_FAILED),
-			@ApiResponse(responseCode = "403",
-					description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-			@ApiResponse(responseCode = "404",
-					description = ServerApiDescriptions.SERVER_NOT_FOUND),})
+	@ApiResponse(responseCode = "200", description = ServerApiDescriptions.SERVER_UPDATE_SUCCESS)
+	@ApiResponse400
+	@ApiResponse403
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@PutMapping("/{serverId}")
 	public ResponseEntity<ServerResponse> updateServer(@PathVariable Long serverId,
 			@Valid @RequestBody UpdateServerRequest request,
@@ -146,11 +123,9 @@ public class ServerController {
 			description = "Регенерирует код приглашения заменяя придыдущий")
 	@SecurityRequirement(name = "JWT")
 	@SecuredApiResponses()
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200",
-					description = ServerApiDescriptions.SERVER_REGENERATE_INVITE_CODE_SUCCESS),
-			@ApiResponse(responseCode = "403",
-					description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),})
+	@ApiResponse(responseCode = "200",
+			description = ServerApiDescriptions.SERVER_REGENERATE_INVITE_CODE_SUCCESS)
+	@ApiResponse403
 	@GetMapping("/{serverId}/regenerate-invite")
 	public ResponseEntity<Map<String, String>> regenerateInviteCode(@PathVariable Long serverId,
 			@AuthenticationPrincipal UserPrincipal principal) {
@@ -162,8 +137,7 @@ public class ServerController {
 	@Operation(summary = "Выходит из сервера", description = "Производит выход из сервера")
 	@SecurityRequirement(name = "JWT")
 	@SecuredApiResponses()
-	@ApiResponses(value = {@ApiResponse(responseCode = "200",
-			description = ServerApiDescriptions.SERVER_LEAVE_SUCCESS)})
+	@ApiResponse(responseCode = "200", description = ServerApiDescriptions.SERVER_LEAVE_SUCCESS)
 	@GetMapping("/{serverId}/leave")
 	public ResponseEntity<Void> leaveServer(@PathVariable Long serverId,
 			@AuthenticationPrincipal UserPrincipal principal) {
@@ -176,13 +150,10 @@ public class ServerController {
 			description = "Выдаёт список участников сервера с учётм того что вы являетесь участиком этого сервера")
 	@SecurityRequirement(name = "JWT")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200",
-					description = ServerApiDescriptions.SERVER_GET_MEMBERS_SUCCESS),
-			@ApiResponse(responseCode = "403",
-					description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-			@ApiResponse(responseCode = "404",
-					description = ServerApiDescriptions.SERVER_NOT_FOUND)})
+	@ApiResponse(responseCode = "200",
+			description = ServerApiDescriptions.SERVER_GET_MEMBERS_SUCCESS)
+	@ApiResponse403
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
 	@GetMapping("/{serverId}/members")
 	public ResponseEntity<List<ServerMemberResponse>> getServerMembers(@PathVariable Long serverId,
 			@AuthenticationPrincipal UserPrincipal principal) {
@@ -194,15 +165,10 @@ public class ServerController {
 	@Operation(summary = "выгоняет пользователя", description = "выгоняет пользователь из сервера")
 	@SecurityRequirement(name = "JWT")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "204",
-					description = ServerApiDescriptions.SERVER_KICK_MEMBER_SUCCESS),
-			@ApiResponse(responseCode = "401",
-					description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),
-			@ApiResponse(responseCode = "404",
-					description = ServerApiDescriptions.SERVER_NOT_FOUND),
-			@ApiResponse(responseCode = "409",
-					description = ServerApiDescriptions.SERVER_MEMBER_ALREADY_KICKED)})
+	@ApiResponse(responseCode = "204",
+			description = ServerApiDescriptions.SERVER_KICK_MEMBER_SUCCESS)
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
+	@ApiResponse409(description = ServerApiDescriptions.SERVER_MEMBER_ALREADY_KICKED)
 	@DeleteMapping("/{serverId}/members/{targetUserId}")
 	public ResponseEntity<Void> kickMember(@PathVariable Long serverId,
 			@PathVariable Long targetUserId, @AuthenticationPrincipal UserPrincipal principal) {
@@ -215,13 +181,10 @@ public class ServerController {
 			description = "Изменение имени участника на сервере")
 	@SecurityRequirement(name = "JWT")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200",
-					description = ServerApiDescriptions.SERVER_UPDATE_MEMBER_NICKNAME_SUCCESS),
-			@ApiResponse(responseCode = "400",
-					description = CommonApiDescriptions.VALIDATION_FAILED),
-			@ApiResponse(responseCode = "404",
-					description = ServerApiDescriptions.SERVER_OR_MEMBER_NOT_FOUND)})
+	@ApiResponse(responseCode = "200",
+			description = ServerApiDescriptions.SERVER_UPDATE_MEMBER_NICKNAME_SUCCESS)
+	@ApiResponse400
+	@ApiResponse404(description = ServerApiDescriptions.SERVER_OR_MEMBER_NOT_FOUND)
 	@PatchMapping("/{serverId}/members/{targetUserId}/nickname")
 	public ResponseEntity<ServerMemberResponse> updateMemberNickname(@PathVariable Long serverId,
 			@PathVariable Long targetUserId,
@@ -236,11 +199,8 @@ public class ServerController {
 	@Operation(summary = "Удаляет сервер", description = "Удаление данных сервера")
 	@SecurityRequirement(name = "JWT")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200",
-					description = ServerApiDescriptions.SERVER_DELETE_SUCCESS),
-			@ApiResponse(responseCode = "403",
-					description = CommonApiDescriptions.NOT_ENOUGH_RIGHTS),})
+	@ApiResponse(responseCode = "200", description = ServerApiDescriptions.SERVER_DELETE_SUCCESS)
+	@ApiResponse403
 	@DeleteMapping("/{serverId}")
 	public ResponseEntity<Void> deleteServer(@PathVariable Long serverId,
 			@AuthenticationPrincipal UserPrincipal principal) {

@@ -9,6 +9,7 @@ import org.springframework.core.annotation.AliasFor;
 import com.zvonok.documentation.CommonApiDescriptions;
 import com.zvonok.exception_handler.JsonErrorResponse;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 
@@ -17,10 +18,16 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 @Documented
 @ApiResponse(responseCode = "400", description = "",
 		content = @Content(mediaType = "application/json",
-				schema = @Schema(implementation = JsonErrorResponse.class)))
+				schema = @Schema(implementation = JsonErrorResponse.class),
+				examples = @ExampleObject(name = "NotValid", value = """
+							{
+								"message": "Invalid request format",
+								"status": 400
+							}
+						""")))
 public @interface ApiResponse400 {
 
 	@AliasFor(annotation = ApiResponse.class, attribute = "description")
-	String message() default CommonApiDescriptions.VALIDATION_FAILED;
+	String description() default CommonApiDescriptions.VALIDATION_FAILED;
 
 }

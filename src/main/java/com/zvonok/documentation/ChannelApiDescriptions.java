@@ -10,7 +10,7 @@ public final class ChannelApiDescriptions {
 
 	public static final String CHANNEL_UPDATE_SUCCESS = "Успешное обновление сервера";
 	// 4xx Client Errors
-
+	public static final String CHANNEL_NOT_FOUND = "Канал не найден";
 
 	private ChannelApiDescriptions() {
 		throw new AssertionError("No instances");

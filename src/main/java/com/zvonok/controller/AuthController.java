@@ -10,14 +10,12 @@ import com.zvonok.service.dto.request.TokenRefreshRequest;
 import com.zvonok.service.dto.response.LogoutResponse;
 import com.zvonok.service.dto.response.MeResponse;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.zvonok.documentation.AuthApiDescriptions;
-import com.zvonok.documentation.CommonApiDescriptions;
+import com.zvonok.documentation.annotation.ApiResponse400;
+import com.zvonok.documentation.annotation.ApiResponse409;
 import com.zvonok.documentation.annotation.SecuredApiResponses;
 import com.zvonok.exception.InvalidRefreshTokenException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
@@ -39,15 +37,9 @@ public class AuthController {
 
 	@Operation(summary = "Регистрирует пользователя",
 			description = "Создаёт пользователя в бд и далее автоматически авторизовывает его возвращаю стандартный авторизационный ответ")
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200",
-					description = AuthApiDescriptions.AUTH_REGISTER_SUCCESS),
-			@ApiResponse(responseCode = "400",
-					description = CommonApiDescriptions.VALIDATION_FAILED,
-					content = {@Content(mediaType = "application/json",
-							schema = @Schema(implementation = AuthResponse.class))}),
-			@ApiResponse(responseCode = "409",
-					description = AuthApiDescriptions.AUTH_USER_ALREADY_EXISTS)})
+	@ApiResponse(responseCode = "200", description = AuthApiDescriptions.AUTH_REGISTER_SUCCESS)
+	@ApiResponse400
+	@ApiResponse409(description = AuthApiDescriptions.AUTH_USER_ALREADY_EXISTS)
 	@PostMapping("/register")
 	public AuthResponse register(@Valid @RequestBody RegisterRequest request) {
 		return authService.register(request.getUsername(), request.getEmail(),
@@ -55,9 +47,8 @@ public class AuthController {
 	}
 
 	@Operation(summary = "Позволяет пользователю войти в систему")
-	@ApiResponses(value = {@ApiResponse(responseCode = "200", description = "Успешный вход"),
-			@ApiResponse(responseCode = "400",
-					description = CommonApiDescriptions.VALIDATION_FAILED),})
+	@ApiResponse(responseCode = "200", description = "Успешный вход")
+	@ApiResponse400
 	@PostMapping("/login")
 	public AuthResponse login(@Valid @RequestBody LoginRequest request) {
 		return authService.login(request.getUsernameOrEmail(), request.getPassword());
@@ -65,11 +56,8 @@ public class AuthController {
 
 	@Operation(summary = "Переавторизовывает пользователя по refresh токену",
 			description = "Переавторизовывает пользователя по refresh токену выдовая новые jwt и refresh токены и помечая использованный refresh токен как revoked (отменённый)")
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200",
-					description = AuthApiDescriptions.AUTH_REFRESH_SUCCESS),
-			@ApiResponse(responseCode = "400",
-					description = CommonApiDescriptions.VALIDATION_FAILED),})
+	@ApiResponse(responseCode = "200", description = AuthApiDescriptions.AUTH_REFRESH_SUCCESS)
+	@ApiResponse400
 	@PostMapping("/refresh")
 	public AuthResponse refresh(@Valid @RequestBody TokenRefreshRequest request) {
 		return authService.refresh(request.getRefreshToken());
@@ -79,11 +67,8 @@ public class AuthController {
 			description = "Произоводит деавторизацию пользователю по refresh токену методом отзывания refresh токена(ов)")
 	@SecurityRequirement(name = "JWT")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200",
-					description = AuthApiDescriptions.AUTH_LOGOUT_SUCCESS),
-			@ApiResponse(responseCode = "400",
-					description = CommonApiDescriptions.VALIDATION_FAILED),})
+	@ApiResponse(responseCode = "200", description = AuthApiDescriptions.AUTH_LOGOUT_SUCCESS)
+	@ApiResponse400
 	@PostMapping("/logout")
 	public ResponseEntity<LogoutResponse> logout(@Valid @RequestBody LogoutRequest request,
 			@AuthenticationPrincipal UserPrincipal principal) {
@@ -106,8 +91,7 @@ public class AuthController {
 			description = "Проверка jwt токена на валидность и возврат информации по токену")
 	@SecurityRequirement(name = "JWT")
 	@SecuredApiResponses
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = AuthApiDescriptions.AUTH_ME_SUCCESS),})
+	@ApiResponse(responseCode = "200", description = AuthApiDescriptions.AUTH_ME_SUCCESS)
 	@GetMapping("/me")
 	public ResponseEntity<MeResponse> getCurrentUser(
 			@AuthenticationPrincipal UserPrincipal principal) {
