@@ -29,7 +29,5 @@ public final class ServerApiDescriptions {
 
 	public static final String SERVER_OR_MEMBER_NOT_FOUND = "Сервер или участник не найдены";
 
-	public static final String SERVER_NOT_ENOUGH_RIGHTS = "Недостаточно прав для выполнения операции";
-
 	public static final String SERVER_MEMBER_ALREADY_KICKED = "Участник уже не является членом сервера";
 }

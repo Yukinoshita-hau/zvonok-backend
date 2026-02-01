@@ -10,8 +10,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-@ApiResponses(value = {
-		@ApiResponse(responseCode = "401", description = CommonApiDescriptions.AUTOCEIFICATION_FAILED) })
+@ApiResponses(value = {@ApiResponse(responseCode = "401",
+		description = CommonApiDescriptions.AUTOCEIFICATION_FAILED)})
 public @interface SecuredApiResponses {
 
 }

@@ -6,6 +6,7 @@ import lombok.Getter;
 public enum HttpResponseMessage {
     // Room
     HTTP_ROOM_NOT_FOUND_RESPONSE_MESSAGE("Room was not found"),
+	HTTP_INVALID_ROOM_SIZE_RESPONSE_MESSAGE("Invalid room size"),
     HTTP_ROOM_SIZE_MAX_TEN_MEMBERS_RESPONSE_MESSAGE("Maximum of 10 members in group chat"),
 
     // User

@@ -1,5 +1,6 @@
 package com.zvonok.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.zvonok.service.dto.Permission;
 import jakarta.persistence.*;
@@ -41,6 +42,7 @@ public class ServerRole {
 	private LocalDateTime createdAt;
 
 	@ManyToOne
+	@JsonBackReference
 	@JoinColumn(name = "server_id", nullable = false)
 	private Server server;
 

@@ -42,7 +42,8 @@ public class AuthController {
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200",
 					description = AuthApiDescriptions.AUTH_REGISTER_SUCCESS),
-			@ApiResponse(responseCode = "400", description = CommonApiDescriptions.VALIDATION_FAILED,
+			@ApiResponse(responseCode = "400",
+					description = CommonApiDescriptions.VALIDATION_FAILED,
 					content = {@Content(mediaType = "application/json",
 							schema = @Schema(implementation = AuthResponse.class))}),
 			@ApiResponse(responseCode = "409",
