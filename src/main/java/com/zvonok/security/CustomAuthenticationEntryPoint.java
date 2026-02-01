@@ -24,11 +24,11 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
     public void commence(HttpServletRequest request,
                          HttpServletResponse response,
                          AuthenticationException authException) throws IOException, ServletException {
-        response.setStatus(HttpStatus.FORBIDDEN.value());
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setContentType("application/json");
         JsonErrorResponse errorResponse = new JsonErrorResponse(
                 HttpResponseMessage.HTTP_INVALID_JWT_RESPONSE_MESSAGE.getMessage(),
-                HttpStatus.FORBIDDEN.value()
+                HttpStatus.UNAUTHORIZED.value()
         );
 
         String errorJson = objectMapper.writeValueAsString(errorResponse);

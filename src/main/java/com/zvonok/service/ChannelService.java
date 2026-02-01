@@ -62,9 +62,6 @@ public class ChannelService {
         if (updateChannelDto.getName() != null) {
             channel.setName(updateChannelDto.getName());
         }
-        if (updateChannelDto.getType() != null) {
-            channel.setType(updateChannelDto.getType());
-        }
         if (updateChannelDto.getPosition() != null) {
             channel.setPosition(updateChannelDto.getPosition());
         }

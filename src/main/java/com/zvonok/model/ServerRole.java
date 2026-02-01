@@ -1,5 +1,6 @@
 package com.zvonok.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.zvonok.service.dto.Permission;
 import jakarta.persistence.*;
@@ -19,38 +20,44 @@ import java.util.List;
 @Table(name = "server_role")
 public class ServerRole {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long id;
 
-    @Column(nullable = false)
-    private String name;
+	@Column(nullable = false)
+	private String name;
 
-    @Column(length = 7)
-    private String color = "#ffffff";
+	@Column(length = 7)
+	private String color = "#ffffff";
 
-    @Column(nullable = false)
-    private Integer position = 0; // Иерархия ролей
+	@Column(nullable = false)
+	private Integer position = 0; // Иерархия ролей
 
-    @Column(nullable = false)
-    private Long serverPermissions = Permission.NOTHING.getValue();
+	@Column(nullable = false)
+	private Long serverPermissions = Permission.NOTHING.getValue();
 
-    private Boolean mentionable = true;
-    private Boolean isEveryone = false; // Роль @everyone
-    private Boolean isActive = true;
-    private LocalDateTime createdAt;
+	private Boolean mentionable = true;
+	private Boolean isEveryone = false; // Роль @everyone
+	private Boolean isActive = true;
+	private LocalDateTime createdAt;
 
-    @ManyToOne @JoinColumn(name = "server_id", nullable = false)
-    private Server server;
+	@ManyToOne
+	@JsonBackReference
+	@JoinColumn(name = "server_id", nullable = false)
+	private Server server;
 
-    @OneToMany(mappedBy = "role")
-    @JsonIgnore
-    private List<ServerMemberRole> memberRoles;
+	@OneToMany(mappedBy = "role",
+			cascade = {CascadeType.REMOVE, CascadeType.PERSIST, CascadeType.MERGE})
+	@JsonIgnore
+	private List<ServerMemberRole> memberRoles;
 
-    @OneToMany(mappedBy = "role")
-    @JsonIgnore
-    private List<FolderPermissionOverride> folderOverrides;
+	@OneToMany(mappedBy = "role",
+			cascade = {CascadeType.REMOVE, CascadeType.PERSIST, CascadeType.MERGE})
+	@JsonIgnore
+	private List<FolderPermissionOverride> folderOverrides;
 
-    @OneToMany(mappedBy = "role")
-    @JsonIgnore
-    private List<ChannelPermissionOverride> channelOverrides;
+	@OneToMany(mappedBy = "role",
+			cascade = {CascadeType.REMOVE, CascadeType.PERSIST, CascadeType.MERGE})
+	@JsonIgnore
+	private List<ChannelPermissionOverride> channelOverrides;
 }

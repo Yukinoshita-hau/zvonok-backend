@@ -60,7 +60,9 @@ public class PermissionService {
 
         ServerMember member = optionalMember.get();
         List<ServerRole> userRoles = getUserRoles(member);
-
+		for (int i = 0; i < userRoles.size(); i++) {
+			System.out.println(userRoles.get(i).getServerPermissions());	
+		}
         // Админы могут все
         if (hasAdminRole(userRoles)) {
             return true;

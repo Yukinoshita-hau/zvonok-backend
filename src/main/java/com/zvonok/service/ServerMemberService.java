@@ -40,6 +40,12 @@ public class ServerMemberService {
         return serverMemberRepository.findByUserIdAndServerId(userId, serverId).orElse(null);
     }
 
+	public ServerMember getNotActiveServerMember(Long userId, Long serverId) {
+        return serverMemberRepository.findByUserIdAndServerIdAndIsActiveFalse(userId, serverId)
+                .orElseThrow(() -> new ServerMemberNotFoundException(
+                        HttpResponseMessage.HTTP_SERVER_MEMBER_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
+	}
+	
     public ServerMember getActiveServerMember(Long userId, Long serverId) {
         return serverMemberRepository.findByUserIdAndServerIdAndIsActiveTrue(userId, serverId)
                 .orElseThrow(() -> new ServerMemberNotFoundException(

@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -216,9 +217,10 @@ public class MessageService {
     }
 
     public List<MessageResponse> getPrivateMessages(String currentUsername, Long friendId) {
+		userService.getUser(friendId);
         Room privateRoom = roomService.getPrivateRoomIfExists(currentUsername, friendId);
         if (privateRoom == null) {
-            return List.of();
+            return new ArrayList<>();
         }
         
         return messageRepository.findByRoomIdAndDeletedAtIsNullOrderBySentAtAsc(privateRoom.getId())

@@ -9,7 +9,14 @@ import com.zvonok.service.dto.request.RegisterRequest;
 import com.zvonok.service.dto.request.TokenRefreshRequest;
 import com.zvonok.service.dto.response.LogoutResponse;
 import com.zvonok.service.dto.response.MeResponse;
-import com.zvonok.exception.InvalidJwtException;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import com.zvonok.documentation.AuthApiDescriptions;
+import com.zvonok.documentation.annotation.ApiResponse400;
+import com.zvonok.documentation.annotation.ApiResponse409;
+import com.zvonok.documentation.annotation.SecuredApiResponses;
 import com.zvonok.exception.InvalidRefreshTokenException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import jakarta.validation.Valid;
@@ -20,64 +27,82 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 
+@Tag(name = "Авторизационный контроллер",
+		description = "Контролер отвечающий за авторизацию пользователя и смежным функционалом")
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 public class AuthController {
+	private final AuthService authService;
 
-    private final AuthService authService;
+	@Operation(summary = "Регистрирует пользователя",
+			description = "Создаёт пользователя в бд и далее автоматически авторизовывает его возвращаю стандартный авторизационный ответ")
+	@ApiResponse(responseCode = "200", description = AuthApiDescriptions.AUTH_REGISTER_SUCCESS)
+	@ApiResponse400
+	@ApiResponse409(description = AuthApiDescriptions.AUTH_USER_ALREADY_EXISTS)
+	@PostMapping("/register")
+	public AuthResponse register(@Valid @RequestBody RegisterRequest request) {
+		return authService.register(request.getUsername(), request.getEmail(),
+				request.getPassword());
+	}
 
-    @PostMapping("/register")
-    public AuthResponse register(@Valid @RequestBody RegisterRequest request) {
-        return authService.register(
-                request.getUsername(),
-                request.getEmail(),
-                request.getPassword()
-        );
-    }
+	@Operation(summary = "Позволяет пользователю войти в систему")
+	@ApiResponse(responseCode = "200", description = "Успешный вход")
+	@ApiResponse400
+	@PostMapping("/login")
+	public AuthResponse login(@Valid @RequestBody LoginRequest request) {
+		return authService.login(request.getUsernameOrEmail(), request.getPassword());
+	}
 
-    @PostMapping("/login")
-    public AuthResponse login(@Valid @RequestBody LoginRequest request) {
-        return authService.login(
-                request.getUsernameOrEmail(),
-                request.getPassword()
-        );
-    }
+	@Operation(summary = "Переавторизовывает пользователя по refresh токену",
+			description = "Переавторизовывает пользователя по refresh токену выдовая новые jwt и refresh токены и помечая использованный refresh токен как revoked (отменённый)")
+	@ApiResponse(responseCode = "200", description = AuthApiDescriptions.AUTH_REFRESH_SUCCESS)
+	@ApiResponse400
+	@PostMapping("/refresh")
+	public AuthResponse refresh(@Valid @RequestBody TokenRefreshRequest request) {
+		return authService.refresh(request.getRefreshToken());
+	}
 
-    @PostMapping("/refresh")
-    public AuthResponse refresh(@Valid @RequestBody TokenRefreshRequest request) {
-        return authService.refresh(request.getRefreshToken());
-    }
+	@Operation(summary = "Деавторизовывает пользователя по refresh токену",
+			description = "Произоводит деавторизацию пользователю по refresh токену методом отзывания refresh токена(ов)")
+	@SecurityRequirement(name = "JWT")
+	@SecuredApiResponses
+	@ApiResponse(responseCode = "200", description = AuthApiDescriptions.AUTH_LOGOUT_SUCCESS)
+	@ApiResponse400
+	@PostMapping("/logout")
+	public ResponseEntity<LogoutResponse> logout(@Valid @RequestBody LogoutRequest request,
+			@AuthenticationPrincipal UserPrincipal principal) {
 
-    @PostMapping("/logout")
-    public ResponseEntity<LogoutResponse> logout(@Valid @RequestBody LogoutRequest request,
-                                                @AuthenticationPrincipal UserPrincipal principal) {
+		if (!request.hasRefreshToken()) {
+			throw new InvalidRefreshTokenException(
+					HttpResponseMessage.HTTP_INVALID_REFRESH_TOKEN_RESPONSE_MESSAGE.getMessage());
+		}
 
-        if (!request.hasRefreshToken()) {
-                throw new InvalidRefreshTokenException(HttpResponseMessage.HTTP_INVALID_REFRESH_TOKEN_RESPONSE_MESSAGE.getMessage());
-            }
+		if (request.isAllDevices()) {
+			authService.logoutFromAllDevices(request.getRefreshToken());
+		} else {
+			authService.logout(request.getRefreshToken());
+		}
+		LogoutResponse response = new LogoutResponse("Logout successful", request.isAllDevices());
+		return ResponseEntity.ok(response);
+	}
 
-        if (request.isAllDevices()) {
-            authService.logoutFromAllDevices(request.getRefreshToken());
-        } else {
-            authService.logout(request.getRefreshToken());
-        }
-        LogoutResponse response = new LogoutResponse("Logout successful", request.isAllDevices());
-        return ResponseEntity.ok(response);
-    }
+	@Operation(summary = "Проверка идентификации по токену",
+			description = "Проверка jwt токена на валидность и возврат информации по токену")
+	@SecurityRequirement(name = "JWT")
+	@SecuredApiResponses
+	@ApiResponse(responseCode = "200", description = AuthApiDescriptions.AUTH_ME_SUCCESS)
+	@GetMapping("/me")
+	public ResponseEntity<MeResponse> getCurrentUser(
+			@AuthenticationPrincipal UserPrincipal principal) {
 
-    @GetMapping("/me")
-    public ResponseEntity<MeResponse> getCurrentUser(
-            @AuthenticationPrincipal UserPrincipal principal
-    ) {
+		String username = principal.getName();
 
-        String username = principal.getName();
+		MeResponse response = new MeResponse();
+		response.setUsername(username);
+		response.setMessage("Ты успешно аутефицировался!");
+		response.setTime(LocalDateTime.now());
 
-        MeResponse response = new MeResponse();
-        response.setUsername(username);
-        response.setMessage("Ты успешно аутефицировался!");
-        response.setTime(LocalDateTime.now());
-
-        return ResponseEntity.ok(response);
-    }
+		return ResponseEntity.ok(response);
+	}
 }

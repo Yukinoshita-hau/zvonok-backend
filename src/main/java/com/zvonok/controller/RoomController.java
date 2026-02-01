@@ -1,8 +1,18 @@
 package com.zvonok.controller;
 
 import com.zvonok.controller.dto.MessageResponse;
+import com.zvonok.documentation.RoomApiDescriptions;
+import com.zvonok.documentation.UserApiDescriptions;
+import com.zvonok.documentation.annotation.ApiResponse400;
+import com.zvonok.documentation.annotation.ApiResponse403;
+import com.zvonok.documentation.annotation.ApiResponse404;
+import com.zvonok.documentation.annotation.SecuredApiResponses;
 import com.zvonok.service.dto.CreateGroupDto;
 import com.zvonok.service.dto.UpdateRoomDto;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.zvonok.model.Room;
 import com.zvonok.security.dto.UserPrincipal;
 import com.zvonok.service.RoomService;
@@ -16,48 +26,82 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Tag(name = "Контроллер комнат",
+		description = "Эндпоинты для работы с комнатами (получение, создание групповой, обновление, удаление) "
+				+ "и для получения сообщений приватного диалога.")
+@SecurityRequirement(name = "JWT")
 @RestController
 @RequestMapping("/room")
 @RequiredArgsConstructor
 public class RoomController {
 
-    private final RoomService roomService;
-    private final MessageService messageService;
+	private final RoomService roomService;
+	private final MessageService messageService;
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Room> getRoomByID(@PathVariable Long id) {
-        return ResponseEntity.ok(roomService.getRoom(id));
-    }
+	@Operation(summary = "Получить комнату по id",
+			description = "Возвращает комнату по её идентификатору.")
+	@SecuredApiResponses
+	@ApiResponse(responseCode = "200", description = RoomApiDescriptions.ROOM_GET_SUCCESS)
+	@ApiResponse404(description = RoomApiDescriptions.ROOM_NOT_FOUND)
+	@GetMapping("/{id}")
+	public ResponseEntity<Room> getRoomByID(@PathVariable Long id) {
+		return ResponseEntity.ok(roomService.getRoom(id));
+	}
 
-    @PostMapping("/createGroup")
-    public ResponseEntity<Room> createGroupRoom(
-            @Valid @RequestBody CreateGroupDto groupDto,
-            @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(roomService.createGroupRoom(principal.getName(), groupDto.getRoomName(), groupDto.getRoomMemberUsernames()));
-    }
+	@Operation(summary = "Создать групповую комнату",
+			description = "Создаёт групповую комнату от имени текущего пользователя с указанным названием и списком участников. "
+					+ "Возвращает созданную комнату.")
+	@SecuredApiResponses
+	@ApiResponse(responseCode = "200", description = RoomApiDescriptions.ROOM_GET_SUCCESS)
+	@ApiResponse400
+	@ApiResponse404(description = UserApiDescriptions.USER_NOT_FOUND)
+	@PostMapping("/createGroup")
+	public ResponseEntity<Room> createGroupRoom(@Valid @RequestBody CreateGroupDto groupDto,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		return ResponseEntity.status(HttpStatus.CREATED).body(roomService.createGroupRoom(
+				principal.getName(), groupDto.getRoomName(), groupDto.getRoomMemberUsernames()));
+	}
 
-    @PutMapping("/{id}")
-    public ResponseEntity<Room> updateRoom(
-            @PathVariable Long id,
-            @Valid @RequestBody UpdateRoomDto roomDto,
-            @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(roomService.updateRoom(id, principal.getName(), roomDto.getName()));
-    }
+	@Operation(summary = "Обновить комнату",
+			description = "Обновляет параметры комнаты (например, название) по id от имени текущего пользователя. "
+					+ "Возвращает обновлённую комнату.")
+	@SecuredApiResponses
+	@ApiResponse(responseCode = "200", description = RoomApiDescriptions.ROOM_UPDATE_SUCCESS)
+	@ApiResponse400
+	@ApiResponse403
+	@ApiResponse404(description = RoomApiDescriptions.ROOM_NOT_FOUND)
+	@PutMapping("/{id}")
+	public ResponseEntity<Room> updateRoom(@PathVariable Long id,
+			@Valid @RequestBody UpdateRoomDto roomDto,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		return ResponseEntity
+				.ok(roomService.updateRoom(id, principal.getName(), roomDto.getName()));
+	}
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteRoom(
-            @PathVariable Long id,
-            @AuthenticationPrincipal UserPrincipal principal) {
-        roomService.deleteRoom(id, principal.getName());
-        return ResponseEntity.noContent().build();
-    }
+	@Operation(summary = "Удалить комнату",
+			description = "Удаляет комнату по id от имени текущего пользователя.")
+	@SecuredApiResponses
+	@ApiResponse(responseCode = "204", description = RoomApiDescriptions.ROOM_DELETE_SUCCESS)
+	@ApiResponse403
+	@ApiResponse404(description = RoomApiDescriptions.ROOM_NOT_FOUND)
+	@DeleteMapping("/{id}")
+	public ResponseEntity<Void> deleteRoom(@PathVariable Long id,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		roomService.deleteRoom(id, principal.getName());
+		return ResponseEntity.noContent().build();
+	}
 
-    @GetMapping("/private/{friendId}/messages")
-    public ResponseEntity<List<MessageResponse>> getPrivateMessages(
-            @PathVariable Long friendId,
-            @AuthenticationPrincipal UserPrincipal principal) {
-        List<MessageResponse> messages = messageService.getPrivateMessages(principal.getUsername(), friendId);
-        return ResponseEntity.ok(messages);
-    }
+	@Operation(summary = "Получить приватные сообщения",
+			description = "Возвращает список сообщений приватного диалога между текущим пользователем и пользователем friendId.")
+	@SecuredApiResponses
+	@ApiResponse(responseCode = "200",
+			description = RoomApiDescriptions.ROOM_GET_PRIVATE_MESSAGES_SUCCESS)
+	@ApiResponse404(description = UserApiDescriptions.USER_NOT_FOUND)
+	@GetMapping("/private/{friendId}/messages")
+	public ResponseEntity<List<MessageResponse>> getPrivateMessages(@PathVariable Long friendId,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		List<MessageResponse> messages =
+				messageService.getPrivateMessages(principal.getUsername(), friendId);
+		return ResponseEntity.ok(messages);
+	}
 }
