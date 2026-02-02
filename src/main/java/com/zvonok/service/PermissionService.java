@@ -5,11 +5,9 @@ import com.zvonok.repository.ChannelPermissionOverrideRepository;
 import com.zvonok.repository.FolderPermissionOverrideRepository;
 import com.zvonok.repository.ServerMemberRepository;
 import com.zvonok.service.dto.Permission;
-import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -60,9 +58,7 @@ public class PermissionService {
 
         ServerMember member = optionalMember.get();
         List<ServerRole> userRoles = getUserRoles(member);
-		for (int i = 0; i < userRoles.size(); i++) {
-			System.out.println(userRoles.get(i).getServerPermissions());	
-		}
+
         // Админы могут все
         if (hasAdminRole(userRoles)) {
             return true;
