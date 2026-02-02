@@ -37,7 +37,7 @@ public class Channel {
     @Enumerated(EnumType.STRING)
     private ChannelType type = ChannelType.TEXT;
 
-    private Integer userLimit = 10; // лимит участников (для голосовых каналов)
+    private Integer userLimit = 100; // лимит участников (для голосовых каналов)
     private Integer slowModeSeconds; // задержка в секундах
     private Boolean isActive = true;
     private LocalDateTime createdAt;
