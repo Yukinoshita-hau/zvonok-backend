@@ -28,6 +28,7 @@ public enum HttpResponseMessage {
 	HTTP_INCORRECT_USER_USERNAME_TYPE_RESPONSE_MESSAGE("Username can not be null"),
 	HTTP_INCORRECT_USER_EMAIL_TYPE_RESPONSE_MESSAGE("Email can not be null"),
 	HTTP_INCORRECT_USER_PASSWORD_TYPE_RESPONSE_MESSAGE("Password can not be null"),
+	HTTP_USER_NOT_YOUR_FRIEND_RESPONSE_MESSAGE(" is not your friend"),
     
     // Channel
     HTTP_CHANNEL_NOT_FOUND_RESPONSE_MESSAGE("Channel was not found"),

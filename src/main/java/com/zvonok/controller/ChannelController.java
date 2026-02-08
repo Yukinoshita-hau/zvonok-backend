@@ -18,11 +18,9 @@ import com.zvonok.service.dto.CreateChannelDto;
 import com.zvonok.service.dto.Permission;
 import com.zvonok.service.dto.UpdateChannelDto;
 import com.zvonok.documentation.ChannelApiDescriptions;
-import com.zvonok.documentation.CommonApiDescriptions;
 import com.zvonok.documentation.ServerApiDescriptions;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -70,6 +68,21 @@ public class ChannelController {
 
 		List<Channel> channels = channelService.getChannelsOrdered(folderId);
 		return ResponseEntity.ok(channels);
+	}
+
+	@Operation(summary = "Получить канал по id",
+			description = "Возврат канала по его идентификатору")
+	@SecuredApiResponses
+	@GetMapping("/{channelId}")
+	public Channel getChannel(@PathVariable Long serverId, @PathVariable Long folderId,
+			@PathVariable Long channelId, @AuthenticationPrincipal UserPrincipal principal) {
+		Long userId = getCurrentUserId(principal);
+
+		ensureServerExists(serverId);
+		ensureFolderBelongsToServer(serverId, folderId);
+		ensureCanViewFolder(userId, folderId);
+
+		return channelService.getChannel(channelId);
 	}
 
 	@Operation(summary = "Создать канал в папке",

@@ -33,7 +33,7 @@ import java.util.Map;
 @Tag(name = "Серверный контроллер",
 		description = "Контроллер отвечаюший за управление серверов и смежным функционалом")
 @RestController
-@RequestMapping("/server")
+@RequestMapping("/servers")
 @RequiredArgsConstructor
 public class ServerController {
 

@@ -141,7 +141,7 @@ public class MessageServiceTest {
     @Test
     void sendGroupMessage_shouldReturnMessageResponse_whenValidData() {
         // Arrange
-        when(roomService.getRoom(ROOM_ID)).thenReturn(testRoom);
+        when(roomService.getRoom(ROOM_ID, testSenderUsername)).thenReturn(testRoom);
         when(userService.getUser(testSenderUsername)).thenReturn(sender);
         when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> {
             Message msg = invocation.getArgument(0);
@@ -170,7 +170,7 @@ public class MessageServiceTest {
         nonMember.setId(99L);
         nonMember.setUsername("nonMember");
         
-        when(roomService.getRoom(ROOM_ID)).thenReturn(testRoom);
+        when(roomService.getRoom(ROOM_ID, "nonMember")).thenReturn(testRoom);
         when(userService.getUser("nonMember")).thenReturn(nonMember);
 
         // Act & Assert

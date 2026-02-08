@@ -31,21 +31,32 @@ import java.util.List;
 				+ "и для получения сообщений приватного диалога.")
 @SecurityRequirement(name = "JWT")
 @RestController
-@RequestMapping("/room")
+@RequestMapping("/rooms")
 @RequiredArgsConstructor
 public class RoomController {
 
 	private final RoomService roomService;
 	private final MessageService messageService;
 
+	@Operation(summary = "Получить все комнаты пользователя",
+			description = "Возвращает все комнаты пользователя")
+	@GetMapping("/all")
+	public ResponseEntity<List<Room>> getAllUserRooms(
+			@AuthenticationPrincipal UserPrincipal principal) {
+		String username = principal.getUsername();
+		return ResponseEntity.ok(roomService.getUserRooms(username));
+	}
+
 	@Operation(summary = "Получить комнату по id",
 			description = "Возвращает комнату по её идентификатору.")
 	@SecuredApiResponses
 	@ApiResponse(responseCode = "200", description = RoomApiDescriptions.ROOM_GET_SUCCESS)
 	@ApiResponse404(description = RoomApiDescriptions.ROOM_NOT_FOUND)
-	@GetMapping("/{id}")
-	public ResponseEntity<Room> getRoomByID(@PathVariable Long id) {
-		return ResponseEntity.ok(roomService.getRoom(id));
+	@GetMapping("/{roomId}")
+	public ResponseEntity<Room> getRoomByID(@PathVariable Long roomId,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		String username = principal.getName();
+		return ResponseEntity.ok(roomService.getRoom(roomId, username));
 	}
 
 	@Operation(summary = "Создать групповую комнату",
@@ -97,11 +108,11 @@ public class RoomController {
 	@ApiResponse(responseCode = "200",
 			description = RoomApiDescriptions.ROOM_GET_PRIVATE_MESSAGES_SUCCESS)
 	@ApiResponse404(description = UserApiDescriptions.USER_NOT_FOUND)
-	@GetMapping("/private/{friendId}/messages")
-	public ResponseEntity<List<MessageResponse>> getPrivateMessages(@PathVariable Long friendId,
+	@GetMapping("/private/{userId}/messages")
+	public ResponseEntity<List<MessageResponse>> getPrivateMessages(@PathVariable Long userId,
 			@AuthenticationPrincipal UserPrincipal principal) {
 		List<MessageResponse> messages =
-				messageService.getPrivateMessages(principal.getUsername(), friendId);
+				messageService.getPrivateMessages(principal.getUsername(), userId);
 		return ResponseEntity.ok(messages);
 	}
 }

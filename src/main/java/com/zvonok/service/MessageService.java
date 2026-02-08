@@ -77,7 +77,7 @@ public class MessageService {
     }
 
     public MessageResponse sendGroupMessage(String senderUsername, long roomId, String content) {
-        Room groupRoom = roomService.getRoom(roomId);
+        Room groupRoom = roomService.getRoom(roomId, senderUsername);
         User sender = userService.getUser(senderUsername);
 
         // Проверяем, что отправитель является участником комнаты
@@ -216,9 +216,9 @@ public class MessageService {
                                 messageId)));
     }
 
-    public List<MessageResponse> getPrivateMessages(String currentUsername, Long friendId) {
-		userService.getUser(friendId);
-        Room privateRoom = roomService.getPrivateRoomIfExists(currentUsername, friendId);
+    public List<MessageResponse> getPrivateMessages(String currentUsername, Long userId) {
+		userService.getUser(userId);
+        Room privateRoom = roomService.getPrivateRoomIfExists(currentUsername, userId);
         if (privateRoom == null) {
             return new ArrayList<>();
         }

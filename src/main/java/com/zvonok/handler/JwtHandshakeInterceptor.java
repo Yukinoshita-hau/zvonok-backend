@@ -3,6 +3,7 @@ package com.zvonok.handler;
 import com.zvonok.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.stereotype.Component;
@@ -17,63 +18,77 @@ import java.util.Map;
 @Slf4j
 public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 
-    private final JwtTokenProvider jwtTokenProvider;
+	private final JwtTokenProvider jwtTokenProvider;
 
 
-    @Override
-    public boolean beforeHandshake(ServerHttpRequest request,
-                                   ServerHttpResponse response,
-                                   WebSocketHandler wsHandler, Map<String,
-                                   Object> attributes) throws Exception {
+	@Override
+	public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
+			WebSocketHandler wsHandler, Map<String, Object> attributes) throws Exception {
 
-        String token = extractToken(request);
+		String token = extractToken(request);
+		System.out.println(token);
 
-        if (token != null && token.matches("^.+\\..+\\..+$") && jwtTokenProvider.isValidToken(token)) {
-            String username = jwtTokenProvider.getUsername(token);
-            attributes.put("username", username);
-            attributes.put("token", token);
-            return true;
-        }
+		if (token != null && !token.isEmpty() && jwtTokenProvider.isValidToken(token)) {
+			String username = jwtTokenProvider.getUsername(token);
+			attributes.put("username", username);
+			attributes.put("token", token);
+			return true;
+		}
 
-        return false;
-    }
+		response.setStatusCode(HttpStatus.UNAUTHORIZED);
 
-    @Override
-    public void afterHandshake(ServerHttpRequest request,
-                               ServerHttpResponse response,
-                               WebSocketHandler wsHandler,
-                               Exception exception) {
+		if (token == null || token.isEmpty()) {
+			response.getHeaders().set("X-WS-Error", "TOKEN_MISSING");
+			return false;
+		}
 
-        if (exception != null) {
-            log.error("WebSocket handshake failed", exception);
-        }
-    }
+		if (token != null && !jwtTokenProvider.isValidToken(token)) {
+			response.getHeaders().set("X-WS-Error", "TOKEN_INVALID");
+			return false;
+		}
 
-    private String extractToken(ServerHttpRequest request) {
-        // Способ 1: Из query параметра ?token=xxx
-        URI uri = request.getURI();
-        String query = uri.getQuery();
-        if (query != null) {
-            String[] params = query.split("&");
-            for (String param : params) {
-                if (param.startsWith("token=")) {
-                    return param.substring(6);
-                }
-            }
-        }
+		return false;
+	}
 
-        // Способ 2: Из заголовка Authorization
-        String authHeader = request.getHeaders().getFirst("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            return authHeader.substring(7);
-        }
+	@Override
+	public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
+			WebSocketHandler wsHandler, Exception exception) {
 
-        // Способ 3: Из кастомного заголовка X-Auth-Token или там какой придумаем (на случай если Authorization недоступен)
-        String tokenHeader = request.getHeaders().getFirst("X-Auth-Token");
-        if (tokenHeader != null && !tokenHeader.isEmpty()) {
-            return tokenHeader;
-        }
+		if (exception != null) {
+			log.error("WebSocket handshake failed", exception);
+		}
+	}
 
-        return null;
-    }
+	private String extractToken(ServerHttpRequest request) {
+		// Способ 1: Из query параметра ?token=xxx
+		URI uri = request.getURI();
+		String query = uri.getQuery();
+		if (query != null) {
+			String[] params = query.split("&");
+			for (String param : params) {
+				if (param.startsWith("token=")) {
+					if (!param.substring(6).isEmpty()) {
+						return param.substring(6);
+					}
+				}
+			}
+		}
+
+		// Способ 2: Из заголовка Authorization
+		String authHeader = request.getHeaders().getFirst("Authorization");
+		if (authHeader != null && authHeader.startsWith("Bearer ")) {
+			if (!authHeader.substring(7).isEmpty()) {
+				return authHeader.substring(7);
+			}
+		}
+
+		// Способ 3: Из кастомного заголовка X-Auth-Token или там какой придумаем (на случай если
+		// Authorization недоступен)
+		String tokenHeader = request.getHeaders().getFirst("X-Auth-Token");
+		if (tokenHeader != null && !tokenHeader.isEmpty()) {
+			return tokenHeader;
+		}
+
+		return null;
+	}
 }

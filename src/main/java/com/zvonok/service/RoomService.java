@@ -4,6 +4,8 @@ import com.zvonok.exception.InsufficientPermissionsException;
 import com.zvonok.exception.InvalidRoomSizeException;
 import com.zvonok.exception.RoomNotFoundException;
 import com.zvonok.exception.RoomSizeMaxTenMembersException;
+import com.zvonok.exception.UserIsNotYourFriendException;
+import com.zvonok.exception.UserNotMemberRoomException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.Room;
 import com.zvonok.model.User;
@@ -28,10 +30,21 @@ public class RoomService {
 
 	private final RoomRepository roomRepository;
 	private final UserService userService;
+	private final FriendService friendService;
 
-	public Room getRoom(Long id) {
-		return roomRepository.findById(id).orElseThrow(() -> new RoomNotFoundException(
+	public Room getRoom(Long id, String username) {
+		Room room = roomRepository.findById(id).orElseThrow(() -> new RoomNotFoundException(
 				HttpResponseMessage.HTTP_ROOM_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
+
+		for (User user : room.getMembers()) {
+			System.out.println("username - " + username + " == " + user.getUsername());
+			if (user.getUsername().equals(username)) {
+				return room;
+			}
+		}
+
+		throw new UserNotMemberRoomException(
+				HttpResponseMessage.HTTP_USER_NOT_MEMBER_ROOM_RESPONSE_MESSAGE.getMessage());
 	}
 
 	public Room createOrGetPrivateRoom(String username1, String username2) {
@@ -69,7 +82,14 @@ public class RoomService {
 
 		// Получаем пользователей по именам через UserService
 		List<User> members = new ArrayList<>();
+		Long creatorUsernameId = userService.getUser(creatorUsername).getId();
 		for (String username : roomMemberUsernames) {
+			Long usernameId = userService.getUser(username).getId();
+			if (!friendService.areFriends(creatorUsernameId, usernameId)) {
+				throw new UserIsNotYourFriendException(
+						username + HttpResponseMessage.HTTP_USER_NOT_YOUR_FRIEND_RESPONSE_MESSAGE
+								.getMessage());
+			}
 			members.add(userService.getUser(username));
 		}
 
@@ -113,9 +133,14 @@ public class RoomService {
 		return roomRepository.findAllByMembersContainingAndIsActiveTrue(user);
 	}
 
+	public List<Room> getUserRooms(Long id) {
+		User user = userService.getUser(id);
+		return roomRepository.findAllByMembersContainingAndIsActiveTrue(user);
+	}
+
 	public void leaveRoom(String username, long roomId) {
 		User user = userService.getUser(username);
-		Room room = getRoom(roomId);
+		Room room = getRoom(roomId, username);
 
 		room.getMembers().remove(user);
 
@@ -129,7 +154,7 @@ public class RoomService {
 	@Transactional
 	public Room updateRoom(Long roomId, String username, String newName) {
 		User user = userService.getUser(username);
-		Room room = getRoom(roomId);
+		Room room = getRoom(roomId, username);
 
 		// Проверяем, что пользователь является участником комнаты
 		boolean isMember =
@@ -149,7 +174,7 @@ public class RoomService {
 	@Transactional
 	public void deleteRoom(Long roomId, String username) {
 		User user = userService.getUser(username);
-		Room room = getRoom(roomId);
+		Room room = getRoom(roomId, username);
 
 		// Проверяем, что пользователь является участником комнаты
 		boolean isMember =
