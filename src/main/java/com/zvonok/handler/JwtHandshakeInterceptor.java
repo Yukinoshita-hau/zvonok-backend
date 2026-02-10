@@ -26,7 +26,6 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 			WebSocketHandler wsHandler, Map<String, Object> attributes) throws Exception {
 
 		String token = extractToken(request);
-		System.out.println(token);
 
 		if (token != null && !token.isEmpty() && jwtTokenProvider.isValidToken(token)) {
 			String username = jwtTokenProvider.getUsername(token);
@@ -46,7 +45,7 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 			response.getHeaders().set("X-WS-Error", "TOKEN_INVALID");
 			return false;
 		}
-
+		
 		return false;
 	}
 
