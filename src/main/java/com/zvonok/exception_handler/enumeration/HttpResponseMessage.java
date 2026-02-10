@@ -65,7 +65,8 @@ public enum HttpResponseMessage {
     HTTP_REFRESH_TOKEN_EXPIRED_RESPONSE_MESSAGE("Refresh token has expired"),
     HTTP_REFRESH_TOKEN_REVOKED_RESPONSE_MESSAGE("Refresh token is revoked"),
     HTTP_REDEFINITION_RESPONSE_MESSAGE("Override can be either for the role or for the user"),
-    HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE("Message was not found");
+    HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE("Message was not found"),
+	HTTP_AUTH_PRINCEPAL_REQUIRED_RESPONSE_MESSAGE("Authenticated principal required for this WebSocket operation");
 
     private final String message;
 
