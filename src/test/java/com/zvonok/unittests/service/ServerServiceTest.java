@@ -219,7 +219,7 @@ public class ServerServiceTest {
         member.setIsActive(true);
 
         when(serverRepository.findById(SERVER_ID)).thenReturn(Optional.of(testServer));
-        when(serverMemberService.getServerMember(USER_ID, SERVER_ID)).thenReturn(member);
+        when(serverMemberService.getActiveServerMember(USER_ID, SERVER_ID)).thenReturn(member);
 
         // Act
         serverService.leaveServer(SERVER_ID, USER_ID);

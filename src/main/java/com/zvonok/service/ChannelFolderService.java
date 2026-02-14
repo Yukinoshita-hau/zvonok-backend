@@ -1,14 +1,12 @@
 package com.zvonok.service;
 
 import com.zvonok.exception.ChannelNotFoundException;
-import com.zvonok.exception.ServerNotFoundException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.ChannelFolder;
 import com.zvonok.model.Server;
 import com.zvonok.repository.ChannelFolderRepository;
 import com.zvonok.service.dto.CreateChannelFolderDto;
 import com.zvonok.service.dto.UpdateChannelFolderDto;
-import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

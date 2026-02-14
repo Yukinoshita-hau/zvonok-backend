@@ -16,6 +16,7 @@ public enum HttpResponseMessage {
     HTTP_USER_WITH_THIS_EMAIL_ALREADY_EXIST_RESPONSE_MESSAGE("User with this email already exist"),
     HTTP_OWNER_CAN_NOT_LEAVE_SERVER_RESPONSE_MESSAGE("The owner cannot leave the server. First pass the ownership."),
     HTTP_YOU_NOT_MEMBER_THIS_SERVER_RESPONSE_MESSAGE("You are not a member of this server"),
+	HTTP_YOU_ALREADY_MEMBER_THIS_SERVER_RESPONSE_MESSAGE("You are already a member of this server"),
     HTTP_FRIEND_REQUEST_NOT_FOUND_RESPONSE_MESSAGE("Friend request was not found"),
     HTTP_FRIEND_REQUEST_ALREADY_EXISTS_RESPONSE_MESSAGE("Friend request already exists"),
     HTTP_FRIEND_REQUEST_ACTION_NOT_ALLOWED_RESPONSE_MESSAGE("You cannot perform this action on the friend request"),
