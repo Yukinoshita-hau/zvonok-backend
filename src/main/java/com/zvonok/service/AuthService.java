@@ -1,93 +1,137 @@
 package com.zvonok.service;
 
 import com.zvonok.exception.InvalidUserOrPasswordException;
+import com.zvonok.exception.UserWIthThisUsernameAlreadyExistException;
+import com.zvonok.exception.UserWithThisEmailAlreadyExistException;
 import com.zvonok.model.RefreshToken;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
+import com.zvonok.logging.LogEvent;
+import com.zvonok.logging.LogEventConstants;
+import com.zvonok.logging.LogTimingUtils;
 import com.zvonok.model.User;
 import com.zvonok.security.JwtTokenProvider;
 import com.zvonok.service.dto.AuthResponse;
 import com.zvonok.service.dto.CreateUserDto;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
 /**
- * Service for handling user authentication operations (registration and login).
- * Сервис для обработки операций аутентификации пользователей (регистрация и вход).
+ * Service for handling user authentication operations (registration and login). Сервис для
+ * обработки операций аутентификации пользователей (регистрация и вход).
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
-    private final UserService userService;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtTokenProvider jwtTokenProvider;
-    private final RefreshTokenService refreshTokenService;
+	private final UserService userService;
+	private final PasswordEncoder passwordEncoder;
+	private final JwtTokenProvider jwtTokenProvider;
+	private final RefreshTokenService refreshTokenService;
 
-    public AuthResponse register(String username, String email, String password) {
-        // UserService.createUser уже проверяет уникальность email и username
-        // Создаем пользователя через UserService с зашифрованным паролем
-        CreateUserDto userDto = new CreateUserDto();
-        userDto.setUsername(username);
-        userDto.setEmail(email);
-        userDto.setPassword(passwordEncoder.encode(password));
+	public AuthResponse register(String username, String email, String password) {
+		// UserService.createUser уже проверяет уникальность email и username
+		// Создаем пользователя через UserService с зашифрованным паролем
+		long durationStart = System.currentTimeMillis();
+		CreateUserDto userDto = new CreateUserDto();
+		userDto.setUsername(username);
+		userDto.setEmail(email);
+		userDto.setPassword(passwordEncoder.encode(password));
+		User savedUser;
+		try {
+			savedUser = userService.createUser(userDto);
 
-        User savedUser = userService.createUser(userDto);
-        return buildAuthResponse(savedUser);
-    }
+			log.info("{}",
+					LogEvent.builder().action(LogEventConstants.EVENT_REGISTERED_ACTION)
+							.result(LogEventConstants.EVENT_SUCCES_RESULT).userId(savedUser.getId())
+							.duration(LogTimingUtils.calculateDurationDifference(durationStart)).build());
+		} catch (UserWIthThisUsernameAlreadyExistException e) {
+			log.warn("{}", LogEvent.buildFailedEvent(LogEventConstants.EVENT_REGISTERED_ACTION,
+					e.getMessage(), LogTimingUtils.calculateDurationDifference(durationStart)));
+			throw e;
+		} catch (UserWithThisEmailAlreadyExistException e) {
+			log.warn("{}", LogEvent.buildFailedEvent(LogEventConstants.EVENT_REGISTERED_ACTION,
+					e.getMessage(), LogTimingUtils.calculateDurationDifference(durationStart)));
+			throw e;
+		} catch (Exception e) {
+			log.error("{}", LogEvent.buildFailedEvent(LogEventConstants.EVENT_REGISTERED_ACTION,
+					e.getMessage(), LogTimingUtils.calculateDurationDifference(durationStart)));
+			throw e;
+		}
+		return buildAuthResponse(savedUser);
+	}
 
-    public AuthResponse login(String usernameOrEmail, String password) {
-        // Для безопасности не указываем, что именно неверно (username или password)
-        User user = userService.getUserByUsernameOrEmail(usernameOrEmail)
-                .orElseThrow(() -> new InvalidUserOrPasswordException(
-                    HttpResponseMessage.HTTP_INVALID_USER_OR_PASSWORD_RESPONSE_MESSAGE.getMessage()));
+	public AuthResponse login(String usernameOrEmail, String password) {
+		// Для безопасности не указываем, что именно неверно (username или password)
+		long durationStart = System.currentTimeMillis();
+		User user = null;
+		try {
+			user = userService.getUserByUsernameOrEmail(usernameOrEmail)
+					.orElseThrow(() -> new InvalidUserOrPasswordException(
+							HttpResponseMessage.HTTP_INVALID_USER_OR_PASSWORD_RESPONSE_MESSAGE
+									.getMessage()));
 
-        if (!passwordEncoder.matches(password, user.getPassword())) {
-            throw new InvalidUserOrPasswordException(
-                    HttpResponseMessage.HTTP_INVALID_USER_OR_PASSWORD_RESPONSE_MESSAGE.getMessage());
-        }
-        
-        // Обновляем lastSeenAt через UserService
-        LocalDateTime now = LocalDateTime.now();
-        userService.updateLastSeenAt(user.getId(), now);
-        user.setLastSeenAt(now); // Обновляем локальную копию для использования ниже
+			if (!passwordEncoder.matches(password, user.getPassword())) {
+				throw new InvalidUserOrPasswordException(
+						HttpResponseMessage.HTTP_INVALID_USER_OR_PASSWORD_RESPONSE_MESSAGE
+								.getMessage());
+			}
+			log.info("{}", LogEvent.builder().action(LogEventConstants.EVENT_LOGIN_ACITON)
+					.result(LogEventConstants.EVENT_SUCCES_RESULT).userId(user.getId())
+					.duration(LogTimingUtils.calculateDurationDifference(durationStart)).build());
 
-        return buildAuthResponse(user);
-    }
+		} catch (InvalidUserOrPasswordException e) {
 
-    public AuthResponse refresh(String refreshTokenValue) {
-        RefreshToken validToken = refreshTokenService.validate(refreshTokenValue);
-        User user = validToken.getUser();
-        RefreshToken rotated = refreshTokenService.rotate(validToken);
+			log.warn("{}", LogEvent.buildFailedEvent(LogEventConstants.EVENT_LOGIN_ACITON,
+					e.getMessage(), LogTimingUtils.calculateDurationDifference(durationStart)));
+			throw e;
+		} catch (Exception e) {
 
-        String accessToken = jwtTokenProvider.generateToken(user.getUsername(), user.getId());
-        return new AuthResponse(
-                accessToken,
-                rotated.getToken(),
-                "Bearer",
-                jwtTokenProvider.getJwtExpirationMs());
-    }
+			long durationEnd = System.currentTimeMillis();
+			long durationDifference = durationEnd - durationStart;
 
-    public void logout(String refreshTokenValue) {
-        refreshTokenService.revoke(refreshTokenValue);
-    }
+			log.error("{}", LogEvent.buildFailedEvent(LogEventConstants.EVENT_LOGIN_ACITON,
+					e.getMessage(), durationDifference));
+			throw e;
+		}
+		// Обновляем lastSeenAt через UserService
+		LocalDateTime now = LocalDateTime.now();
+		userService.updateLastSeenAt(user.getId(), now);
+		user.setLastSeenAt(now); // Обновляем локальную копию для использования ниже
 
-    public void logoutFromAllDevices(String refreshTokenValue) {
-        Long userIdFromToken = refreshTokenService.getRefreshTokenByToken(refreshTokenValue).getUser().getId();
-        refreshTokenService.revokeAllForUser(refreshTokenValue, userIdFromToken);
-    }
+		return buildAuthResponse(user);
+	}
 
-    private AuthResponse buildAuthResponse(User user) {
-        String accessToken = jwtTokenProvider.generateToken(user.getUsername(), user.getId());
-        RefreshToken refreshToken = refreshTokenService.createToken(user);
+	public AuthResponse refresh(String refreshTokenValue) {
+		RefreshToken validToken = refreshTokenService.validate(refreshTokenValue);
+		User user = validToken.getUser();
+		RefreshToken rotated = refreshTokenService.rotate(validToken);
 
-        return new AuthResponse(
-                accessToken,
-                refreshToken.getToken(),
-                "Bearer",
-                jwtTokenProvider.getJwtExpirationMs());
-    }
+		String accessToken = jwtTokenProvider.generateToken(user.getUsername(), user.getId());
+		return new AuthResponse(accessToken, rotated.getToken(), "Bearer",
+				jwtTokenProvider.getJwtExpirationMs());
+	}
+
+	public void logout(String refreshTokenValue) {
+		refreshTokenService.revoke(refreshTokenValue);
+	}
+
+	public void logoutFromAllDevices(String refreshTokenValue) {
+		Long userIdFromToken =
+				refreshTokenService.getRefreshTokenByToken(refreshTokenValue).getUser().getId();
+		refreshTokenService.revokeAllForUser(refreshTokenValue, userIdFromToken);
+	}
+
+	private AuthResponse buildAuthResponse(User user) {
+		String accessToken = jwtTokenProvider.generateToken(user.getUsername(), user.getId());
+		RefreshToken refreshToken = refreshTokenService.createToken(user);
+
+		return new AuthResponse(accessToken, refreshToken.getToken(), "Bearer",
+				jwtTokenProvider.getJwtExpirationMs());
+	}
 }

@@ -25,6 +25,7 @@ public class WebSocketEventListener {
 
 		if (principal != null && sessionId != null) {
 			sessionService.addSession(principal.getName(), sessionId);
+			log.info("User '{}' connected to WebSocket, sessionId={}", principal.getName(), sessionId);
 		}
 	}
 
@@ -35,6 +36,8 @@ public class WebSocketEventListener {
 
 		if (sessionId != null) {
 			sessionService.removeSession(sessionId);
+			log.info("User disconnected from WebSocket, sessionId={}, closeStatus={}",
+					sessionId, event.getCloseStatus());
 		}
 		log.info("Disconnect sessionId=" + sessionId + ", closeStatus=" + event.getCloseStatus());
 	}

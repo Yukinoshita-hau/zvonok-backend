@@ -3,8 +3,6 @@ package com.zvonok.service.dto;
 import com.zvonok.model.Server;
 import lombok.Data;
 
-import java.time. LocalDateTime;
-
 @Data
 public class CreateServerRoleDto {
 

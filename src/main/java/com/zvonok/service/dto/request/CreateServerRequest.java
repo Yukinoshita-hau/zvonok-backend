@@ -22,7 +22,7 @@ public class CreateServerRequest {
 			minimum = "10", maximum = "10000", nullable = false,
 			requiredMode = Schema.RequiredMode.REQUIRED)
 	@NotNull(message = "MaxMembers cannot be empty")
-	@Min(value = 10)
+	@Min(value = 10, message = "maxMembers must be at least 10")
 	@Max(10000)
 	private Integer maxMembers;
 }

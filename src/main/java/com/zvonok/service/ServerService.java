@@ -3,6 +3,9 @@ package com.zvonok.service;
 import com.zvonok.exception.*;
 import com.zvonok.exception_handler.enumeration.BusinessRuleMessage;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
+import com.zvonok.logging.LogEvent;
+import com.zvonok.logging.LogEventConstants;
+import com.zvonok.logging.LogTimingUtils;
 import com.zvonok.model.*;
 import com.zvonok.model.enumeration.ChannelType;
 import com.zvonok.repository.*;
@@ -13,6 +16,7 @@ import com.zvonok.service.dto.Permission;
 import com.zvonok.service.dto.request.CreateServerRequest;
 import com.zvonok.service.dto.request.UpdateServerRequest;
 import com.zvonok.service.dto.response.ServerResponse;
+import lombok.extern.slf4j.Slf4j;
 import com.zvonok.service.dto.response.ServerMemberResponse;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -24,10 +28,13 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Service for managing servers, server members, and server-related operations. Сервис для
- * управления серверами, участниками серверов и операциями, связанными с серверами.
+ * Service for managing servers, server members, and server-related operations.
+ * Сервис для
+ * управления серверами, участниками серверов и операциями, связанными с
+ * серверами.
  */
 @Service
+@Slf4j
 public class ServerService {
 
 	private final ServerRepository serverRepository;
@@ -61,55 +68,75 @@ public class ServerService {
 
 	@Transactional
 	public ServerResponse createServer(CreateServerRequest request, Long ownerId) {
-		validateCreateServerRequest(request);
+		long durationStart = System.currentTimeMillis();
 
-		User owner = userService.getUser(ownerId);
+		Server savedServer = null;
 
-		// Создаем сервер
-		Server server = new Server();
-		server.setName(request.getName());
-		server.setInvitedCode(inviteCodeService.generateUniqueInviteCode());
-		server.setOwner(owner);
-		server.setMaxMember(request.getMaxMembers() != null ? request.getMaxMembers() : 1000);
-		server.setCreatedAt(LocalDateTime.now());
+		try {
 
-		Server savedServer = serverRepository.save(server);
+			validateCreateServerRequest(request);
 
-		// Создаем роли по умолчанию
-		createEveryoneRole(savedServer);
-		ServerRole ownerRole = createOwnerRole(savedServer);
+			User owner = userService.getUser(ownerId);
 
-		// Добавляем владельца как участника
-		ServerMember ownerMember = addOwnerAsMember(savedServer, owner);
-		assignRoleToMember(ownerMember, ownerRole, ownerId);
+			// Создаем сервер
+			Server server = new Server();
+			server.setName(request.getName());
+			server.setInvitedCode(inviteCodeService.generateUniqueInviteCode());
+			server.setOwner(owner);
+			server.setMaxMember(request.getMaxMembers() != null ? request.getMaxMembers() : 1000);
+			server.setCreatedAt(LocalDateTime.now());
 
-		// Создаем дефолтную папку и каналы
-		ChannelFolder defaultFolder = createDefaultFolder(savedServer.getId());
-		createDefaultChannels(defaultFolder.getId());
+			savedServer = serverRepository.save(server);
+
+			// Создаем роли по умолчанию
+			createEveryoneRole(savedServer);
+			ServerRole ownerRole = createOwnerRole(savedServer);
+
+			// Добавляем владельца как участника
+			ServerMember ownerMember = addOwnerAsMember(savedServer, owner);
+			assignRoleToMember(ownerMember, ownerRole, ownerId);
+
+			// Создаем дефолтную папку и каналы
+			ChannelFolder defaultFolder = createDefaultFolder(savedServer.getId());
+			createDefaultChannels(defaultFolder.getId());
+
+			log.info("{}",
+					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_CREATE_SERVER_ACTION,
+							LogTimingUtils.calculateDurationDifference(durationStart))
+							.serverId(savedServer.getId()).userId(ownerId).build());
+		} catch (InvalidServerNameException e) {
+			buildServerFailedLog(e, LogEventConstants.EVENT_CREATE_SERVER_ACTION, durationStart, ownerId, savedServer,
+					false);
+			throw e;
+		} catch (InvalidServerMaxMemberException e) {
+			buildServerFailedLog(e, LogEventConstants.EVENT_CREATE_SERVER_ACTION, durationStart, ownerId, savedServer,
+					false);
+			throw e;
+		} catch (ServerNotFoundException e) {
+			buildServerFailedLog(e, LogEventConstants.EVENT_CREATE_SERVER_ACTION, durationStart, ownerId, savedServer,
+					false);
+			throw e;
+		} catch (ChannelNotFoundException e) {
+			buildServerFailedLog(e, LogEventConstants.EVENT_CREATE_SERVER_ACTION, durationStart, ownerId, savedServer,
+					false);
+			throw e;
+		} catch (Exception e) {
+			buildServerFailedLog(e, LogEventConstants.EVENT_CREATE_SERVER_ACTION, durationStart, ownerId, savedServer,
+					true);
+			throw e;
+		}
 
 		return mapToResponse(savedServer);
 	}
 
 	public Server getServer(Long serverId) {
-		return serverRepository.findById(serverId).orElseThrow(
-				() -> new ServerNotFoundException("Сервер не найден с ID: " + serverId));
+		return serverRepository.findById(serverId).orElseThrow(() -> new ServerNotFoundException(
+				HttpResponseMessage.HTTP_SERVER_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
 	}
 
 	public List<ServerResponse> getUserServers(Long userId) {
 		List<Server> servers = serverRepository.findServersByUserId(userId);
 		return servers.stream().map(this::mapToResponse).collect(Collectors.toList());
-	}
-
-	public boolean hasAccessToServer(Long userId, Long serverId) {
-		return permissionService.isServerMember(userId, serverId);
-	}
-
-	public void hasAccessToServerAndThrowExceptionIfFalse(Long userId, Long serverId) {
-		if (!hasAccessToServer(userId, serverId)) {
-			throw new InsufficientPermissionsException(
-					HttpResponseMessage.HTTP_INSUFFICIENT_PERMISSIONS_RESPONSE_MESSAGE
-							.getMessage());
-		}
 	}
 
 	public ServerResponse getServerResponse(Long serverId) {
@@ -119,71 +146,162 @@ public class ServerService {
 
 	@Transactional
 	public ServerResponse joinServerByInviteCode(String inviteCode, Long userId) {
-		Server server = serverRepository.findByInvitedCode(inviteCode)
-				.orElseThrow(() -> new ServerNotFoundException(
-						HttpResponseMessage.HTTP_SERVER_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
+		long durationStart = System.currentTimeMillis();
 
-		if (!server.getIsActive()) {
-			throw new ServerNotFoundException(
-					HttpResponseMessage.HTTP_SERVER_NOT_ACTIVE_RESPONSE_MESSAGE.getMessage());
-		}
+		Server server = null;
+		try {
+			server = serverRepository.findByInvitedCode(inviteCode)
+					.orElseThrow(() -> new ServerNotFoundException(
+							HttpResponseMessage.HTTP_SERVER_NOT_FOUND_RESPONSE_MESSAGE
+									.getMessage()));
 
-		User user = userService.getUser(userId);
-
-		if (serverBanService.isUserBanned(server.getId(), userId)) {
-			throw new UserBannedException(
-					HttpResponseMessage.HTTP_USER_BANNED_RESPONSE_MESSAGE.getMessage());
-		}
-
-		// Проверяем не является ли уже участником
-		ServerMember member = serverMemberService.findServerMemberOrNull(userId, server.getId());
-		if (member != null) {
-			if (!member.getIsActive()) {
-				member.setIsActive(true);
-				serverMemberService.updateServerMember(member);
-			} else {
+			if (!server.getIsActive()) {
+				throw new ServerNotFoundException(
+						HttpResponseMessage.HTTP_SERVER_NOT_ACTIVE_RESPONSE_MESSAGE.getMessage());
 			}
-			return mapToResponse(server); // Уже участник
+
+			User user = userService.getUser(userId);
+
+			if (serverBanService.isUserBanned(server.getId(), userId)) {
+				throw new UserBannedException(
+						HttpResponseMessage.HTTP_USER_BANNED_RESPONSE_MESSAGE.getMessage());
+			}
+
+			// Проверяем не является ли уже участником
+			ServerMember member = serverMemberService.findServerMemberOrNull(userId, server.getId());
+			if (member != null) {
+				if (!member.getIsActive()) {
+					member.setIsActive(true);
+					serverMemberService.updateServerMember(member);
+				} else {
+					throw new YouAlreadyMemberThisServerException(
+							HttpResponseMessage.HTTP_YOU_ALREADY_MEMBER_THIS_SERVER_RESPONSE_MESSAGE
+									.getMessage());
+				}
+			}
+
+			// Проверяем лимит участников
+			long memberCount = serverMemberService.countServerMembers(server.getId());
+			if (memberCount >= server.getMaxMember()) {
+				throw new ServerMemberLimitReachedException(
+						BusinessRuleMessage.BUSINESS_SERVER_MEMBER_LIMIT_REACHED_MESSAGE
+								.getMessage());
+			}
+
+			// Добавляем как участника
+			ServerMember newMember = addUserAsMember(server, user);
+
+			// Назначаем роль @everyone
+			ServerRole everyoneRole = serverRoleService.getServerRoleWithIsEveryoneTrue(server.getId());
+			assignRoleToMember(newMember, everyoneRole, userId);
+
+			log.info("{}",
+					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_JOIN_BY_INVITE_CODE_ACTION,
+							LogTimingUtils.calculateDurationDifference(durationStart))
+							.serverId(server.getId()).userId(userId).build());
+
+		} catch (ServerNotFoundException e) {
+			buildServerFailedLog(e, LogEventConstants.EVENT_JOIN_BY_INVITE_CODE_ACTION, durationStart, userId, server,
+					false);
+			throw e;
+		} catch (UserBannedException e) {
+			buildServerFailedLog(e, LogEventConstants.EVENT_JOIN_BY_INVITE_CODE_ACTION, durationStart, userId, server,
+					false);
+			throw e;
+		} catch (ServerMemberLimitReachedException e) {
+			buildServerFailedLog(e, LogEventConstants.EVENT_JOIN_BY_INVITE_CODE_ACTION, durationStart, userId, server,
+					false);
+			throw e;
+		} catch (ServerRoleNotFoundException e) {
+			buildServerFailedLog(e, LogEventConstants.EVENT_JOIN_BY_INVITE_CODE_ACTION, durationStart, userId, server,
+					false);
+			throw e;
+		} catch (Exception e) {
+			buildServerFailedLog(e, LogEventConstants.EVENT_JOIN_BY_INVITE_CODE_ACTION, durationStart, userId, server,
+					true);
+			throw e;
 		}
-
-		// Проверяем лимит участников
-		long memberCount = serverMemberService.countServerMembers(server.getId());
-		if (memberCount >= server.getMaxMember()) {
-			throw new ServerMemberLimitReachedException(
-					BusinessRuleMessage.BUSINESS_SERVER_MEMBER_LIMIT_REACHED_MESSAGE.getMessage());
-		}
-
-		// Добавляем как участника
-		ServerMember newMember = addUserAsMember(server, user);
-
-		// Назначаем роль @everyone
-		ServerRole everyoneRole = serverRoleService.getServerRoleWithIsEveryoneTrue(server.getId());
-		assignRoleToMember(newMember, everyoneRole, userId);
 
 		return mapToResponse(server);
 	}
 
 	@Transactional
 	public ServerResponse updateServer(Long serverId, UpdateServerRequest request, Long userId) {
-		Server server = getServer(serverId);
+		Server updatedServer = null;
+		long durationStart = System.currentTimeMillis();
 
-		// Проверяем права на управление сервером
-		if (!canManageServer(userId, serverId)) {
-			throw new InsufficientPermissionsException(
-					HttpResponseMessage.HTTP_INSUFFICIENT_PERMISSIONS_RESPONSE_MESSAGE
-							.getMessage());
+		try {
+			Server server = getServer(serverId);
+
+			// Проверяем права на управление сервером
+			if (!canManageServer(userId, serverId)) {
+				throw new InsufficientPermissionsException(
+						HttpResponseMessage.HTTP_INSUFFICIENT_PERMISSIONS_RESPONSE_MESSAGE
+								.getMessage());
+			}
+
+			if (request.getName() != null) {
+				server.setName(request.getName());
+			}
+
+			if (request.getMaxMembers() != null) {
+				server.setMaxMember(request.getMaxMembers());
+			}
+
+			updatedServer = serverRepository.save(server);
+
+			log.info("{}", LogEvent.buildSuccessEvent(LogEventConstants.EVENT_UPDATE_SERVER_ACTION,
+					LogTimingUtils.calculateDurationDifference(durationStart)).serverId(serverId).userId(userId)
+					.build());
+		} catch (ServerNotFoundException e) {
+			buildServerFailedLog(e, LogEventConstants.EVENT_UPDATE_SERVER_ACTION, durationStart, userId, updatedServer,
+					false);
+			throw e;
+		} catch (InsufficientPermissionsException e) {
+			buildServerFailedLog(e, LogEventConstants.EVENT_UPDATE_SERVER_ACTION, durationStart, userId, updatedServer,
+					false);
+			throw e;
+		} catch (Exception e) {
+			buildServerFailedLog(e, LogEventConstants.EVENT_UPDATE_SERVER_ACTION, durationStart, userId, updatedServer,
+					true);
+			throw e;
 		}
-
-		if (request.getName() != null) {
-			server.setName(request.getName());
-		}
-
-		if (request.getMaxMembers() != null) {
-			server.setMaxMember(request.getMaxMembers());
-		}
-
-		Server updatedServer = serverRepository.save(server);
 		return mapToResponse(updatedServer);
+	}
+
+	@Transactional
+	public void deleteServer(Long serverId, Long userId) {
+		long durationStart = System.currentTimeMillis();
+
+		try {
+			Server server = getServer(serverId);
+
+			// Проверяем, что пользователь является владельцем
+			if (!server.getOwner().getId().equals(userId)) {
+				throw new InsufficientPermissionsException(
+						HttpResponseMessage.HTTP_INSUFFICIENT_PERMISSIONS_RESPONSE_MESSAGE
+								.getMessage());
+			}
+
+			// Удаляем сервер
+			serverRepository.delete(server);
+
+			log.info("{}", LogEvent.buildSuccessEvent(LogEventConstants.EVENT_DELETE_SERVER_ACTION,
+					LogTimingUtils.calculateDurationDifference(durationStart)).serverId(serverId).userId(userId)
+					.build());
+		} catch (ServerNotFoundException e) {
+			log.warn("{}", LogEvent.buildFailedEvent(LogEventConstants.EVENT_DELETE_SERVER_ACTION, e.getMessage(),
+					LogTimingUtils.calculateDurationDifference(durationStart)).serverId(serverId).userId(userId));
+			throw e;
+		} catch (InsufficientPermissionsException e) {
+			log.warn("{}", LogEvent.buildFailedEvent(LogEventConstants.EVENT_DELETE_SERVER_ACTION, e.getMessage(),
+					LogTimingUtils.calculateDurationDifference(durationStart)).serverId(serverId).userId(userId));
+			throw e;
+		} catch (Exception e) {
+			log.error("{}", LogEvent.buildFailedEvent(LogEventConstants.EVENT_DELETE_SERVER_ACTION, e.getMessage(),
+					LogTimingUtils.calculateDurationDifference(durationStart)).serverId(serverId).userId(userId));
+			throw e;
+		}
 	}
 
 	@Transactional
@@ -205,22 +323,49 @@ public class ServerService {
 
 	@Transactional
 	public void leaveServer(Long serverId, Long userId) {
-		serverMemberService.getActiveServerMember(userId, serverId);
+		long durationStart = System.currentTimeMillis();
 
-		Server server = getServer(serverId);
+		try {
+			ServerMember member = serverMemberService.getActiveServerMember(userId, serverId);
 
-		// Владелец не может покинуть сервер
-		if (server.getOwner().getId().equals(userId)) {
-			throw new OwnerCanNotLeaveServerException(
-					HttpResponseMessage.HTTP_OWNER_CAN_NOT_LEAVE_SERVER_RESPONSE_MESSAGE
-							.getMessage());
+			Server server = getServer(serverId);
+
+			// Владелец не может покинуть сервер
+			if (server.getOwner().getId().equals(userId)) {
+				throw new OwnerCanNotLeaveServerException(
+						HttpResponseMessage.HTTP_OWNER_CAN_NOT_LEAVE_SERVER_RESPONSE_MESSAGE
+								.getMessage());
+			}
+
+			// ServerMember member = serverMemberService.getServerMember(userId, serverId);
+
+			member.setIsActive(false);
+			member.setLeftAt(LocalDateTime.now());
+			serverMemberService.updateServerMember(member);
+
+			log.info("{}",
+					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_LEAVE_SERVER_ACION,
+							LogTimingUtils.calculateDurationDifference(durationStart))
+							.serverId(serverId).userId(userId).build());
+		} catch (ServerMemberNotFoundException e) {
+			log.warn("{}", LogEvent
+					.buildFailedEvent(LogEventConstants.EVENT_LEAVE_SERVER_ACION, e.getMessage(),
+							LogTimingUtils.calculateDurationDifference(durationStart))
+					.serverId(serverId).userId(userId).build());
+			throw e;
+		} catch (OwnerCanNotLeaveServerException e) {
+			log.warn("{}", LogEvent
+					.buildFailedEvent(LogEventConstants.EVENT_LEAVE_SERVER_ACION, e.getMessage(),
+							LogTimingUtils.calculateDurationDifference(durationStart))
+					.serverId(serverId).userId(userId).build());
+			throw e;
+		} catch (Exception e) {
+			log.error("{}", LogEvent
+					.buildFailedEvent(LogEventConstants.EVENT_LEAVE_SERVER_ACION, e.getMessage(),
+							LogTimingUtils.calculateDurationDifference(durationStart))
+					.serverId(serverId).userId(userId).build());
+			throw e;
 		}
-
-		ServerMember member = serverMemberService.getServerMember(userId, serverId);
-
-		member.setIsActive(false);
-		member.setLeftAt(LocalDateTime.now());
-		serverMemberService.updateServerMember(member);
 	}
 
 	public List<ServerMemberResponse> getServerMembers(Long serverId, Long userId) {
@@ -239,39 +384,88 @@ public class ServerService {
 
 	@Transactional
 	public void kickMember(Long serverId, Long targetUserId, Long kickerUserId) {
-		Server server = getServer(serverId);
+		long durationStart = System.currentTimeMillis();
 
-		// Проверяем права на исключение
-		if (!canKickMembers(kickerUserId, serverId)) {
-			throw new InsufficientPermissionsException(
-					HttpResponseMessage.HTTP_INSUFFICIENT_PERMISSIONS_RESPONSE_MESSAGE
-							.getMessage());
+		try {
+			Server server = getServer(serverId);
+
+			// Проверяем права на исключение
+			if (!canKickMembers(kickerUserId, serverId)) {
+				throw new InsufficientPermissionsException(
+						HttpResponseMessage.HTTP_INSUFFICIENT_PERMISSIONS_RESPONSE_MESSAGE
+								.getMessage());
+			}
+
+			// Нельзя исключить владельца
+			if (server.getOwner().getId().equals(targetUserId)) {
+				throw new CannotKickServerOwnerException(
+						BusinessRuleMessage.BUSINESS_CANNOT_KICK_SERVER_OWNER_MESSAGE.getMessage());
+			}
+
+			// Нельзя исключить самого себя
+			if (kickerUserId.equals(targetUserId)) {
+				throw new CannotKickYourselfException(
+						BusinessRuleMessage.BUSINESS_CANNOT_KICK_SELF_MESSAGE.getMessage());
+			}
+
+			ServerMember targetMember = serverMemberService.getServerMember(targetUserId, serverId);
+
+			if (!targetMember.getIsActive()) {
+				throw new ServerMemberAlreadyWasKicked(
+						HttpResponseMessage.HTTP_SERVER_MEMBER_ALREADY_WAS_KICKED_RESPONSE_MESSAGE
+								.getMessage());
+			}
+
+			targetMember.setIsActive(false);
+			targetMember.setLeftAt(LocalDateTime.now());
+			serverMemberService.updateServerMember(targetMember);
+
+			log.info("{}", LogEvent.buildSuccessEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION,
+					LogTimingUtils.calculateDurationDifference(durationStart)).serverId(serverId).userId(targetUserId)
+					.build());
+		} catch (ServerNotFoundException e) {
+			log.warn("{}", LogEvent
+					.buildFailedEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION, e.getMessage(),
+							LogTimingUtils.calculateDurationDifference(durationStart))
+					.serverId(serverId).userId(targetUserId).build());
+			throw e;
+		} catch (InsufficientPermissionsException e) {
+			log.warn("{}", LogEvent
+					.buildFailedEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION, e.getMessage(),
+							LogTimingUtils.calculateDurationDifference(durationStart))
+					.serverId(serverId).userId(targetUserId).build());
+			throw e;
+		} catch (CannotKickServerOwnerException e) {
+			log.warn("{}", LogEvent
+					.buildFailedEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION, e.getMessage(),
+							LogTimingUtils.calculateDurationDifference(durationStart))
+					.serverId(serverId).userId(targetUserId).build());
+			throw e;
+		} catch (CannotKickYourselfException e) {
+			log.warn("{}", LogEvent
+					.buildFailedEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION, e.getMessage(),
+							LogTimingUtils.calculateDurationDifference(durationStart))
+					.serverId(serverId).userId(targetUserId).build());
+			throw e;
+		} catch (ServerMemberNotFoundException e) {
+			log.warn("{}", LogEvent
+					.buildFailedEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION, e.getMessage(),
+							LogTimingUtils.calculateDurationDifference(durationStart))
+					.serverId(serverId).userId(targetUserId).build());
+			throw e;
+		} catch (ServerMemberAlreadyWasKicked e) {
+			log.warn("{}", LogEvent
+					.buildFailedEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION, e.getMessage(),
+							LogTimingUtils.calculateDurationDifference(durationStart))
+					.serverId(serverId).userId(targetUserId).build());
+			throw e;
+		} catch (Exception e) {
+			log.error("{}", LogEvent
+					.buildFailedEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION, e.getMessage(),
+							LogTimingUtils.calculateDurationDifference(durationStart))
+					.serverId(serverId).userId(targetUserId).build());
+			throw e;
 		}
-
-		// Нельзя исключить владельца
-		if (server.getOwner().getId().equals(targetUserId)) {
-			throw new CannotKickServerOwnerException(
-					BusinessRuleMessage.BUSINESS_CANNOT_KICK_SERVER_OWNER_MESSAGE.getMessage());
-		}
-
-		// Нельзя исключить самого себя
-		if (kickerUserId.equals(targetUserId)) {
-			throw new CannotKickYourselfException(
-					BusinessRuleMessage.BUSINESS_CANNOT_KICK_SELF_MESSAGE.getMessage());
-		}
-
-		ServerMember targetMember = serverMemberService.getServerMember(targetUserId, serverId);
-
-		if (!targetMember.getIsActive()) {
-			throw new ServerMemberAlreadyWasKicked(
-					HttpResponseMessage.HTTP_SERVER_MEMBER_ALREADY_WAS_KICKED_RESPONSE_MESSAGE
-							.getMessage());
-		}
-
-		targetMember.setIsActive(false);
-		targetMember.setLeftAt(LocalDateTime.now());
-		serverMemberService.updateServerMember(targetMember);
-
 	}
 
 	@Transactional
@@ -297,6 +491,18 @@ public class ServerService {
 		serverMemberService.updateServerMember(targetMember);
 
 		return mapToMemberResponse(targetMember);
+	}
+
+	public boolean hasAccessToServer(Long userId, Long serverId) {
+		return permissionService.isServerMember(userId, serverId);
+	}
+
+	public void hasAccessToServerAndThrowExceptionIfFalse(Long userId, Long serverId) {
+		if (!hasAccessToServer(userId, serverId)) {
+			throw new InsufficientPermissionsException(
+					HttpResponseMessage.HTTP_INSUFFICIENT_PERMISSIONS_RESPONSE_MESSAGE
+							.getMessage());
+		}
 	}
 
 	// ===== PRIVATE HELPER METHODS =====
@@ -385,6 +591,36 @@ public class ServerService {
 		channelService.createChannel(voiceChannel);
 	}
 
+	private void buildServerFailedLog(Exception e, String action, long durationStart, Long userId, Server server,
+			boolean isErrorLog) {
+		if (isErrorLog) {
+			if (server == null) {
+				log.error("{}", LogEvent
+						.buildFailedEvent(action, e.getMessage(),
+								LogTimingUtils.calculateDurationDifference(durationStart))
+						.userId(userId).build());
+			} else {
+				log.error("{}", LogEvent
+						.buildFailedEvent(action, e.getMessage(),
+								LogTimingUtils.calculateDurationDifference(durationStart))
+						.serverId(server.getId()).userId(userId).build());
+			}
+
+		} else {
+			if (server == null) {
+				log.warn("{}", LogEvent
+						.buildFailedEvent(action, e.getMessage(),
+								LogTimingUtils.calculateDurationDifference(durationStart))
+						.userId(userId).build());
+			} else {
+				log.warn("{}", LogEvent
+						.buildFailedEvent(action, e.getMessage(),
+								LogTimingUtils.calculateDurationDifference(durationStart))
+						.serverId(server.getId()).userId(userId).build());
+			}
+		}
+	}
+
 	// ===== PERMISSION CHECKS =====
 
 	private boolean canManageServer(Long userId, Long serverId) {
@@ -422,20 +658,5 @@ public class ServerService {
 				.nickname(member.getNickname()).joinedAt(member.getJoinedAt()).roles(roleNames)
 				.isOwner(member.getServer().getOwner().getId().equals(member.getUser().getId()))
 				.build();
-	}
-
-	@Transactional
-	public void deleteServer(Long serverId, Long userId) {
-		Server server = getServer(serverId);
-
-		// Проверяем, что пользователь является владельцем
-		if (!server.getOwner().getId().equals(userId)) {
-			throw new InsufficientPermissionsException(
-					HttpResponseMessage.HTTP_INSUFFICIENT_PERMISSIONS_RESPONSE_MESSAGE
-							.getMessage());
-		}
-
-		// Удаляем сервер (каскадное удаление должно быть настроено в JPA)
-		serverRepository.delete(server);
 	}
 }
