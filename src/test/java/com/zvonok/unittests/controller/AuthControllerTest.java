@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.stream.Stream;
 
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+
+import com.zvonok.config.CookieProperties;
 import com.zvonok.controller.AuthController;
 import com.zvonok.exception.InvalidRefreshTokenException;
 import com.zvonok.exception.InvalidUserOrPasswordException;
@@ -40,12 +43,9 @@ import com.zvonok.service.dto.AuthResponse;
 public class AuthControllerTest {
 
 	private static final String VALID_REFRESH_TOKEN = "valid-refresh-token" + "x".repeat(59 - 19);
-	private static final String INVALID_REFRESH_TOKEN =
-			"invalid-refresh-token" + "x".repeat(59 - 21);
-	private static final String REVOKED_REFRESH_TOKEN =
-			"revoked-refresh-token" + "x".repeat(59 - 21);
-	private static final String EXPIRED_REFRESH_TOKEN =
-			"expired-refresh-token" + "x".repeat(59 - 21);
+	private static final String INVALID_REFRESH_TOKEN = "invalid-refresh-token" + "x".repeat(59 - 21);
+	private static final String REVOKED_REFRESH_TOKEN = "revoked-refresh-token" + "x".repeat(59 - 21);
+	private static final String EXPIRED_REFRESH_TOKEN = "expired-refresh-token" + "x".repeat(59 - 21);
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -56,12 +56,17 @@ public class AuthControllerTest {
 	@MockitoBean
 	JwtTokenProvider jwtTokenProvider;
 
+	@MockitoBean
+	private CookieProperties cookieProperties;
 	private AuthResponse authResponse;
 
 	@BeforeEach
 	void setUp() {
-		authResponse =
-				new AuthResponse("test-access-token", "test-refresh-token", "Bearer", 3600000L);
+		authResponse = new AuthResponse("test-access-token", "test-refresh-token", "Bearer", 3600000L);
+		when(cookieProperties.isSecure()).thenReturn(false);
+		when(cookieProperties.getPath()).thenReturn("/auth/refresh");
+		when(cookieProperties.getSameSite()).thenReturn("Lax");
+		when(cookieProperties.getMaxAge()).thenReturn(1209600L);
 
 	}
 
@@ -86,9 +91,8 @@ public class AuthControllerTest {
 		mockMvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
 				.content(registerRequestJson("testUser", "testEmail@example.ru", "qwerty123")))
 				// Assert
-				.andExpect(status().isOk())
+				.andExpect(status().isCreated())
 				.andExpectAll(jsonPath("$.accessToken").value("test-access-token"),
-						jsonPath("$.refreshToken").value("test-refresh-token"),
 						jsonPath("$.tokenType").value("Bearer"));
 	}
 
@@ -146,7 +150,6 @@ public class AuthControllerTest {
 				// Assert
 				.andExpect(status().isOk())
 				.andExpectAll(jsonPath("$.accessToken").value("test-access-token"),
-						jsonPath("$.refreshToken").value("test-refresh-token"),
 						jsonPath("$.tokenType").value("Bearer"));
 	}
 
@@ -171,15 +174,6 @@ public class AuthControllerTest {
 	}
 
 	// Refresh
-	static String refreshRequestJson(String refreshToken) {
-		return """
-				    {
-				        "refreshToken": "%s"
-				    }
-				""".formatted(refreshToken);
-	}
-
-
 	@Test
 	@DisplayName("refresh - успешное обновление токена")
 	void refresh_shouldReturn200_whenValidRequest() throws Exception {
@@ -188,11 +182,10 @@ public class AuthControllerTest {
 
 		// Act
 		mockMvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON)
-				.content(refreshRequestJson(VALID_REFRESH_TOKEN)))
+				.cookie(new Cookie("refreshToken", VALID_REFRESH_TOKEN)))
 				// Assert
 				.andExpect(status().isOk())
 				.andExpectAll(jsonPath("$.accessToken").value("test-access-token"),
-						jsonPath("$.refreshToken").value("test-refresh-token"),
 						jsonPath("$.tokenType").value("Bearer"));
 	}
 
@@ -200,19 +193,19 @@ public class AuthControllerTest {
 	@DisplayName("refresh - должен выбросить исключение при невалидном токене")
 	@MethodSource("refreshExceptionCases")
 	void refresh_shouldThrowException(RuntimeException exception, String exceptionMessage,
-			String content) throws Exception {
+			String refreshToken) throws Exception {
 		// Arrange
 		when(authService.refresh(anyString())).thenThrow(exception);
 
 		// Act
 		mockMvc.perform(
-				post("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(content))
+				post("/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+						.cookie(new Cookie("refreshToken", refreshToken)))
 				// Assert
 				.andExpect(status().isUnauthorized())
 				.andExpectAll(jsonPath("$.message").value(exceptionMessage),
 						jsonPath("$.status").value(HttpStatus.UNAUTHORIZED.value()));
 	}
-
 
 	static private Stream<Arguments> refreshExceptionCases() {
 		return Stream.of(
@@ -222,31 +215,30 @@ public class AuthControllerTest {
 										.getMessage()),
 						HttpResponseMessage.HTTP_INVALID_REFRESH_TOKEN_RESPONSE_MESSAGE
 								.getMessage(),
-						refreshRequestJson(INVALID_REFRESH_TOKEN)),
+						INVALID_REFRESH_TOKEN),
 				Arguments.of(
 						new RefreshTokenRevokedException(
 								HttpResponseMessage.HTTP_REFRESH_TOKEN_REVOKED_RESPONSE_MESSAGE
 										.getMessage()),
 						HttpResponseMessage.HTTP_REFRESH_TOKEN_REVOKED_RESPONSE_MESSAGE
 								.getMessage(),
-						refreshRequestJson(REVOKED_REFRESH_TOKEN)),
+						REVOKED_REFRESH_TOKEN),
 				Arguments.of(
 						new RefreshTokenExpiredException(
 								HttpResponseMessage.HTTP_REFRESH_TOKEN_EXPIRED_RESPONSE_MESSAGE
 										.getMessage()),
 						HttpResponseMessage.HTTP_REFRESH_TOKEN_EXPIRED_RESPONSE_MESSAGE
 								.getMessage(),
-						refreshRequestJson(EXPIRED_REFRESH_TOKEN)));
+						EXPIRED_REFRESH_TOKEN));
 	}
 
 	// Logout
-	static String logoutRequestJson(String refreshToken, boolean allDevices) {
+	static String logoutRequestJson(boolean allDevices) {
 		return """
 				    {
-				        "refreshToken": "%s",
 				        "allDevices": %b
 				    }
-				""".formatted(refreshToken, allDevices);
+				""".formatted(allDevices);
 	}
 
 	@Test
@@ -256,7 +248,8 @@ public class AuthControllerTest {
 
 		// Act
 		mockMvc.perform(post("/auth/logout").contentType(MediaType.APPLICATION_JSON)
-				.content(logoutRequestJson(VALID_REFRESH_TOKEN, false)))
+				.content(logoutRequestJson(false))
+				.cookie(new Cookie("refreshToken", VALID_REFRESH_TOKEN)))
 				// Assert
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.message").value("Logout successful"))
@@ -273,7 +266,8 @@ public class AuthControllerTest {
 
 		// Act
 		mockMvc.perform(post("/auth/logout").contentType(MediaType.APPLICATION_JSON)
-				.content(logoutRequestJson(VALID_REFRESH_TOKEN, true)))
+				.content(logoutRequestJson(true))
+				.cookie(new Cookie("refreshToken", VALID_REFRESH_TOKEN)))
 				// Assert
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.message").value("Logout successful"))
@@ -281,32 +275,6 @@ public class AuthControllerTest {
 
 		verify(authService).logoutFromAllDevices(VALID_REFRESH_TOKEN);
 		verify(authService, never()).logout(anyString());
-	}
-
-	@ParameterizedTest
-	@DisplayName("logout - должен выбросить исключение при неверной длине токена")
-	@MethodSource("logoutInvalidRefreshTokenExceptionCases")
-	void logout_shouldThrowException_whenInvalidRefreshTokenLength(String exceptionMessage,
-			String content) throws Exception {
-		// Arrange
-
-		// Act
-		mockMvc.perform(
-				post("/auth/logout").contentType(MediaType.APPLICATION_JSON).content(content))
-				// Assert
-				.andExpect(status().isBadRequest())
-				.andExpectAll(jsonPath("$.message").value(exceptionMessage),
-						jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()));
-	}
-
-	static Stream<Arguments> logoutInvalidRefreshTokenExceptionCases() {
-		final String refreshTokenLengthMessage = "refreshToken: RefreshToken must be 59 characters";
-		return Stream.of(
-				// Refresh token length check
-				Arguments.of(refreshTokenLengthMessage,
-						logoutRequestJson("invalidRefreshToken", false)),
-				Arguments.of(refreshTokenLengthMessage,
-						logoutRequestJson("invalidRefreshToken", true)));
 	}
 
 	@ParameterizedTest
@@ -319,7 +287,8 @@ public class AuthControllerTest {
 		doThrow(exception).when(authService).logoutFromAllDevices(refreshToken);
 		// Act
 		mockMvc.perform(
-				post("/auth/logout").contentType(MediaType.APPLICATION_JSON).content(content))
+				post("/auth/logout").contentType(MediaType.APPLICATION_JSON).content(content)
+						.cookie(new Cookie("refreshToken", refreshToken)))
 				// Assert
 				.andExpect(status().isUnauthorized())
 				.andExpectAll(jsonPath("$.message").value(exceptionMessage),
@@ -334,25 +303,25 @@ public class AuthControllerTest {
 						new InvalidRefreshTokenException(
 								HttpResponseMessage.HTTP_INVALID_REFRESH_TOKEN_RESPONSE_MESSAGE
 										.getMessage()),
-						invalidRefreshTokenMessage, logoutRequestJson(INVALID_REFRESH_TOKEN, false),
+						invalidRefreshTokenMessage, logoutRequestJson(false),
 						INVALID_REFRESH_TOKEN),
 				Arguments.of(
 						new InvalidRefreshTokenException(
 								HttpResponseMessage.HTTP_INVALID_REFRESH_TOKEN_RESPONSE_MESSAGE
 										.getMessage()),
-						invalidRefreshTokenMessage, logoutRequestJson(INVALID_REFRESH_TOKEN, true),
+						invalidRefreshTokenMessage, logoutRequestJson(true),
 						INVALID_REFRESH_TOKEN),
 				Arguments.of(
 						new RefreshTokenRevokedException(
 								HttpResponseMessage.HTTP_REFRESH_TOKEN_REVOKED_RESPONSE_MESSAGE
 										.getMessage()),
-						revokedRefreshTokenMessage, logoutRequestJson(REVOKED_REFRESH_TOKEN, false),
+						revokedRefreshTokenMessage, logoutRequestJson(false),
 						REVOKED_REFRESH_TOKEN),
 				Arguments.of(
 						new RefreshTokenRevokedException(
 								HttpResponseMessage.HTTP_REFRESH_TOKEN_REVOKED_RESPONSE_MESSAGE
 										.getMessage()),
-						revokedRefreshTokenMessage, logoutRequestJson(REVOKED_REFRESH_TOKEN, true),
+						revokedRefreshTokenMessage, logoutRequestJson(true),
 						REVOKED_REFRESH_TOKEN));
 	}
 }

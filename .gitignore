@@ -72,6 +72,8 @@ bin/
 **/application-dev.properties
 **/application-prod.properties
 **/application-*.properties
+**/application.yml
+**/application-*.yml
 !**/application.properties.example
 
 # OS files
