@@ -2,6 +2,8 @@ package com.zvonok.exception_handler;
 
 import com.zvonok.exception.InvalidBooleanFormatException;
 import com.zvonok.exception_handler.annotation.ApiException;
+import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
+
 import lombok.extern.slf4j.Slf4j;
 import org.reflections.Reflections;
 import org.springframework.http.HttpStatus;
@@ -9,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestCookieException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -20,8 +23,7 @@ import java.util.Set;
 @Slf4j
 public class GlobalExceptionHandler {
 
-	private final Map<Class<? extends RuntimeException>, HttpStatus> exceptionStatusMap =
-			new HashMap<>();
+	private final Map<Class<? extends RuntimeException>, HttpStatus> exceptionStatusMap = new HashMap<>();
 
 	public GlobalExceptionHandler() {
 		long startTime = System.currentTimeMillis();
@@ -71,8 +73,7 @@ public class GlobalExceptionHandler {
 
 		log.warn("❌ Validation error: {}", errorMessage);
 
-		JsonErrorResponse errorResponse =
-				new JsonErrorResponse(errorMessage, HttpStatus.BAD_REQUEST.value());
+		JsonErrorResponse errorResponse = new JsonErrorResponse(errorMessage, HttpStatus.BAD_REQUEST.value());
 
 		return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
 	}
@@ -82,8 +83,8 @@ public class GlobalExceptionHandler {
 			HttpMessageNotReadableException ex) {
 		Throwable rootCause = ex.getRootCause();
 		if (rootCause instanceof InvalidBooleanFormatException) {
-			JsonErrorResponse errorResponse =
-					new JsonErrorResponse(rootCause.getMessage(), HttpStatus.BAD_REQUEST.value());
+			JsonErrorResponse errorResponse = new JsonErrorResponse(rootCause.getMessage(),
+					HttpStatus.BAD_REQUEST.value());
 			return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
 		}
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -107,6 +108,12 @@ public class GlobalExceptionHandler {
 				.body(new JsonErrorResponse(message, HttpStatus.BAD_REQUEST.value()));
 	}
 
+	@ExceptionHandler(MissingRequestCookieException.class)
+	public ResponseEntity<JsonErrorResponse> handleMissingRequestCookieException(MissingRequestCookieException e) {
+		JsonErrorResponse errorResponse = new JsonErrorResponse(
+				HttpResponseMessage.HTTP_REFRESH_TOKEN_NOT_TRANSFERRED.getMessage(), HttpStatus.BAD_REQUEST.value());
+		return ResponseEntity.status(errorResponse.getStatus()).body(errorResponse);
+	}
 
 	private String toHumanExpectedType(Class<?> requiredType) {
 		if (requiredType == null)
