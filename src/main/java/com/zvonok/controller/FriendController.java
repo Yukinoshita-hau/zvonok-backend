@@ -171,9 +171,9 @@ public class FriendController {
 				: friendship.getUserOne();
 
 		return FriendResponse.builder().friendshipId(friendship.getId()).friendId(friend.getId())
-				.friendUsername(friend.getUsername()).friendEmail(friend.getEmail())
-				.friendAvatarUrl(friend.getAvatarUrl()).friendStatus(friend.getStatus())
-				.friendshipSince(friendship.getCreatedAt()).build();
+				.friendUsername(friend.getUsername()).friendAvatarUrl(friend.getAvatarUrl())
+				.friendStatus(friend.getStatus()).friendshipSince(friendship.getCreatedAt())
+				.build();
 	}
 
 	private FriendRequestResponse toFriendRequestResponse(FriendRequest friendRequest) {

@@ -57,6 +57,7 @@ public enum HttpResponseMessage {
 
 	// Permissions
 	HTTP_INSUFFICIENT_PERMISSIONS_RESPONSE_MESSAGE("Not enough rights to manage the server"),
+	HTTP_INSUFFICIENT_MESSAGE_PERMISSIONS_RESPONSE_MESSAGE("Not enough rights to manage the message"),	
 	HTTP_USER_BANNED_RESPONSE_MESSAGE("User is banned from this server"),
 
 	// Authorization and validation data

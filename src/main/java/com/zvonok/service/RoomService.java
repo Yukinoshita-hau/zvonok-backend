@@ -36,6 +36,11 @@ public class RoomService {
 		Room room = roomRepository.findById(id).orElseThrow(() -> new RoomNotFoundException(
 				HttpResponseMessage.HTTP_ROOM_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
 
+		if (!room.getIsActive()) {
+			throw new RoomNotFoundException(
+					HttpResponseMessage.HTTP_ROOM_NOT_FOUND_RESPONSE_MESSAGE.getMessage());
+		}
+
 		for (User user : room.getMembers()) {
 			System.out.println("username - " + username + " == " + user.getUsername());
 			if (user.getUsername().equals(username)) {
@@ -61,12 +66,16 @@ public class RoomService {
 		members.add(user2);
 
 		Room room = new Room();
-		// У приватных комнат нет названия (name = null), так как это приватная комната
+		// У приватных комнат нет названия (name = null), так как это приватная комната между двумя
+		// чуваками.
 		room.setName(null);
 		room.setType(RoomType.PRIVATE);
 		room.setIsActive(true);
 		room.setCreatedAt(LocalDateTime.now());
 		room.setMembers(members);
+		room.setLastMessageId(null);
+		room.setLastMessageContent(null);
+		room.setLastActivityAt(room.getCreatedAt());
 
 		return roomRepository.save(room);
 	}
@@ -109,6 +118,9 @@ public class RoomService {
 		room.setIsActive(true);
 		room.setCreatedAt(LocalDateTime.now());
 		room.setMembers(members);
+		room.setLastMessageId(null);
+		room.setLastMessageContent(null);
+		room.setLastActivityAt(room.getCreatedAt());
 
 		return roomRepository.save(room);
 	}
@@ -152,7 +164,8 @@ public class RoomService {
 	}
 
 	@Transactional
-	public Room updateRoom(Long roomId, String username, String newName) {
+	public Room updateRoom(Long roomId, String username, String newName, Long lastMessageId,
+			String lastMessageContent, LocalDateTime lastActivityAt) {
 		User user = userService.getUser(username);
 		Room room = getRoom(roomId, username);
 
@@ -166,6 +179,15 @@ public class RoomService {
 
 		if (newName != null && !newName.isEmpty()) {
 			room.setName(newName);
+		}
+		if (lastMessageId != null) {
+			room.setLastMessageId(lastMessageId);
+		}
+		if (lastMessageContent != null) {
+			room.setLastMessageContent(lastMessageContent);
+		}
+		if (lastActivityAt != null) {
+			room.setLastActivityAt(lastActivityAt);
 		}
 
 		return roomRepository.save(room);

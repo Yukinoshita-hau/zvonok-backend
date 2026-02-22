@@ -1,6 +1,6 @@
 package com.zvonok.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.zvonok.model.enumeration.RoomType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -19,24 +19,33 @@ import java.util.List;
 @Table(name = "room")
 public class Room {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long id;
 
-    @Column(length = 100)
-    private String name;
+	@Column(length = 100)
+	private String name;
 
-    @Enumerated(EnumType.STRING)
-    private RoomType type = RoomType.PRIVATE;
+	@Enumerated(EnumType.STRING)
+	private RoomType type = RoomType.PRIVATE;
 
-    private Boolean isActive = true;
+	private Boolean isActive = true;
 
-    private LocalDateTime createdAt;
+	private LocalDateTime createdAt;
 
-    @ManyToMany @JoinTable(
-            name = "room_members",
-            joinColumns = @JoinColumn(name = "room_id"),
-            inverseJoinColumns = @JoinColumn(name = "user_id")
-    )
-    @JsonIgnore
-    private List<User> members;
+	private Long lastMessageId;
+	private String lastMessageContent;
+	private LocalDateTime lastActivityAt;
+
+	@ManyToMany
+	@JoinTable(name = "room_members", joinColumns = @JoinColumn(name = "room_id"),
+			inverseJoinColumns = @JoinColumn(name = "user_id"))
+	@JsonIgnoreProperties({"rooms", "friends", "password", "email", "isEmailVerified"})
+	private List<User> members;
+
+	@PrePersist
+	protected void onCreate() {
+		this.createdAt = LocalDateTime.now();
+		this.lastActivityAt = LocalDateTime.now();
+	}
 }

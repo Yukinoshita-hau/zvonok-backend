@@ -27,14 +27,14 @@ public class SecurityConfig {
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 		return http
 				.cors(cors -> cors.configurationSource(request -> {
-				CorsConfiguration config = new CorsConfiguration();
-				 config.setAllowedOrigins(List.of("http://localhost:5173"));
-				 config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-				 config.setAllowedHeaders(List.of("*"));
-				 config.setAllowCredentials(true);
-				 config.setMaxAge(3600L);
-				 return config;
-				 }))
+					CorsConfiguration config = new CorsConfiguration();
+					config.setAllowedOrigins(List.of("http://localhost:5173"));
+					config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+					config.setAllowedHeaders(List.of("*"));
+					config.setAllowCredentials(true);
+					config.setMaxAge(3600L);
+					return config;
+				}))
 				.csrf(csrf -> csrf.disable())
 				.sessionManagement(
 						session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -43,10 +43,9 @@ public class SecurityConfig {
 				.addFilterBefore(jwtAuthenticationFilter,
 						UsernamePasswordAuthenticationFilter.class)
 				.authorizeHttpRequests(auth -> auth
-						.requestMatchers("/api/auth/login", "/api/auth/register",
-								"/api/auth/refresh", "/api/health", "/auth/login", "/auth/register",
+						.requestMatchers("/auth/login", "/auth/register",
 								"/auth/refresh", "/health", "/swagger-ui.html", "/swagger-ui/**",
-								"/v3/api-docs/**", "/ws/**", "/ws-raw/**")
+								"/v3/api-docs/**", "/ws/**", "/ws-raw/**", "/ws-raw")
 						.permitAll()
 						.anyRequest().authenticated())
 				.build();

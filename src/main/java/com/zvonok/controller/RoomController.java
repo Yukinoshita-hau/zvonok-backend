@@ -1,6 +1,7 @@
 package com.zvonok.controller;
 
 import com.zvonok.controller.dto.MessageResponse;
+import com.zvonok.controller.dto.ShortMessageWrapped;
 import com.zvonok.documentation.RoomApiDescriptions;
 import com.zvonok.documentation.UserApiDescriptions;
 import com.zvonok.documentation.annotation.ApiResponse400;
@@ -82,11 +83,11 @@ public class RoomController {
 	@ApiResponse403
 	@ApiResponse404(description = RoomApiDescriptions.ROOM_NOT_FOUND)
 	@PutMapping("/{id}")
-	public ResponseEntity<Room> updateRoom(@PathVariable Long id,
+	public ResponseEntity<Void> updateRoom(@PathVariable Long id,
 			@Valid @RequestBody UpdateRoomDto roomDto,
 			@AuthenticationPrincipal UserPrincipal principal) {
-		return ResponseEntity
-				.ok(roomService.updateRoom(id, principal.getName(), roomDto.getName()));
+		roomService.updateRoom(id, principal.getName(), roomDto.getName(), null, null, null);
+		return ResponseEntity.noContent().build();
 	}
 
 	@Operation(summary = "Удалить комнату",
@@ -115,4 +116,16 @@ public class RoomController {
 				messageService.getPrivateMessages(principal.getUsername(), userId);
 		return ResponseEntity.ok(messages);
 	}
+
+	@GetMapping("/{roomId}/messages")
+	public ResponseEntity<List<ShortMessageWrapped>> getRoomMessages(@PathVariable Long roomId,
+			@RequestParam(required = false) Long beforeMessageId,
+			@RequestParam(defaultValue = "15") int limit,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		List<ShortMessageWrapped> messages = messageService.getRoomMessages(principal.getUsername(),
+				roomId, beforeMessageId, limit);
+
+		return ResponseEntity.ok(messages);
+	}
 }
+

@@ -1,9 +1,8 @@
 package com.zvonok.controller;
 
-import com.zvonok.controller.dto.MessageResponse;
+import com.zvonok.controller.dto.ShortMessageWrapped;
 import com.zvonok.controller.dto.UpdateMessageRequest;
 import com.zvonok.documentation.annotation.SecuredApiResponses;
-import com.zvonok.model.Message;
 import com.zvonok.security.dto.UserPrincipal;
 import com.zvonok.service.MessageService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 		description = "Эндпоинты для получения, редактирования и удаления сообщений.")
 @SecurityRequirement(name = "JWT")
 @RestController
-@RequestMapping("/message")
+@RequestMapping("/messages")
 @RequiredArgsConstructor
 public class MessageController {
 
@@ -28,8 +27,8 @@ public class MessageController {
 	@Operation(summary = "Получить сообщение", description = "Возвращает сообщение по messageId.")
 	@SecuredApiResponses
 	@GetMapping("/{messageId}")
-	public ResponseEntity<Message> getMessage(@PathVariable Long messageId) {
-		return ResponseEntity.ok(messageService.getMessage(messageId));
+	public ResponseEntity<ShortMessageWrapped> getMessage(@PathVariable Long messageId) {
+		return ResponseEntity.ok(messageService.getShortMessageWrapped(messageId));
 	}
 
 	@Operation(summary = "Редактировать сообщение",
@@ -37,11 +36,11 @@ public class MessageController {
 					+ "Возвращает обновлённое сообщение (в виде MessageResponse).")
 	@SecuredApiResponses
 	@PutMapping("/{messageId}")
-	public ResponseEntity<MessageResponse> updateMessage(@PathVariable Long messageId,
+	public ResponseEntity<ShortMessageWrapped> updateMessage(@PathVariable Long messageId,
 			@Valid @RequestBody UpdateMessageRequest request,
 			@AuthenticationPrincipal UserPrincipal principal) {
-		MessageResponse response = messageService.editMessage(messageId, principal.getUsername(),
-				request.getContent());
+		ShortMessageWrapped response = messageService.editMessage(messageId,
+				principal.getUsername(), request.getContent());
 		return ResponseEntity.ok(response);
 	}
 
@@ -55,4 +54,3 @@ public class MessageController {
 		return ResponseEntity.noContent().build();
 	}
 }
-

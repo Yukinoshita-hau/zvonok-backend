@@ -18,6 +18,9 @@ import com.zvonok.model.Channel;
 import com.zvonok.service.dto.EventType;
 import com.zvonok.service.dto.Permission;
 import com.zvonok.controller.dto.MessageResponse;
+import com.zvonok.controller.dto.ShortMessageWrapped;
+import com.zvonok.controller.dto.RoomShortDto;
+import com.zvonok.controller.dto.SenderDto;
 import com.zvonok.model.Message;
 import com.zvonok.model.Room;
 import com.zvonok.model.User;
@@ -25,18 +28,17 @@ import com.zvonok.model.enumeration.MessageType;
 import com.zvonok.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Service for managing messages in private rooms, group rooms, and channels.
- * Сервис для управления
+ * Service for managing messages in private rooms, group rooms, and channels. Сервис для управления
  * сообщениями в приватных комнатах, групповых комнатах и каналах.
  */
 @Service
@@ -65,9 +67,11 @@ public class MessageService {
 			// Проверяем, что отправитель является участником комнаты
 			boolean isMember = privateRoom.getMembers().stream()
 					.anyMatch(member -> member.getId().equals(sender.getId()));
+
 			if (!isMember) {
 				throw new InsufficientPermissionsException(
-						BusinessRuleMessage.BUSINESS_USER_NOT_MEMBER_PRIVATE_ROOM_MESSAGE.getMessage());
+						BusinessRuleMessage.BUSINESS_USER_NOT_MEMBER_PRIVATE_ROOM_MESSAGE
+								.getMessage());
 			}
 
 			message = createMessage(sender, content, privateRoom, null);
@@ -81,24 +85,25 @@ public class MessageService {
 						response);
 			}
 
-			log.info("{}", LogEvent.buildSuccessEvent(LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION,
-					LogTimingUtils.calculateDurationDifference(durationStart)).roomId(privateRoom.getId())
-					.messageId(message.getId()).build());
+			roomService.updateRoom(privateRoom.getId(), senderUsername, privateRoom.getName(),
+					message.getId(), message.getContent(), message.getSentAt());
+
+			log.info("{}",
+					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION,
+							LogTimingUtils.calculateDurationDifference(durationStart))
+							.roomId(privateRoom.getId()).messageId(message.getId()).build());
 			return response;
 		} catch (UserNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION, durationStart, privateRoom,
-					message,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION,
+					durationStart, privateRoom, message, false);
 			throw e;
 		} catch (InsufficientPermissionsException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION, durationStart, privateRoom,
-					message,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION,
+					durationStart, privateRoom, message, false);
 			throw e;
 		} catch (Exception e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION, durationStart, privateRoom,
-					message,
-					true);
+			buildFailedMessage(e, LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION,
+					durationStart, privateRoom, message, true);
 			throw e;
 		}
 
@@ -117,7 +122,8 @@ public class MessageService {
 					.anyMatch(member -> member.getId().equals(sender.getId()));
 			if (!isMember) {
 				throw new InsufficientPermissionsException(
-						BusinessRuleMessage.BUSINESS_USER_NOT_MEMBER_GROUP_ROOM_MESSAGE.getMessage());
+						BusinessRuleMessage.BUSINESS_USER_NOT_MEMBER_GROUP_ROOM_MESSAGE
+								.getMessage());
 			}
 
 			message = createMessage(sender, content, groupRoom, null);
@@ -128,25 +134,29 @@ public class MessageService {
 
 			messagingTemplate.convertAndSend("/topic/room." + groupRoom.getId(), response);
 
-			log.info("{}", LogEvent.buildSuccessEvent(LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION,
-					LogTimingUtils.calculateDurationDifference(durationStart)).roomId(roomId)
-					.messageId(message.getId()).build());
+			roomService.updateRoom(groupRoom.getId(), senderUsername, groupRoom.getName(),
+					message.getId(), message.getContent(), message.getSentAt());
+
+			log.info("{}",
+					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION,
+							LogTimingUtils.calculateDurationDifference(durationStart))
+							.roomId(roomId).messageId(message.getId()).build());
 			return response;
 		} catch (RoomNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart, roomId, message,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart,
+					roomId, message, false);
 			throw e;
 		} catch (UserNotMemberRoomException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart, roomId, message,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart,
+					roomId, message, false);
 			throw e;
 		} catch (InsufficientPermissionsException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart, roomId, message,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart,
+					roomId, message, false);
 			throw e;
 		} catch (Exception e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart, roomId, message,
-					true);
+			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart,
+					roomId, message, true);
 			throw e;
 		}
 
@@ -176,43 +186,42 @@ public class MessageService {
 			String topicDestination = "/topic/channel." + channelId;
 			messagingTemplate.convertAndSend(topicDestination, response);
 
-			log.info("{}", LogEvent.buildSuccessEvent(LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION,
-					LogTimingUtils.calculateDurationDifference(durationStart)).channelId(channelId)
-					.messageId(message.getId()).build());
+			log.info("{}",
+					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION,
+							LogTimingUtils.calculateDurationDifference(durationStart))
+							.channelId(channelId).messageId(message.getId()).build());
 			return response;
 
 		} catch (UserNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION, durationStart, message,
-					channelId,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION,
+					durationStart, message, channelId, false);
 			throw e;
 		} catch (ChannelNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION, durationStart, message,
-					channelId,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION,
+					durationStart, message, channelId, false);
 			throw e;
 		} catch (InsufficientPermissionsException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION, durationStart, message,
-					channelId,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION,
+					durationStart, message, channelId, false);
 			throw e;
 		} catch (Exception e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION, durationStart, message,
-					channelId,
-					true);
+			buildFailedMessage(e, LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION,
+					durationStart, message, channelId, true);
 			throw e;
 		}
 	}
 
 	@Transactional
-	public MessageResponse editMessage(Long messageId, String senderUsername, String newContent) {
+	public ShortMessageWrapped editMessage(Long messageId, String senderUsername,
+			String newContent) {
 		long durationStart = System.currentTimeMillis();
 		User sender = null;
 
 		try {
 			Message message = messageRepository.findById(messageId)
 					.orElseThrow(() -> new MessageNotFoundException(String.format("%s (ID: %d)",
-							HttpResponseMessage.HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE.getMessage(),
+							HttpResponseMessage.HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE
+									.getMessage(),
 							messageId)));
 
 			sender = userService.getUser(senderUsername);
@@ -242,36 +251,38 @@ public class MessageService {
 				messagingTemplate.convertAndSend("/topic/room." + savedMessage.getRoom().getId(),
 						response);
 			} else if (savedMessage.getChannel() != null) {
-				ChannelMessageResponse channelResponse = mapToChannelMessageResponse(savedMessage,
-						savedMessage.getChannel());
+				ChannelMessageResponse channelResponse =
+						mapToChannelMessageResponse(savedMessage, savedMessage.getChannel());
 				channelResponse.setEventType(EventType.MESSAGE_EDIT);
-				messagingTemplate.convertAndSend("/topic/channel." + savedMessage.getChannel().getId(),
-						channelResponse);
+				messagingTemplate.convertAndSend(
+						"/topic/channel." + savedMessage.getChannel().getId(), channelResponse);
 			}
 
-			log.info("{}", LogEvent.buildSuccessEvent(LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION,
-					LogTimingUtils.calculateDurationDifference(durationStart)).userId(sender.getId())
-					.messageId(messageId).build());
-			return response;
+			log.info("{}",
+					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION,
+							LogTimingUtils.calculateDurationDifference(durationStart))
+							.userId(sender.getId()).messageId(messageId).build());
+
+			return toWrappedShortMessage(savedMessage);
 		} catch (MessageNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart, sender, messageId,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart,
+					sender, messageId, false);
 			throw e;
 		} catch (UserNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart, sender, messageId,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart,
+					sender, messageId, false);
 			throw e;
 		} catch (InsufficientPermissionsException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart, sender, messageId,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart,
+					sender, messageId, false);
 			throw e;
 		} catch (CannotEditDeletedMessageException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart, sender, messageId,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart,
+					sender, messageId, false);
 			throw e;
 		} catch (Exception e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart, sender, messageId,
-					true);
+			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart,
+					sender, messageId, true);
 			throw e;
 		}
 	}
@@ -283,15 +294,22 @@ public class MessageService {
 
 		try {
 			Message message = messageRepository.findById(messageId)
-					.orElseThrow(() -> new MessageNotFoundException(String.format("%s (ID: %d)",
-							HttpResponseMessage.HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE.getMessage(),
-							messageId)));
+					.orElseThrow(() -> new MessageNotFoundException(
+							HttpResponseMessage.HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE
+									.getMessage()));
+
+			if (message.isDeleted()) {
+				throw new MessageNotFoundException(
+						HttpResponseMessage.HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE.getMessage());
+			}
 
 			user = userService.getUser(username);
+
 
 			// Проверяем, что пользователь является отправителем или имеет права
 			// администратора
 			boolean isSender = message.getSender().getId().equals(user.getId());
+			System.out.println(isSender);
 			boolean isAdmin = false;
 
 			if (message.getChannel() != null) {
@@ -302,9 +320,10 @@ public class MessageService {
 
 			if (!isSender && !isAdmin) {
 				throw new InsufficientPermissionsException(
-						HttpResponseMessage.HTTP_INSUFFICIENT_PERMISSIONS_RESPONSE_MESSAGE
+						HttpResponseMessage.HTTP_INSUFFICIENT_MESSAGE_PERMISSIONS_RESPONSE_MESSAGE
 								.getMessage());
 			}
+
 
 			message.setDeletedAt(LocalDateTime.now());
 			messageRepository.save(message);
@@ -313,41 +332,63 @@ public class MessageService {
 			if (message.getRoom() != null) {
 				MessageResponse response = mapToMessageResponse(message, message.getRoom().getId());
 				response.setEventType(EventType.MESSAGE_DELETE);
-				messagingTemplate.convertAndSend("/topic/room." + message.getRoom().getId(), response);
+				messagingTemplate.convertAndSend("/topic/room." + message.getRoom().getId(),
+						response);
 			} else if (message.getChannel() != null) {
-				ChannelMessageResponse response = mapToChannelMessageResponse(message, message.getChannel());
+				ChannelMessageResponse response =
+						mapToChannelMessageResponse(message, message.getChannel());
 				response.setEventType(EventType.MESSAGE_DELETE);
 				messagingTemplate.convertAndSend("/topic/channel." + message.getChannel().getId(),
 						response);
 			}
 
-			log.info("{}", LogEvent.buildSuccessEvent(LogEventConstants.EVENT_DELETE_MESSAGE_ACTION,
-					LogTimingUtils.calculateDurationDifference(durationStart)).userId(user.getId())
-					.messageId(messageId).build());
+			log.info("{}",
+					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_DELETE_MESSAGE_ACTION,
+							LogTimingUtils.calculateDurationDifference(durationStart))
+							.userId(user.getId()).messageId(messageId).build());
 		} catch (MessageNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart, user, messageId,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart,
+					user, messageId, false);
 			throw e;
 		} catch (UserNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart, user, messageId,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart,
+					user, messageId, false);
 			throw e;
 		} catch (InsufficientPermissionsException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart, user, messageId,
-					false);
+			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart,
+					user, messageId, false);
 			throw e;
 		} catch (Exception e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart, user, messageId,
-					true);
+			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart,
+					user, messageId, true);
 			throw e;
 		}
 	}
 
 	public Message getMessage(Long messageId) {
-		return messageRepository.findById(messageId)
-				.orElseThrow(() -> new MessageNotFoundException(String.format("%s (ID: %d)",
-						HttpResponseMessage.HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE.getMessage(),
-						messageId)));
+		return messageRepository.findById(messageId).orElseThrow(() -> new MessageNotFoundException(
+				HttpResponseMessage.HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
+	}
+
+	public List<ShortMessageWrapped> getRoomMessages(String currentUsername, Long roomId,
+			Long beforeMessageId, int limit) {
+		roomService.getRoom(roomId, currentUsername);
+
+		PageRequest pageRequest = PageRequest.of(0, limit);
+
+		org.springframework.data.domain.Page<Message> page;
+
+		if (beforeMessageId == null) {
+			page = messageRepository.findByRoomIdAndDeletedAtIsNullOrderBySentAtDesc(roomId,
+					pageRequest);
+		} else {
+			Message beforeMessage = getMessage(beforeMessageId);
+			page = messageRepository.findByRoomIdAndDeletedAtIsNullAndIdLessThanOrderByIdDesc(
+					roomId, beforeMessage.getId(), pageRequest);
+		} ;
+
+		return page.getContent().stream().sorted(java.util.Comparator.comparing(Message::getId))
+				.map(this::toWrappedShortMessage).toList();
 	}
 
 	public List<MessageResponse> getPrivateMessages(String currentUsername, Long userId) {
@@ -362,11 +403,17 @@ public class MessageService {
 				.toList();
 	}
 
+
 	public void sendErrorMessage(String username, String message, HttpStatus status) {
 		ChatErrorMessageResponse messageResponse = new ChatErrorMessageResponse();
 		messageResponse.setMessage(message);
 		messageResponse.setStatus(status.value());
 		messagingTemplate.convertAndSendToUser(username, "/queue/errors", messageResponse);
+	}
+
+	public ShortMessageWrapped getShortMessageWrapped(Long id) {
+		Message message = getMessage(id);
+		return toWrappedShortMessage(message);
 	}
 
 	// ===== PRIVATE HELPER METHODS =====
@@ -383,6 +430,16 @@ public class MessageService {
 		message.setDeletedAt(null);
 		message.setSentAt(LocalDateTime.now());
 		return message;
+	}
+
+	private ShortMessageWrapped toWrappedShortMessage(Message message) {
+		SenderDto sender =
+				new SenderDto(message.getSender().getId(), message.getSender().getUsername(),
+						message.getSender().getAvatarUrl(), message.getSender().getStatus());
+		RoomShortDto room =
+				new RoomShortDto(message.getRoom().getId(), message.getRoom().getType());
+		return new ShortMessageWrapped(message.getId(), message.getContent(), message.getType(),
+				message.getSentAt(), sender, room);
 	}
 
 	private MessageResponse mapToMessageResponse(Message message, Long roomId) {
@@ -414,8 +471,8 @@ public class MessageService {
 		return response;
 	}
 
-	private void buildFailedMessage(Exception e, String action, long durationStart, Room room, Message message,
-			boolean isErrorLog) {
+	private void buildFailedMessage(Exception e, String action, long durationStart, Room room,
+			Message message, boolean isErrorLog) {
 		LogEvent.LogEventBuilder logBuilder = LogEvent.buildFailedEvent(action, e.getMessage(),
 				LogTimingUtils.calculateDurationDifference(durationStart));
 		if (room != null) {
@@ -433,8 +490,8 @@ public class MessageService {
 		}
 	}
 
-	private void buildFailedMessage(Exception e, String action, long durationStart, Long roomId, Message message,
-			boolean isErrorLog) {
+	private void buildFailedMessage(Exception e, String action, long durationStart, Long roomId,
+			Message message, boolean isErrorLog) {
 		LogEvent.LogEventBuilder logBuilder = LogEvent.buildFailedEvent(action, e.getMessage(),
 				LogTimingUtils.calculateDurationDifference(durationStart));
 		logBuilder.roomId(roomId);
@@ -450,8 +507,8 @@ public class MessageService {
 		}
 	}
 
-	private void buildFailedMessage(Exception e, String action, long durationStart, Message message, Long channelId,
-			boolean isErrorLog) {
+	private void buildFailedMessage(Exception e, String action, long durationStart, Message message,
+			Long channelId, boolean isErrorLog) {
 		LogEvent.LogEventBuilder logBuilder = LogEvent.buildFailedEvent(action, e.getMessage(),
 				LogTimingUtils.calculateDurationDifference(durationStart));
 		logBuilder.channelId(channelId);
@@ -467,8 +524,8 @@ public class MessageService {
 		}
 	}
 
-	private void buildFailedMessage(Exception e, String action, long durationStart, User user, Long messageId,
-			boolean isErrorLog) {
+	private void buildFailedMessage(Exception e, String action, long durationStart, User user,
+			Long messageId, boolean isErrorLog) {
 		LogEvent.LogEventBuilder logBuilder = LogEvent.buildFailedEvent(action, e.getMessage(),
 				LogTimingUtils.calculateDurationDifference(durationStart));
 		logBuilder.messageId(messageId);

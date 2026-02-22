@@ -23,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import com.zvonok.controller.dto.MessageResponse;
+import com.zvonok.controller.dto.ShortMessageWrapped;
 import com.zvonok.model.Message;
 import com.zvonok.model.Room;
 import com.zvonok.model.User;
@@ -233,7 +234,7 @@ public class MessageServiceTest {
         when(messageRepository.save(any(Message.class))).thenReturn(existingMessage);
 
         // Act
-        MessageResponse response = messageService.editMessage(
+        ShortMessageWrapped response = messageService.editMessage(
             MESSAGE_ID, 
             testSenderUsername, 
             "newContent"
@@ -242,7 +243,6 @@ public class MessageServiceTest {
         // Assert
         assertNotNull(response);
         assertEquals("newContent", response.getContent());
-        assertEquals(EventType.MESSAGE_EDIT, response.getEventType());
         verify(messageRepository).save(any(Message.class));
         verify(simpMessagingTemplate).convertAndSend(eq("/topic/room." + ROOM_ID), any(MessageResponse.class));
     }

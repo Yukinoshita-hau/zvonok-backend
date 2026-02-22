@@ -1,5 +1,6 @@
 package com.zvonok.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.zvonok.exception.MessageTargetValidationException;
 import com.zvonok.exception_handler.enumeration.BusinessRuleMessage;
 import com.zvonok.model.enumeration.MessageType;
@@ -22,7 +23,7 @@ public class Message {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne @JoinColumn(name = "sender_id", nullable = false)
+    @ManyToOne @JoinColumn(name = "sender_id", nullable = false) @JsonIgnore
     private User sender;
 
     @ManyToOne @JoinColumn(name = "room_id")
