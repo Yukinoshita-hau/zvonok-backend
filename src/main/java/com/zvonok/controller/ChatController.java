@@ -1,7 +1,6 @@
 package com.zvonok.controller;
 
 import com.zvonok.controller.dto.ChannelMessageResponse;
-import com.zvonok.controller.dto.MessageResponse;
 import com.zvonok.exception.AuthenticatedPrincipalRequiredException;
 import com.zvonok.exception_handler.annotation.ApiException;
 import com.zvonok.exception_handler.enumeration.BusinessRuleMessage;
@@ -28,33 +27,46 @@ public class ChatController {
 	private final MessageService messageService;
 
 	@MessageMapping("/private/{receiverUsername}")
-	public MessageResponse sendPrivateMessage(@DestinationVariable String receiverUsername,
-			Principal principal,
-			@Payload String content) {
+	public void sendPrivateMessage(@DestinationVariable String receiverUsername,
+			Principal principal, @Payload String content) {
 		String sender = resolvePrincipalName(principal);
 		validateContent(content);
 
-		return messageService.sendPrivateMessage(sender, receiverUsername, content);
+		messageService.sendPrivateMessage(sender, receiverUsername, content);
 	}
 
-	@MessageMapping("/group/{roomId}")
-	public MessageResponse sendGroupMessage(@DestinationVariable Long roomId,
-			Principal principal,
+	@MessageMapping("/send/{roomId}")
+	public void sendMessage(@DestinationVariable Long roomId, Principal principal,
 			@Payload String content) {
 		String sender = resolvePrincipalName(principal);
 		validateContent(content);
 
-		return messageService.sendGroupMessage(sender, roomId, content);
+		messageService.sendMessage(sender, roomId, content);
 	}
 
 	@MessageMapping("/channel/{channelId}")
 	public ChannelMessageResponse sendChannelMessage(@DestinationVariable Long channelId,
-			Principal principal,
-			@Payload String content) {
+			Principal principal, @Payload String content) {
 		String sender = resolvePrincipalName(principal);
 		validateContent(content);
 
 		return messageService.sendChannelMessage(sender, channelId, content);
+	}
+
+	@MessageMapping("/edit/{messageId}")
+	public void editMessage(@DestinationVariable Long messageId, Principal principal,
+			@Payload String newContent) {
+		String sender = resolvePrincipalName(principal);
+		validateContent(newContent);
+
+		messageService.editMessage(messageId, sender, newContent);
+	}
+
+	@MessageMapping("/delete/{messageId}")
+	public void deleteMessage(@DestinationVariable Long messageId, Principal principal) {
+		String username = resolvePrincipalName(principal);
+
+		messageService.deleteMessage(messageId, username);
 	}
 
 	@MessageExceptionHandler()
@@ -67,7 +79,8 @@ public class ChatController {
 	private String resolvePrincipalName(Principal principal) {
 		if (principal == null || principal.getName() == null) {
 			throw new AuthenticatedPrincipalRequiredException(
-					BusinessRuleMessage.BUSINESS_AUTHENTICATED_PRINCIPAL_REQUIRED_MESSAGE.getMessage());
+					BusinessRuleMessage.BUSINESS_AUTHENTICATED_PRINCIPAL_REQUIRED_MESSAGE
+							.getMessage());
 		}
 		return principal.getName();
 	}

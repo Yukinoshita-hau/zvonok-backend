@@ -1,6 +1,7 @@
 package com.zvonok.handler;
 
 import java.security.Principal;
+import java.util.Set;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
@@ -25,7 +26,18 @@ public class WebSocketEventListener {
 
 		if (principal != null && sessionId != null) {
 			sessionService.addSession(principal.getName(), sessionId);
-			log.info("User '{}' connected to WebSocket, sessionId={}", principal.getName(), sessionId);
+			log.info("User '{}' connected to WebSocket, sessionId={}", principal.getName(),
+					sessionId);
+
+			System.out.println("------------------------------------------");
+			Set<String> onlineUsers = sessionService.getOnlineUsers();
+			for (int i = 0; i < onlineUsers.size(); i++) {
+				onlineUsers.forEach(user -> {
+					System.out.println(user);
+				});
+			}
+
+			System.out.println("------------------------------------------");
 		}
 	}
 
@@ -36,9 +48,18 @@ public class WebSocketEventListener {
 
 		if (sessionId != null) {
 			sessionService.removeSession(sessionId);
-			log.info("User disconnected from WebSocket, sessionId={}, closeStatus={}",
-					sessionId, event.getCloseStatus());
+			log.info("User disconnected from WebSocket, sessionId={}, closeStatus={}", sessionId,
+					event.getCloseStatus());
 		}
 		log.info("Disconnect sessionId=" + sessionId + ", closeStatus=" + event.getCloseStatus());
+		System.out.println("------------------------------------------");
+		Set<String> onlineUsers = sessionService.getOnlineUsers();
+		for (int i = 0; i < onlineUsers.size(); i++) {
+			onlineUsers.forEach(user -> {
+				System.out.println(user);
+			});
+		}
+
+		System.out.println("------------------------------------------");
 	}
 }

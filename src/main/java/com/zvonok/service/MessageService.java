@@ -54,7 +54,7 @@ public class MessageService {
 	private final ChannelService channelService;
 	private final PermissionService permissionService;
 
-	public MessageResponse sendPrivateMessage(String senderUsername, String receiverUsername,
+	public ShortMessageWrapped sendPrivateMessage(String senderUsername, String receiverUsername,
 			String content) {
 		long durationStart = System.currentTimeMillis();
 		Message message = null;
@@ -77,8 +77,8 @@ public class MessageService {
 			message = createMessage(sender, content, privateRoom, null);
 			Message savedMessage = messageRepository.save(message);
 
-			MessageResponse response = mapToMessageResponse(savedMessage, privateRoom.getId());
-			response.setEventType(EventType.MESSAGE);
+			// MessageResponse response = mapToMessageResponse(savedMessage, privateRoom.getId());
+			ShortMessageWrapped response = toWrappedShortMessage(savedMessage, EventType.MESSAGE);
 
 			for (User member : privateRoom.getMembers()) {
 				messagingTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages",
@@ -109,16 +109,16 @@ public class MessageService {
 
 	}
 
-	public MessageResponse sendGroupMessage(String senderUsername, long roomId, String content) {
+	public ShortMessageWrapped sendMessage(String senderUsername, long roomId, String content) {
 		long durationStart = System.currentTimeMillis();
 		Message message = null;
 
 		try {
-			Room groupRoom = roomService.getRoom(roomId, senderUsername);
+			Room room = roomService.getRoom(roomId, senderUsername);
 			User sender = userService.getUser(senderUsername);
 
 			// Проверяем, что отправитель является участником комнаты
-			boolean isMember = groupRoom.getMembers().stream()
+			boolean isMember = room.getMembers().stream()
 					.anyMatch(member -> member.getId().equals(sender.getId()));
 			if (!isMember) {
 				throw new InsufficientPermissionsException(
@@ -126,16 +126,20 @@ public class MessageService {
 								.getMessage());
 			}
 
-			message = createMessage(sender, content, groupRoom, null);
+			message = createMessage(sender, content, room, null);
 			Message savedMessage = messageRepository.save(message);
 
-			MessageResponse response = mapToMessageResponse(savedMessage, groupRoom.getId());
-			response.setEventType(EventType.MESSAGE);
+			// MessageResponse response = mapToMessageResponse(savedMessage, room.getId());
+			ShortMessageWrapped response = toWrappedShortMessage(savedMessage, EventType.MESSAGE);
 
-			messagingTemplate.convertAndSend("/topic/room." + groupRoom.getId(), response);
+			// messagingTemplate.convertAndSend("/topic/room." + room.getId(), response);
+			for (User member : room.getMembers()) {
+				messagingTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages",
+						response);
+			}
 
-			roomService.updateRoom(groupRoom.getId(), senderUsername, groupRoom.getName(),
-					message.getId(), message.getContent(), message.getSentAt());
+			roomService.updateRoom(room.getId(), senderUsername, room.getName(), message.getId(),
+					message.getContent(), message.getSentAt());
 
 			log.info("{}",
 					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION,
@@ -181,7 +185,6 @@ public class MessageService {
 			Message savedMessage = messageRepository.save(message);
 
 			ChannelMessageResponse response = mapToChannelMessageResponse(savedMessage, channel);
-			response.setEventType(EventType.MESSAGE);
 
 			String topicDestination = "/topic/channel." + channelId;
 			messagingTemplate.convertAndSend(topicDestination, response);
@@ -242,14 +245,19 @@ public class MessageService {
 			message.setEditedAt(LocalDateTime.now());
 			Message savedMessage = messageRepository.save(message);
 
-			MessageResponse response = mapToMessageResponse(savedMessage,
-					savedMessage.getRoom() != null ? savedMessage.getRoom().getId() : null);
-			response.setEventType(EventType.MESSAGE_EDIT);
+			ShortMessageWrapped response =
+					toWrappedShortMessage(savedMessage, EventType.MESSAGE_EDIT);
+
+
+			roomService.updateRoom(savedMessage.getRoom().getId(), senderUsername, null,
+					message.getId(), message.getContent(), message.getSentAt());
 
 			// Отправляем обновление через WebSocket
 			if (savedMessage.getRoom() != null) {
-				messagingTemplate.convertAndSend("/topic/room." + savedMessage.getRoom().getId(),
-						response);
+				for (User member : savedMessage.getRoom().getMembers()) {
+					messagingTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages",
+							response);
+				}
 			} else if (savedMessage.getChannel() != null) {
 				ChannelMessageResponse channelResponse =
 						mapToChannelMessageResponse(savedMessage, savedMessage.getChannel());
@@ -263,7 +271,7 @@ public class MessageService {
 							LogTimingUtils.calculateDurationDifference(durationStart))
 							.userId(sender.getId()).messageId(messageId).build());
 
-			return toWrappedShortMessage(savedMessage);
+			return response;
 		} catch (MessageNotFoundException e) {
 			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart,
 					sender, messageId, false);
@@ -302,14 +310,12 @@ public class MessageService {
 				throw new MessageNotFoundException(
 						HttpResponseMessage.HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE.getMessage());
 			}
-
 			user = userService.getUser(username);
 
 
 			// Проверяем, что пользователь является отправителем или имеет права
 			// администратора
 			boolean isSender = message.getSender().getId().equals(user.getId());
-			System.out.println(isSender);
 			boolean isAdmin = false;
 
 			if (message.getChannel() != null) {
@@ -328,12 +334,29 @@ public class MessageService {
 			message.setDeletedAt(LocalDateTime.now());
 			messageRepository.save(message);
 
+			List<ShortMessageWrapped> RoomMessages =
+					getRoomMessages(username, message.getRoom().getId(), null, 1);
+
+			ShortMessageWrapped lastRoomMessage =
+					RoomMessages.size() == 1 ? RoomMessages.getFirst() : null;
+
+			if (lastRoomMessage != null) {
+				roomService.updateRoom(message.getRoom().getId(), username, null,
+						lastRoomMessage.getId(), lastRoomMessage.getContent(),
+						lastRoomMessage.getSentAt());
+			} else {
+				roomService.updateRoom(message.getRoom().getId(), username, null, null, null);
+			}
+
 			// Отправляем событие удаления через WebSocket
 			if (message.getRoom() != null) {
-				MessageResponse response = mapToMessageResponse(message, message.getRoom().getId());
-				response.setEventType(EventType.MESSAGE_DELETE);
-				messagingTemplate.convertAndSend("/topic/room." + message.getRoom().getId(),
-						response);
+				ShortMessageWrapped response =
+						toWrappedShortMessage(message, EventType.MESSAGE_DELETE);
+
+				for (User member : message.getRoom().getMembers()) {
+					messagingTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages",
+							response);
+				}
 			} else if (message.getChannel() != null) {
 				ChannelMessageResponse response =
 						mapToChannelMessageResponse(message, message.getChannel());
@@ -388,7 +411,7 @@ public class MessageService {
 		} ;
 
 		return page.getContent().stream().sorted(java.util.Comparator.comparing(Message::getId))
-				.map(this::toWrappedShortMessage).toList();
+				.map(msg -> toWrappedShortMessage(msg, EventType.MESSAGE)).toList();
 	}
 
 	public List<MessageResponse> getPrivateMessages(String currentUsername, Long userId) {
@@ -413,7 +436,7 @@ public class MessageService {
 
 	public ShortMessageWrapped getShortMessageWrapped(Long id) {
 		Message message = getMessage(id);
-		return toWrappedShortMessage(message);
+		return toWrappedShortMessage(message, EventType.MESSAGE);
 	}
 
 	// ===== PRIVATE HELPER METHODS =====
@@ -432,14 +455,14 @@ public class MessageService {
 		return message;
 	}
 
-	private ShortMessageWrapped toWrappedShortMessage(Message message) {
+	private ShortMessageWrapped toWrappedShortMessage(Message message, EventType eventType) {
 		SenderDto sender =
 				new SenderDto(message.getSender().getId(), message.getSender().getUsername(),
 						message.getSender().getAvatarUrl(), message.getSender().getStatus());
 		RoomShortDto room =
 				new RoomShortDto(message.getRoom().getId(), message.getRoom().getType());
 		return new ShortMessageWrapped(message.getId(), message.getContent(), message.getType(),
-				message.getSentAt(), sender, room);
+				eventType, message.getSentAt(), sender, room);
 	}
 
 	private MessageResponse mapToMessageResponse(Message message, Long roomId) {

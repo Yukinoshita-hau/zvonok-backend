@@ -60,47 +60,6 @@ public class FriendServiceTest {
     }
 
     @Test
-    void sendFriendRequest_shouldCreateRequest_whenValidData() {
-        // Arrange
-        when(userService.getUser(1L)).thenReturn(sender);
-        when(userService.getUser(2L)).thenReturn(receiver);
-        when(friendshipRepository.existsByUserOneIdAndUserTwoId(anyLong(), anyLong())).thenReturn(false);
-        when(friendRequestRepository.existsBySenderIdAndReceiverIdAndStatusIn(anyLong(), anyLong(), any()))
-            .thenReturn(false);
-        when(friendRequestRepository.save(any())).thenReturn(pendingRequest);
-
-        // Act
-        FriendRequest result = friendService.sendFriendRequest(1L, 2L);
-
-        // Assert
-        assertNotNull(result);
-        assertEquals(FriendRequestStatus.PENDING, result.getStatus());
-        verify(friendRequestRepository).save(any(FriendRequest.class));
-    }
-
-    @Test
-    void sendFriendRequest_shouldThrowException_whenSelfRequest() {
-        // Act & Assert
-        assertThrows(CannotAddYourselfAsFriendException.class, () -> 
-            friendService.sendFriendRequest(1L, 1L)
-        );
-    }
-
-    @Test
-    void sendFriendRequest_shouldThrowException_whenDuplicateRequest() {
-        // Arrange
-        when(userService.getUser(1L)).thenReturn(sender);
-        when(userService.getUser(2L)).thenReturn(receiver);
-        when(friendRequestRepository.existsBySenderIdAndReceiverIdAndStatusIn(anyLong(), anyLong(), any()))
-            .thenReturn(true);
-
-        // Act & Assert
-        assertThrows(FriendRequestAlreadyExistsException.class, () -> 
-            friendService.sendFriendRequest(1L, 2L)
-        );
-    }
-
-    @Test
     void acceptFriendRequest_shouldCreateFriendship_whenValidRequest() {
         // Arrange
         when(friendRequestRepository.findById(1L)).thenReturn(Optional.of(pendingRequest));

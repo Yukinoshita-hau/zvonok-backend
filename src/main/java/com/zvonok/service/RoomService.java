@@ -106,9 +106,9 @@ public class RoomService {
 			members.add(creator);
 		}
 
-		if (members.size() > 10) {
+		if (members.size() > 15) {
 			throw new RoomSizeMaxTenMembersException(
-					HttpResponseMessage.HTTP_ROOM_SIZE_MAX_TEN_MEMBERS_RESPONSE_MESSAGE
+					HttpResponseMessage.HTTP_ROOM_SIZE_MAX_FIFTEEN_MEMBERS_RESPONSE_MESSAGE
 							.getMessage());
 		}
 
@@ -189,6 +189,28 @@ public class RoomService {
 		if (lastActivityAt != null) {
 			room.setLastActivityAt(lastActivityAt);
 		}
+
+		return roomRepository.save(room);
+	}
+
+
+	@Transactional
+	public Room updateRoom(Long roomId, String username, Long lastMessageId,
+			String lastMessageContent, LocalDateTime lastActivityAt) {
+		User user = userService.getUser(username);
+		Room room = getRoom(roomId, username);
+
+		// Проверяем, что пользователь является участником комнаты
+		boolean isMember =
+				room.getMembers().stream().anyMatch(member -> member.getId().equals(user.getId()));
+		if (!isMember) {
+			throw new InsufficientPermissionsException(
+					"Пользователь не является участником комнаты");
+		}
+
+		room.setLastMessageId(lastMessageId);
+		room.setLastMessageContent(lastMessageContent);
+		room.setLastActivityAt(lastActivityAt);
 
 		return roomRepository.save(room);
 	}

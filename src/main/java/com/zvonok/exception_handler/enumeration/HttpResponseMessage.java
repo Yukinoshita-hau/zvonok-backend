@@ -7,7 +7,7 @@ public enum HttpResponseMessage {
 	// Room
 	HTTP_ROOM_NOT_FOUND_RESPONSE_MESSAGE("Room was not found"),
 	HTTP_INVALID_ROOM_SIZE_RESPONSE_MESSAGE("Invalid room size"),
-	HTTP_ROOM_SIZE_MAX_TEN_MEMBERS_RESPONSE_MESSAGE("Maximum of 10 members in group chat"),
+	HTTP_ROOM_SIZE_MAX_FIFTEEN_MEMBERS_RESPONSE_MESSAGE("Maximum of 15 members in group chat"),
 
 	// User
 	HTTP_USER_NOT_FOUND_RESPONSE_MESSAGE("User was not found"),
@@ -69,7 +69,11 @@ public enum HttpResponseMessage {
 	HTTP_REFRESH_TOKEN_NOT_TRANSFERRED("Refresh token not transferred"),
 	HTTP_REDEFINITION_RESPONSE_MESSAGE("Override can be either for the role or for the user"),
 	HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE("Message was not found"),
-	HTTP_AUTH_PRINCEPAL_REQUIRED_RESPONSE_MESSAGE("Authenticated principal required for this WebSocket operation");
+	HTTP_AUTH_PRINCEPAL_REQUIRED_RESPONSE_MESSAGE("Authenticated principal required for this WebSocket operation"),
+
+	// LiveKit
+	HTTP_LIVEKIT_ROOM_RESPONSE_MESSAGE("LikeKit room error"),
+	HTTP_LIVEKIT_TOKEN_GENERATE_ERROR_RESPONSE_MESSAGE("Failed to generate LiveKit token");
 
 	private final String message;
 

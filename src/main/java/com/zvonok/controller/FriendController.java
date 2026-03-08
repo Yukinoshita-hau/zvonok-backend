@@ -85,26 +85,6 @@ public class FriendController {
 		return ResponseEntity.ok(requests);
 	}
 
-	@Operation(summary = "Отправить заявку в друзья",
-			description = "Создаёт заявку в друзья от текущего пользователя к пользователю receiverUsername. Возвращает созданную заявку.")
-	@SecuredApiResponses
-	@ApiResponse(responseCode = "200",
-			description = FriendApiDescriptions.FRIEND_SEND_REQUEST_SUCCESS)
-	@ApiResponse400
-	@ApiResponse404(description = UserApiDescriptions.USER_NOT_FOUND)
-	@ApiResponse409(description = FriendApiDescriptions.FRIEND_REQUEST_ALREADY_EXIST)
-	@PostMapping("/requests")
-	public ResponseEntity<FriendRequestResponse> sendFriendRequest(
-			@Valid @RequestBody SendFriendRequest request,
-			@AuthenticationPrincipal UserPrincipal principal) {
-		User currentUser = getCurrentUser(principal);
-		User receiver = userService.getUser(request.getReceiverUsername());
-		FriendRequest friendRequest =
-				friendService.sendFriendRequest(currentUser.getId(), receiver.getId());
-		return ResponseEntity.status(HttpStatus.CREATED)
-				.body(toFriendRequestResponse(friendRequest));
-	}
-
 	@Operation(summary = "Принять заявку в друзья",
 			description = "Принимает входящую заявку requestId текущим пользователем и создаёт дружбу. Возвращает данные дружбы.")
 	@SecuredApiResponses

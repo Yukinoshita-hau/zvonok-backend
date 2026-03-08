@@ -5,7 +5,7 @@ import lombok.Getter;
 @Getter
 public enum Permission {
     // Базовые разрешения
-    NOTHING(0l),             // Ничего
+    NOTHING(0L),             // Ничего
     VIEW_CHANNEL(1L << 0),         // Видеть канал
     SEND_MESSAGES(1L << 1),        // Отправлять сообщения
     READ_MESSAGE_HISTORY(1L << 2), // Читать историю сообщений
@@ -45,7 +45,7 @@ public enum Permission {
 
     private final long value;
 
-    Permission(Long value) {
+    Permission(long value) {
         this.value = value;
     }
 
