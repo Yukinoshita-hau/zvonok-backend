@@ -1,0 +1,9 @@
+package com.zvonok.service.enums;
+
+public enum FriendEventType {
+	FRIEND_REQUEST_CREATED,
+	FRIEND_REQUEST_ACCEPTED, 
+	FRIEND_REQUEST_REJECTED, 
+	FRIEND_REQUEST_CANCELLED,
+	FRIEND_DELETE;
+}

@@ -32,12 +32,44 @@ public class WSFriendController {
 		friendService.sendFriendRequest(username, receiverUsername);
 	}
 
+	@MessageMapping("/accept/{requestId}")
+	public void acceptFriendRequest(Principal principal, @DestinationVariable Long requestId) {
+
+		String username = resolvePrincipalName(principal);
+
+		friendService.acceptFriendRequest(requestId, username);
+	}
+
+	@MessageMapping("/reject/{requestId}")
+	public void rejectFriendRequest(Principal principal, @DestinationVariable Long requestId) {
+
+		String username = resolvePrincipalName(principal);
+
+		friendService.rejectFriendRequest(requestId, username);
+	}
+
+	@MessageMapping("/cancel/{requestId}")
+	public void cancelFriendRequest(Principal principal, @DestinationVariable Long requestId) {
+		String username = resolvePrincipalName(principal);
+
+		friendService.cancelFriendRequest(requestId, username);
+	}
+
+	@MessageMapping("/remove/{friendUsername}")
+	public void cancelFriend(Principal principal, @DestinationVariable String friendUsername) {
+
+		String username = resolvePrincipalName(principal);
+
+		friendService.removeFriend(username, friendUsername);
+	}
+
 	@MessageExceptionHandler()
 	public void exceptionMessage(Exception ex, Principal principal, Message<?> message) {
 		String username = principal != null ? principal.getName() : null;
 		log.error("WebSocket exception for user '{}': {}", username, ex.getMessage(), ex);
 		friendService.sendErrorMessage(username, ex.getMessage(), getStatusFromException(ex));
 	}
+
 
 	private HttpStatus getStatusFromException(Exception ex) {
 		ApiException apiException = ex.getClass().getAnnotation(ApiException.class);

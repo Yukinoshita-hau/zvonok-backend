@@ -24,6 +24,10 @@ public class FriendRequestResponse {
 			accessMode = Schema.AccessMode.READ_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
 	String senderUsername;
 
+	@Schema(description = "ссылка на аватар отправителя.",
+			accessMode = Schema.AccessMode.READ_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
+	String senderAvatarUrl;
+
 	@Schema(description = "ID получателя.", example = "11",
 			accessMode = Schema.AccessMode.READ_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
 	Long receiverId;
@@ -31,6 +35,10 @@ public class FriendRequestResponse {
 	@Schema(description = "Username получателя.", example = "aliya",
 			accessMode = Schema.AccessMode.READ_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
 	String receiverUsername;
+
+	@Schema(description = "ссылка на аватар получателя.",
+			accessMode = Schema.AccessMode.READ_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
+	String receiverAvatarUrl;
 
 	@Schema(description = "Статус заявки.", example = "PENDING",
 			accessMode = Schema.AccessMode.READ_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)

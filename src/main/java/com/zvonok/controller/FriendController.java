@@ -2,13 +2,7 @@ package com.zvonok.controller;
 
 import com.zvonok.controller.dto.FriendRequestResponse;
 import com.zvonok.controller.dto.FriendResponse;
-import com.zvonok.controller.dto.SendFriendRequest;
 import com.zvonok.documentation.FriendApiDescriptions;
-import com.zvonok.documentation.UserApiDescriptions;
-import com.zvonok.documentation.annotation.ApiResponse400;
-import com.zvonok.documentation.annotation.ApiResponse403;
-import com.zvonok.documentation.annotation.ApiResponse404;
-import com.zvonok.documentation.annotation.ApiResponse409;
 import com.zvonok.documentation.annotation.SecuredApiResponses;
 import com.zvonok.model.FriendRequest;
 import com.zvonok.model.Friendship;
@@ -20,9 +14,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -83,66 +75,6 @@ public class FriendController {
 				friendService.getOutgoingRequests(currentUser.getId()).stream()
 						.map(this::toFriendRequestResponse).toList();
 		return ResponseEntity.ok(requests);
-	}
-
-	@Operation(summary = "Принять заявку в друзья",
-			description = "Принимает входящую заявку requestId текущим пользователем и создаёт дружбу. Возвращает данные дружбы.")
-	@SecuredApiResponses
-	@ApiResponse(responseCode = "200",
-			description = FriendApiDescriptions.FRIEND_ACCEPT_REQUEST_SUCCESS)
-	@ApiResponse403
-	@ApiResponse404(description = FriendApiDescriptions.FRIEND_REQUEST_NOT_FOUND)
-	@PostMapping("/requests/{requestId}/accept")
-	public ResponseEntity<FriendResponse> acceptFriendRequest(@PathVariable Long requestId,
-			@AuthenticationPrincipal UserPrincipal principal) {
-		User currentUser = getCurrentUser(principal);
-		Friendship friendship = friendService.acceptFriendRequest(requestId, currentUser.getId());
-		return ResponseEntity.ok(toFriendResponse(friendship, currentUser));
-	}
-
-	@Operation(summary = "Отклонить заявку в друзья",
-			description = "Отклоняет заявку requestId текущим пользователем. Возвращает обновлённое состояние заявки.")
-	@SecuredApiResponses
-	@ApiResponse(responseCode = "200",
-			description = FriendApiDescriptions.FRIEND_REJECT_REQUEST_SUCCESS)
-	@ApiResponse403
-	@ApiResponse404(description = FriendApiDescriptions.FRIEND_REQUEST_NOT_FOUND)
-	@PostMapping("/requests/{requestId}/reject")
-	public ResponseEntity<FriendRequestResponse> rejectFriendRequest(@PathVariable Long requestId,
-			@AuthenticationPrincipal UserPrincipal principal) {
-		User currentUser = getCurrentUser(principal);
-		FriendRequest friendRequest =
-				friendService.rejectFriendRequest(requestId, currentUser.getId());
-		return ResponseEntity.ok(toFriendRequestResponse(friendRequest));
-	}
-
-	@Operation(summary = "Отменить исходящую заявку",
-			description = "Отменяет (cancels) исходящую заявку requestId текущим пользователем. Возвращает обновлённое состояние заявки.")
-	@SecuredApiResponses
-	@ApiResponse(responseCode = "200",
-			description = FriendApiDescriptions.FRIEND_CANCEL_REQUEST_SUCCESS)
-	@ApiResponse403
-	@ApiResponse404(description = FriendApiDescriptions.FRIEND_REQUEST_NOT_FOUND)
-	@PostMapping("/requests/{requestId}/cancel")
-	public ResponseEntity<FriendRequestResponse> cancelFriendRequest(@PathVariable Long requestId,
-			@AuthenticationPrincipal UserPrincipal principal) {
-		User currentUser = getCurrentUser(principal);
-		FriendRequest friendRequest =
-				friendService.cancelFriendRequest(requestId, currentUser.getId());
-		return ResponseEntity.ok(toFriendRequestResponse(friendRequest));
-	}
-
-	@Operation(summary = "Удалить друга",
-			description = "Удаляет пользователя friendId из друзей текущего пользователя.")
-	@SecuredApiResponses
-	@ApiResponse(responseCode = "204", description = FriendApiDescriptions.FRIEND_DELETE_SUCCESS)
-	@ApiResponse404(description = FriendApiDescriptions.FRIEND_FRIENDSHIP_NOT_FOUND)
-	@DeleteMapping("/{friendId}")
-	public ResponseEntity<Void> removeFriend(@PathVariable Long friendId,
-			@AuthenticationPrincipal UserPrincipal principal) {
-		User currentUser = getCurrentUser(principal);
-		friendService.removeFriend(currentUser.getId(), friendId);
-		return ResponseEntity.noContent().build();
 	}
 
 	private FriendResponse toFriendResponse(Friendship friendship, User currentUser) {

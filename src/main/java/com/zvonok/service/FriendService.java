@@ -10,6 +10,9 @@ import com.zvonok.model.User;
 import com.zvonok.model.enumeration.FriendRequestStatus;
 import com.zvonok.repository.FriendRequestRepository;
 import com.zvonok.repository.FriendshipRepository;
+import com.zvonok.service.dto.FriendEventMessage;
+import com.zvonok.service.enums.BrokerPath;
+import com.zvonok.service.enums.FriendEventType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -74,21 +77,24 @@ public class FriendService {
 
 		friendRequestRepository.save(friendRequest);
 
-		FriendRequestResponse response = toFriendRequestResponse(friendRequest);
+		FriendEventMessage response =
+				toFriendEventMessage(friendRequest, FriendEventType.FRIEND_REQUEST_CREATED);
 
-		simpMessagingTemplate.convertAndSendToUser(response.getSenderUsername(),
-				"/queue/friend-requests", response);
+		simpMessagingTemplate.convertAndSendToUser(friendRequest.getSender().getUsername(),
+				BrokerPath.FRIEND_REQUESTS_QUEUE_PATH.getPath(), response);
 
-		simpMessagingTemplate.convertAndSendToUser(response.getReceiverUsername(),
-				"/queue/friend-requests", response);
+		simpMessagingTemplate.convertAndSendToUser(friendRequest.getReceiver().getUsername(),
+				BrokerPath.FRIEND_REQUESTS_QUEUE_PATH.getPath(), response);
 
 	}
 
 	@Transactional
-	public Friendship acceptFriendRequest(Long requestId, Long receiverId) {
+	public void acceptFriendRequest(Long requestId, String receiverUsername) {
+		User receiver = userService.getUser(receiverUsername);
+
 		FriendRequest friendRequest = getPendingFriendRequest(requestId);
 
-		if (!friendRequest.getReceiver().getId().equals(receiverId)) {
+		if (!friendRequest.getReceiver().getId().equals(receiver.getId())) {
 			throw new FriendRequestActionNotAllowedException(
 					HttpResponseMessage.HTTP_FRIEND_REQUEST_ACTION_NOT_ALLOWED_RESPONSE_MESSAGE
 							.getMessage());
@@ -97,40 +103,79 @@ public class FriendService {
 		friendRequest.setStatus(FriendRequestStatus.ACCEPTED);
 		friendRequestRepository.save(friendRequest);
 
-		return createFriendship(friendRequest.getSender(), friendRequest.getReceiver());
+		createFriendship(friendRequest.getSender(), friendRequest.getReceiver());
+
+		FriendEventMessage response =
+				toFriendEventMessage(friendRequest, FriendEventType.FRIEND_REQUEST_ACCEPTED);
+
+		simpMessagingTemplate.convertAndSendToUser(friendRequest.getSender().getUsername(),
+				BrokerPath.FRIEND_REQUESTS_QUEUE_PATH.getPath(), response);
+
+
+		simpMessagingTemplate.convertAndSendToUser(friendRequest.getReceiver().getUsername(),
+				BrokerPath.FRIEND_REQUESTS_QUEUE_PATH.getPath(), response);
 	}
 
 	@Transactional
-	public FriendRequest rejectFriendRequest(Long requestId, Long receiverId) {
+	public void rejectFriendRequest(Long requestId, String receiverUsername) {
+		User receiver = userService.getUser(receiverUsername);
+
 		FriendRequest friendRequest = getPendingFriendRequest(requestId);
 
-		if (!friendRequest.getReceiver().getId().equals(receiverId)) {
+		if (!friendRequest.getReceiver().getId().equals(receiver.getId())) {
 			throw new FriendRequestActionNotAllowedException(
 					HttpResponseMessage.HTTP_FRIEND_REQUEST_ACTION_NOT_ALLOWED_RESPONSE_MESSAGE
 							.getMessage());
 		}
 
 		friendRequest.setStatus(FriendRequestStatus.REJECTED);
-		return friendRequestRepository.save(friendRequest);
+		friendRequestRepository.save(friendRequest);
+
+
+		FriendEventMessage response =
+				toFriendEventMessage(friendRequest, FriendEventType.FRIEND_REQUEST_REJECTED);
+
+		simpMessagingTemplate.convertAndSendToUser(friendRequest.getSender().getUsername(),
+				BrokerPath.FRIEND_REQUESTS_QUEUE_PATH.getPath(), response);
+
+
+		simpMessagingTemplate.convertAndSendToUser(friendRequest.getReceiver().getUsername(),
+				BrokerPath.FRIEND_REQUESTS_QUEUE_PATH.getPath(), response);
 	}
 
 	@Transactional
-	public FriendRequest cancelFriendRequest(Long requestId, Long senderId) {
+	public void cancelFriendRequest(Long requestId, String senderUsername) {
+		User sender = userService.getUser(senderUsername);
+
 		FriendRequest friendRequest = getPendingFriendRequest(requestId);
 
-		if (!friendRequest.getSender().getId().equals(senderId)) {
+		if (!friendRequest.getSender().getId().equals(sender.getId())) {
 			throw new FriendRequestActionNotAllowedException(
 					HttpResponseMessage.HTTP_FRIEND_REQUEST_ACTION_NOT_ALLOWED_RESPONSE_MESSAGE
 							.getMessage());
 		}
 
 		friendRequest.setStatus(FriendRequestStatus.CANCELLED);
-		return friendRequestRepository.save(friendRequest);
+		friendRequestRepository.save(friendRequest);
+
+
+		FriendEventMessage response =
+				toFriendEventMessage(friendRequest, FriendEventType.FRIEND_REQUEST_CANCELLED);
+
+		simpMessagingTemplate.convertAndSendToUser(friendRequest.getSender().getUsername(),
+				BrokerPath.FRIEND_REQUESTS_QUEUE_PATH.getPath(), response);
+
+
+		simpMessagingTemplate.convertAndSendToUser(friendRequest.getReceiver().getUsername(),
+				BrokerPath.FRIEND_REQUESTS_QUEUE_PATH.getPath(), response);
 	}
 
 	@Transactional
-	public void removeFriend(Long userId, Long friendId) {
-		Long[] normalizedPair = normalizePair(userId, friendId);
+	public void removeFriend(String userUsername, String friendUsername) {
+		User user = userService.getUser(userUsername);
+		User friend = userService.getUser(friendUsername);
+
+		Long[] normalizedPair = normalizePair(user.getId(), friend.getId());
 
 		Friendship friendship = friendshipRepository
 				.findByUserOneIdAndUserTwoId(normalizedPair[0], normalizedPair[1])
@@ -139,6 +184,16 @@ public class FriendService {
 								.getMessage()));
 
 		friendshipRepository.delete(friendship);
+
+		FriendEventMessage response =
+				toFriendEventMessage(null, FriendEventType.FRIEND_DELETE);
+
+		simpMessagingTemplate.convertAndSendToUser(friendship.getUserOne().getUsername(),
+				BrokerPath.FRIEND_REQUESTS_QUEUE_PATH.getPath(), response);
+
+
+		simpMessagingTemplate.convertAndSendToUser(friendship.getUserTwo().getUsername(),
+				BrokerPath.FRIEND_REQUESTS_QUEUE_PATH.getPath(), response);
 	}
 
 	public boolean areFriends(Long firstUserId, Long secondUserId) {
@@ -151,7 +206,8 @@ public class FriendService {
 		ChatErrorMessageResponse messageResponse = new ChatErrorMessageResponse();
 		messageResponse.setMessage(message);
 		messageResponse.setStatus(status.value());
-		simpMessagingTemplate.convertAndSendToUser(username, "/queue/errors", messageResponse);
+		simpMessagingTemplate.convertAndSendToUser(username, BrokerPath.ERRORS_QUEUE_PATH.getPath(),
+				messageResponse);
 	}
 
 	private FriendRequest getPendingFriendRequest(Long requestId) {
@@ -173,11 +229,24 @@ public class FriendService {
 		return FriendRequestResponse.builder().requestId(friendRequest.getId())
 				.senderId(friendRequest.getSender().getId())
 				.senderUsername(friendRequest.getSender().getUsername())
+				.senderAvatarUrl(friendRequest.getSender().getAvatarUrl())
 				.receiverId(friendRequest.getReceiver().getId())
 				.receiverUsername(friendRequest.getReceiver().getUsername())
+				.receiverAvatarUrl(friendRequest.getReceiver().getAvatarUrl())
 				.status(friendRequest.getStatus()).createdAt(friendRequest.getCreatedAt())
 				.updatedAt(friendRequest.getUpdatedAt()).build();
 	}
+
+	private FriendEventMessage toFriendEventMessage(FriendRequest friendRequest,
+			FriendEventType type) {
+		if (friendRequest == null) {
+			return FriendEventMessage.builder().type(type).payload(null).build();
+		} else {
+			return FriendEventMessage.builder().type(type)
+					.payload(toFriendRequestResponse(friendRequest)).build();
+		}
+	}
+
 
 	private Friendship createFriendship(User firstUser, User secondUser) {
 		Long[] normalizedPair = normalizePair(firstUser.getId(), secondUser.getId());
