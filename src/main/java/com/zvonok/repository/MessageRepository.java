@@ -15,5 +15,20 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
 	Page<Message> findByRoomIdAndDeletedAtIsNullAndIdLessThanOrderByIdDesc(Long roomId,
 			Long beforeId, Pageable pageable);
-}
 
+	Message findFirstByRoomIdAndIdGreaterThanAndSenderIdNotAndDeletedAtIsNullOrderByIdAsc(
+			Long roomId, Long lastReadMessageId, Long senderId);
+
+	Message findFirstByRoomIdAndSenderIdNotAndDeletedAtIsNullOrderByIdAsc(Long roomId, Long userId);
+
+	int countByRoomIdAndIdGreaterThanAndDeletedAtIsNull(Long roomId, Long lastReadMessageId);
+
+	int countByRoomIdAndDeletedAtIsNull(Long roomId);
+
+	int countByRoomIdAndIdGreaterThanAndSenderIdNotAndDeletedAtIsNull(Long roomId,
+			long lastReadMessageId, Long senderId);
+
+	int countByRoomIdAndSenderIdNotAndDeletedAtIsNull(Long roomId, Long senderId);
+
+
+}

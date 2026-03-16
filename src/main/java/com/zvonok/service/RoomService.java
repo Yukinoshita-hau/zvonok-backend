@@ -1,13 +1,14 @@
 package com.zvonok.service;
 
+import com.zvonok.controller.dto.RoomMemberShortDto;
+import com.zvonok.controller.dto.RoomResponse;
 import com.zvonok.exception.InsufficientPermissionsException;
 import com.zvonok.exception.InvalidRoomSizeException;
-import com.zvonok.exception.RoomNotFoundException;
 import com.zvonok.exception.RoomSizeMaxTenMembersException;
 import com.zvonok.exception.UserIsNotYourFriendException;
-import com.zvonok.exception.UserNotMemberRoomException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.Room;
+import com.zvonok.model.RoomReadState;
 import com.zvonok.model.User;
 import com.zvonok.model.enumeration.RoomType;
 import com.zvonok.repository.RoomRepository;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -31,25 +33,31 @@ public class RoomService {
 	private final RoomRepository roomRepository;
 	private final UserService userService;
 	private final FriendService friendService;
+	private final RoomReadStateService roomReadStateService;
+	private final RoomAccessService roomAccessService;
 
 	public Room getRoom(Long id, String username) {
-		Room room = roomRepository.findById(id).orElseThrow(() -> new RoomNotFoundException(
-				HttpResponseMessage.HTTP_ROOM_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
+		return roomAccessService.getRoomForUser(id, username);
+	}
 
-		if (!room.getIsActive()) {
-			throw new RoomNotFoundException(
-					HttpResponseMessage.HTTP_ROOM_NOT_FOUND_RESPONSE_MESSAGE.getMessage());
-		}
+	public List<RoomResponse> getUserRoomsWithUnread(String username) {
+		User user = userService.getUser(username);
 
-		for (User user : room.getMembers()) {
-			System.out.println("username - " + username + " == " + user.getUsername());
-			if (user.getUsername().equals(username)) {
-				return room;
-			}
-		}
+		List<Room> rooms = roomRepository.findAllByMembersContainingAndIsActiveTrue(user);
 
-		throw new UserNotMemberRoomException(
-				HttpResponseMessage.HTTP_USER_NOT_MEMBER_ROOM_RESPONSE_MESSAGE.getMessage());
+		List<Long> roomIds = rooms.stream().map(Room::getId).toList();
+
+		Map<Long, Integer> unreadCounts =
+				roomReadStateService.getUnreadCountsForRooms(user.getId(), roomIds);
+
+
+		return rooms.stream().map(room -> {
+			int unread = unreadCounts.getOrDefault(room.getId(), 0);
+			Long firstUnreadId = unread > 0
+					? roomReadStateService.getFirstUnreadMessageId(user.getId(), room.getId())
+					: null;
+			return mapToRoomResponse(room, unread, firstUnreadId);
+		}).toList();
 	}
 
 	public Room createOrGetPrivateRoom(String username1, String username2) {
@@ -66,7 +74,8 @@ public class RoomService {
 		members.add(user2);
 
 		Room room = new Room();
-		// У приватных комнат нет названия (name = null), так как это приватная комната между двумя
+		// У приватных комнат нет названия (name = null), так как это приватная комната
+		// между двумя
 		// чуваками.
 		room.setName(null);
 		room.setType(RoomType.PRIVATE);
@@ -127,6 +136,34 @@ public class RoomService {
 
 	private Optional<Room> findPrivateRoomBetweenUsers(Long user1, Long user2) {
 		return roomRepository.findPrivateRoomBetweenUsers(user1, user2);
+	}
+
+	private RoomResponse mapToRoomResponse(Room room, int unreadCount, Long firstUnreadMessageId) {
+		RoomResponse dto = new RoomResponse();
+		dto.setId(room.getId());
+		dto.setName(room.getName());
+		dto.setType(room.getType());
+		dto.setIsActive(room.getIsActive());
+		dto.setCreatedAt(room.getCreatedAt());
+		dto.setLastMessageId(room.getLastMessageId());
+		dto.setLastMessageContent(room.getLastMessageContent());
+		dto.setLastActivityAt(room.getLastActivityAt());
+		dto.setUnreadCount(unreadCount);
+		dto.setFirstUnreadMessageId(firstUnreadMessageId);
+
+		List<RoomMemberShortDto> members = room.getMembers().stream().map(u -> {
+			RoomMemberShortDto m = new RoomMemberShortDto();
+			m.setId(u.getId());
+			m.setUsername(u.getUsername());
+			m.setStatus(u.getStatus());
+			m.setLastSeenAt(u.getLastSeenAt());
+			m.setAvatartUrl(u.getAvatarUrl());
+			m.setUpdatedAt(u.getUpdatedAt());
+			m.setCreatedAt(u.getCreatedAt());
+			return m;
+		}).toList();
+		dto.setMembers(members);
+		return dto;
 	}
 
 	public Room getPrivateRoomIfExists(String username1, String username2) {
@@ -192,7 +229,6 @@ public class RoomService {
 
 		return roomRepository.save(room);
 	}
-
 
 	@Transactional
 	public Room updateRoom(Long roomId, String username, Long lastMessageId,

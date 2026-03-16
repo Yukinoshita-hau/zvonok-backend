@@ -65,8 +65,11 @@ public class WSFriendController {
 
 	@MessageExceptionHandler()
 	public void exceptionMessage(Exception ex, Principal principal, Message<?> message) {
-		String username = principal != null ? principal.getName() : null;
-		log.error("WebSocket exception for user '{}': {}", username, ex.getMessage(), ex);
+		String username = principal != null ? principal.getName() : "anonymous";
+		String destination = (String) message.getHeaders().get("simpDestination");
+
+		log.error("WS error: user='{}', destination='{}', exception='{}', message='{}'", username,
+				destination, ex.getClass().getSimpleName(), ex.getMessage(), ex);
 		friendService.sendErrorMessage(username, ex.getMessage(), getStatusFromException(ex));
 	}
 

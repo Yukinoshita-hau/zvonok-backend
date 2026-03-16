@@ -1,6 +1,7 @@
 package com.zvonok.controller;
 
 import com.zvonok.controller.dto.MessageResponse;
+import com.zvonok.controller.dto.RoomResponse;
 import com.zvonok.controller.dto.ShortMessageWrapped;
 import com.zvonok.documentation.RoomApiDescriptions;
 import com.zvonok.documentation.UserApiDescriptions;
@@ -18,8 +19,11 @@ import com.zvonok.model.Room;
 import com.zvonok.security.dto.UserPrincipal;
 import com.zvonok.service.RoomService;
 import com.zvonok.service.MessageService;
+import com.zvonok.service.RoomReadStateService;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,9 +31,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Tag(name = "Контроллер комнат",
-		description = "Эндпоинты для работы с комнатами (получение, создание групповой, обновление, удаление) "
-				+ "и для получения сообщений приватного диалога.")
+@Tag(name = "Контроллер комнат", description = "Эндпоинты для работы с комнатами (получение, создание групповой, обновление, удаление) "
+		+ "и для получения сообщений приватного диалога.")
 @SecurityRequirement(name = "JWT")
 @RestController
 @RequestMapping("/rooms")
@@ -38,18 +41,17 @@ public class RoomController {
 
 	private final RoomService roomService;
 	private final MessageService messageService;
+	private final RoomReadStateService roomReadStateService;
 
-	@Operation(summary = "Получить все комнаты пользователя",
-			description = "Возвращает все комнаты пользователя")
+	@Operation(summary = "Получить все комнаты пользователя", description = "Возвращает все комнаты пользователя")
 	@GetMapping("/all")
-	public ResponseEntity<List<Room>> getAllUserRooms(
+	public ResponseEntity<List<RoomResponse>> getAllUserRooms(
 			@AuthenticationPrincipal UserPrincipal principal) {
 		String username = principal.getUsername();
-		return ResponseEntity.ok(roomService.getUserRooms(username));
+		return ResponseEntity.ok(roomService.getUserRoomsWithUnread(username));
 	}
 
-	@Operation(summary = "Получить комнату по id",
-			description = "Возвращает комнату по её идентификатору.")
+	@Operation(summary = "Получить комнату по id", description = "Возвращает комнату по её идентификатору.")
 	@SecuredApiResponses
 	@ApiResponse(responseCode = "200", description = RoomApiDescriptions.ROOM_GET_SUCCESS)
 	@ApiResponse404(description = RoomApiDescriptions.ROOM_NOT_FOUND)
@@ -60,9 +62,8 @@ public class RoomController {
 		return ResponseEntity.ok(roomService.getRoom(roomId, username));
 	}
 
-	@Operation(summary = "Создать групповую комнату",
-			description = "Создаёт групповую комнату от имени текущего пользователя с указанным названием и списком участников. "
-					+ "Возвращает созданную комнату.")
+	@Operation(summary = "Создать групповую комнату", description = "Создаёт групповую комнату от имени текущего пользователя с указанным названием и списком участников. "
+			+ "Возвращает созданную комнату.")
 	@SecuredApiResponses
 	@ApiResponse(responseCode = "200", description = RoomApiDescriptions.ROOM_GET_SUCCESS)
 	@ApiResponse400
@@ -74,9 +75,8 @@ public class RoomController {
 				principal.getName(), groupDto.getRoomName(), groupDto.getRoomMemberUsernames()));
 	}
 
-	@Operation(summary = "Обновить комнату",
-			description = "Обновляет параметры комнаты (например, название) по id от имени текущего пользователя. "
-					+ "Возвращает обновлённую комнату.")
+	@Operation(summary = "Обновить комнату", description = "Обновляет параметры комнаты (например, название) по id от имени текущего пользователя. "
+			+ "Возвращает обновлённую комнату.")
 	@SecuredApiResponses
 	@ApiResponse(responseCode = "200", description = RoomApiDescriptions.ROOM_UPDATE_SUCCESS)
 	@ApiResponse400
@@ -90,8 +90,7 @@ public class RoomController {
 		return ResponseEntity.noContent().build();
 	}
 
-	@Operation(summary = "Удалить комнату",
-			description = "Удаляет комнату по id от имени текущего пользователя.")
+	@Operation(summary = "Удалить комнату", description = "Удаляет комнату по id от имени текущего пользователя.")
 	@SecuredApiResponses
 	@ApiResponse(responseCode = "204", description = RoomApiDescriptions.ROOM_DELETE_SUCCESS)
 	@ApiResponse403
@@ -103,17 +102,14 @@ public class RoomController {
 		return ResponseEntity.noContent().build();
 	}
 
-	@Operation(summary = "Получить приватные сообщения",
-			description = "Возвращает список сообщений приватного диалога между текущим пользователем и пользователем friendId.")
+	@Operation(summary = "Получить приватные сообщения", description = "Возвращает список сообщений приватного диалога между текущим пользователем и пользователем friendId.")
 	@SecuredApiResponses
-	@ApiResponse(responseCode = "200",
-			description = RoomApiDescriptions.ROOM_GET_PRIVATE_MESSAGES_SUCCESS)
+	@ApiResponse(responseCode = "200", description = RoomApiDescriptions.ROOM_GET_PRIVATE_MESSAGES_SUCCESS)
 	@ApiResponse404(description = UserApiDescriptions.USER_NOT_FOUND)
 	@GetMapping("/private/{userId}/messages")
 	public ResponseEntity<List<MessageResponse>> getPrivateMessages(@PathVariable Long userId,
 			@AuthenticationPrincipal UserPrincipal principal) {
-		List<MessageResponse> messages =
-				messageService.getPrivateMessages(principal.getUsername(), userId);
+		List<MessageResponse> messages = messageService.getPrivateMessages(principal.getUsername(), userId);
 		return ResponseEntity.ok(messages);
 	}
 
@@ -127,5 +123,11 @@ public class RoomController {
 
 		return ResponseEntity.ok(messages);
 	}
-}
 
+	@PostMapping("/{roomId}/read")
+	public ResponseEntity<Void> markRoomRead(@PathVariable Long roomId,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		roomReadStateService.markRoomAsRead(principal.getUsername(), roomId);
+		return ResponseEntity.noContent().build();
+	}
+}

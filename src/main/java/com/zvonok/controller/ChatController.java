@@ -1,6 +1,7 @@
 package com.zvonok.controller;
 
 import com.zvonok.controller.dto.ChannelMessageResponse;
+import com.zvonok.controller.dto.InviteCallDto;
 import com.zvonok.exception.AuthenticatedPrincipalRequiredException;
 import com.zvonok.exception_handler.annotation.ApiException;
 import com.zvonok.exception_handler.enumeration.BusinessRuleMessage;

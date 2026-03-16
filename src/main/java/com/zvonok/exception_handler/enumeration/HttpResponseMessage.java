@@ -9,6 +9,9 @@ public enum HttpResponseMessage {
 	HTTP_INVALID_ROOM_SIZE_RESPONSE_MESSAGE("Invalid room size"),
 	HTTP_ROOM_SIZE_MAX_FIFTEEN_MEMBERS_RESPONSE_MESSAGE("Maximum of 15 members in group chat"),
 
+	// RoomReadState
+	HTTP_ROOM_READ_STATE_NOT_FOUND_RESPONSE_MESSAGE("RoomReedState was not found"),
+
 	// User
 	HTTP_USER_NOT_FOUND_RESPONSE_MESSAGE("User was not found"),
 	HTTP_USER_NOT_MEMBER_ROOM_RESPONSE_MESSAGE("User is not a member of the room"),
