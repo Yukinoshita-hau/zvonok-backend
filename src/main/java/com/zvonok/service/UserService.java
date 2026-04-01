@@ -1,5 +1,6 @@
 package com.zvonok.service;
 
+import com.zvonok.controller.dto.MyUser;
 import com.zvonok.exception.UserNotFoundException;
 import com.zvonok.exception.UserWIthThisUsernameAlreadyExistException;
 import com.zvonok.exception.UserWithThisEmailAlreadyExistException;
@@ -36,6 +37,12 @@ public class UserService {
 						HttpResponseMessage.HTTP_USER_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
 	}
 
+	public MyUser getMyUser(String username) {
+		User user = getUser(username);
+
+		return myUserWrapper(user);
+	}
+
 	public Optional<User> getUserByUsernameOrEmail(String usernameOrEmail) {
 		return userRepository.findByEmail(usernameOrEmail)
 				.or(() -> userRepository.findByUsername(usernameOrEmail));
@@ -65,13 +72,17 @@ public class UserService {
 	}
 
 	@Transactional
-	public User updateUser(Long id, UpdateUserDto userDto) {
+	public MyUser updateMyUser(String username, UpdateUserDto userDto) {
 
-		User user = getUser(id);
+		User user = getUser(username);
+
+System.out.println(userDto.getUsername());	
+System.out.println(userDto.getEmail());	
+System.out.println(userDto.getAvatarUrl());	
 
 		if (userDto.getUsername() != null && !userDto.getUsername().isEmpty()) {
 			userRepository.findByUsername(userDto.getUsername()).ifPresent(existingUser -> {
-				if (!existingUser.getId().equals(id)) {
+				if (!existingUser.getUsername().equals(username)) {
 					throw new UserWIthThisUsernameAlreadyExistException(
 							HttpResponseMessage.HTTP_USER_WITH_THIS_USERNAME_ALREADY_EXIST_RESPONSE_MESSAGE
 									.getMessage());
@@ -82,7 +93,7 @@ public class UserService {
 
 		if (userDto.getEmail() != null && !userDto.getEmail().isEmpty()) {
 			userRepository.findByEmail(userDto.getEmail()).ifPresent(existingUser -> {
-				if (!existingUser.getId().equals(id)) {
+				if (!existingUser.getUsername().equals(username)) {
 					throw new UserWithThisEmailAlreadyExistException(
 							HttpResponseMessage.HTTP_USER_WITH_THIS_EMAIL_ALREADY_EXIST_RESPONSE_MESSAGE
 									.getMessage());
@@ -95,7 +106,27 @@ public class UserService {
 			user.setAvatarUrl(userDto.getAvatarUrl());
 		}
 
-		return userRepository.save(user);
+		System.out.println(user.getUsername());
+		System.out.println(user.getEmail());
+		System.out.println(user.getAvatarUrl());
+
+		User response = userRepository.save(user);
+
+		return myUserWrapper(response);
+	}
+
+	public MyUser myUserWrapper(User user) {
+		MyUser myUser = new MyUser();
+		myUser.setId(user.getId());
+		myUser.setUsername(user.getUsername());
+		myUser.setEmail(user.getEmail());
+		myUser.setIsEmailVerified(user.getIsEmailVerified());
+		myUser.setStatus(user.getStatus());
+		myUser.setLastSeenAt(user.getLastSeenAt());
+		myUser.setUpdatedAt(user.getUpdatedAt());
+		myUser.setCreatedAt(user.getCreatedAt());
+
+		return myUser;
 	}
 
 	@Transactional

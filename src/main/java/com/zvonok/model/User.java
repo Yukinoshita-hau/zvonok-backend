@@ -27,6 +27,7 @@ public class User {
 	private String username;
 
 	@Column(unique = true, nullable = false, length = 100)
+	@JsonIgnore
 	private String email;
 
 	@Column(nullable = false, name = "is_email_verified")
