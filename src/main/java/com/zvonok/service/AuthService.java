@@ -46,15 +46,11 @@ public class AuthService {
 		try {
 			savedUser = userService.createUser(userDto);
 
-			log.info("{}",
-					LogEvent.builder().action(LogEventConstants.EVENT_REGISTERED_ACTION)
-							.result(LogEventConstants.EVENT_SUCCES_RESULT).userId(savedUser.getId())
-							.duration(LogTimingUtils.calculateDurationDifference(durationStart)).build());
-		} catch (UserWIthThisUsernameAlreadyExistException e) {
-			log.warn("{}", LogEvent.buildFailedEvent(LogEventConstants.EVENT_REGISTERED_ACTION,
-					e.getMessage(), LogTimingUtils.calculateDurationDifference(durationStart)));
-			throw e;
-		} catch (UserWithThisEmailAlreadyExistException e) {
+			log.info("{}", LogEvent.builder().action(LogEventConstants.EVENT_REGISTERED_ACTION)
+					.result(LogEventConstants.EVENT_SUCCES_RESULT).userId(savedUser.getId())
+					.duration(LogTimingUtils.calculateDurationDifference(durationStart)).build());
+		} catch (UserWIthThisUsernameAlreadyExistException
+				| UserWithThisEmailAlreadyExistException e) {
 			log.warn("{}", LogEvent.buildFailedEvent(LogEventConstants.EVENT_REGISTERED_ACTION,
 					e.getMessage(), LogTimingUtils.calculateDurationDifference(durationStart)));
 			throw e;

@@ -104,19 +104,8 @@ public class ServerService {
 					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_CREATE_SERVER_ACTION,
 							LogTimingUtils.calculateDurationDifference(durationStart))
 							.serverId(savedServer.getId()).userId(ownerId).build());
-		} catch (InvalidServerNameException e) {
-			buildServerFailedLog(e, LogEventConstants.EVENT_CREATE_SERVER_ACTION, durationStart, ownerId, savedServer,
-					false);
-			throw e;
-		} catch (InvalidServerMaxMemberException e) {
-			buildServerFailedLog(e, LogEventConstants.EVENT_CREATE_SERVER_ACTION, durationStart, ownerId, savedServer,
-					false);
-			throw e;
-		} catch (ServerNotFoundException e) {
-			buildServerFailedLog(e, LogEventConstants.EVENT_CREATE_SERVER_ACTION, durationStart, ownerId, savedServer,
-					false);
-			throw e;
-		} catch (ChannelNotFoundException e) {
+		} catch (InvalidServerNameException | InvalidServerMaxMemberException
+				| ServerNotFoundException | ChannelNotFoundException e) {
 			buildServerFailedLog(e, LogEventConstants.EVENT_CREATE_SERVER_ACTION, durationStart, ownerId, savedServer,
 					false);
 			throw e;
@@ -200,19 +189,9 @@ public class ServerService {
 							LogTimingUtils.calculateDurationDifference(durationStart))
 							.serverId(server.getId()).userId(userId).build());
 
-		} catch (ServerNotFoundException e) {
-			buildServerFailedLog(e, LogEventConstants.EVENT_JOIN_BY_INVITE_CODE_ACTION, durationStart, userId, server,
-					false);
-			throw e;
-		} catch (UserBannedException e) {
-			buildServerFailedLog(e, LogEventConstants.EVENT_JOIN_BY_INVITE_CODE_ACTION, durationStart, userId, server,
-					false);
-			throw e;
-		} catch (ServerMemberLimitReachedException e) {
-			buildServerFailedLog(e, LogEventConstants.EVENT_JOIN_BY_INVITE_CODE_ACTION, durationStart, userId, server,
-					false);
-			throw e;
-		} catch (ServerRoleNotFoundException e) {
+		} catch (ServerNotFoundException | UserBannedException
+				| ServerMemberLimitReachedException | ServerRoleNotFoundException
+				| YouAlreadyMemberThisServerException e) {
 			buildServerFailedLog(e, LogEventConstants.EVENT_JOIN_BY_INVITE_CODE_ACTION, durationStart, userId, server,
 					false);
 			throw e;
@@ -253,11 +232,7 @@ public class ServerService {
 			log.info("{}", LogEvent.buildSuccessEvent(LogEventConstants.EVENT_UPDATE_SERVER_ACTION,
 					LogTimingUtils.calculateDurationDifference(durationStart)).serverId(serverId).userId(userId)
 					.build());
-		} catch (ServerNotFoundException e) {
-			buildServerFailedLog(e, LogEventConstants.EVENT_UPDATE_SERVER_ACTION, durationStart, userId, updatedServer,
-					false);
-			throw e;
-		} catch (InsufficientPermissionsException e) {
+		} catch (ServerNotFoundException | InsufficientPermissionsException e) {
 			buildServerFailedLog(e, LogEventConstants.EVENT_UPDATE_SERVER_ACTION, durationStart, userId, updatedServer,
 					false);
 			throw e;
@@ -289,11 +264,7 @@ public class ServerService {
 			log.info("{}", LogEvent.buildSuccessEvent(LogEventConstants.EVENT_DELETE_SERVER_ACTION,
 					LogTimingUtils.calculateDurationDifference(durationStart)).serverId(serverId).userId(userId)
 					.build());
-		} catch (ServerNotFoundException e) {
-			log.warn("{}", LogEvent.buildFailedEvent(LogEventConstants.EVENT_DELETE_SERVER_ACTION, e.getMessage(),
-					LogTimingUtils.calculateDurationDifference(durationStart)).serverId(serverId).userId(userId));
-			throw e;
-		} catch (InsufficientPermissionsException e) {
+		} catch (ServerNotFoundException | InsufficientPermissionsException e) {
 			log.warn("{}", LogEvent.buildFailedEvent(LogEventConstants.EVENT_DELETE_SERVER_ACTION, e.getMessage(),
 					LogTimingUtils.calculateDurationDifference(durationStart)).serverId(serverId).userId(userId));
 			throw e;
@@ -347,13 +318,7 @@ public class ServerService {
 					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_LEAVE_SERVER_ACION,
 							LogTimingUtils.calculateDurationDifference(durationStart))
 							.serverId(serverId).userId(userId).build());
-		} catch (ServerMemberNotFoundException e) {
-			log.warn("{}", LogEvent
-					.buildFailedEvent(LogEventConstants.EVENT_LEAVE_SERVER_ACION, e.getMessage(),
-							LogTimingUtils.calculateDurationDifference(durationStart))
-					.serverId(serverId).userId(userId).build());
-			throw e;
-		} catch (OwnerCanNotLeaveServerException e) {
+		} catch (ServerMemberNotFoundException | OwnerCanNotLeaveServerException e) {
 			log.warn("{}", LogEvent
 					.buildFailedEvent(LogEventConstants.EVENT_LEAVE_SERVER_ACION, e.getMessage(),
 							LogTimingUtils.calculateDurationDifference(durationStart))
@@ -423,37 +388,9 @@ public class ServerService {
 			log.info("{}", LogEvent.buildSuccessEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION,
 					LogTimingUtils.calculateDurationDifference(durationStart)).serverId(serverId).userId(targetUserId)
 					.build());
-		} catch (ServerNotFoundException e) {
-			log.warn("{}", LogEvent
-					.buildFailedEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION, e.getMessage(),
-							LogTimingUtils.calculateDurationDifference(durationStart))
-					.serverId(serverId).userId(targetUserId).build());
-			throw e;
-		} catch (InsufficientPermissionsException e) {
-			log.warn("{}", LogEvent
-					.buildFailedEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION, e.getMessage(),
-							LogTimingUtils.calculateDurationDifference(durationStart))
-					.serverId(serverId).userId(targetUserId).build());
-			throw e;
-		} catch (CannotKickServerOwnerException e) {
-			log.warn("{}", LogEvent
-					.buildFailedEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION, e.getMessage(),
-							LogTimingUtils.calculateDurationDifference(durationStart))
-					.serverId(serverId).userId(targetUserId).build());
-			throw e;
-		} catch (CannotKickYourselfException e) {
-			log.warn("{}", LogEvent
-					.buildFailedEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION, e.getMessage(),
-							LogTimingUtils.calculateDurationDifference(durationStart))
-					.serverId(serverId).userId(targetUserId).build());
-			throw e;
-		} catch (ServerMemberNotFoundException e) {
-			log.warn("{}", LogEvent
-					.buildFailedEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION, e.getMessage(),
-							LogTimingUtils.calculateDurationDifference(durationStart))
-					.serverId(serverId).userId(targetUserId).build());
-			throw e;
-		} catch (ServerMemberAlreadyWasKicked e) {
+		} catch (ServerNotFoundException | InsufficientPermissionsException
+				| CannotKickServerOwnerException | CannotKickYourselfException
+				| ServerMemberNotFoundException | ServerMemberAlreadyWasKicked e) {
 			log.warn("{}", LogEvent
 					.buildFailedEvent(LogEventConstants.EVENT_KICK_MEMBER_ACTION, e.getMessage(),
 							LogTimingUtils.calculateDurationDifference(durationStart))

@@ -93,11 +93,7 @@ public class MessageService {
 							LogTimingUtils.calculateDurationDifference(durationStart))
 							.roomId(privateRoom.getId()).messageId(message.getId()).build());
 			return response;
-		} catch (UserNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION,
-					durationStart, privateRoom, message, false);
-			throw e;
-		} catch (InsufficientPermissionsException e) {
+		} catch (UserNotFoundException | InsufficientPermissionsException e) {
 			buildFailedMessage(e, LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION,
 					durationStart, privateRoom, message, false);
 			throw e;
@@ -146,15 +142,8 @@ public class MessageService {
 							LogTimingUtils.calculateDurationDifference(durationStart))
 							.roomId(roomId).messageId(message.getId()).build());
 			return response;
-		} catch (RoomNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart,
-					roomId, message, false);
-			throw e;
-		} catch (UserNotMemberRoomException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart,
-					roomId, message, false);
-			throw e;
-		} catch (InsufficientPermissionsException e) {
+		} catch (RoomNotFoundException | UserNotMemberRoomException
+				| InsufficientPermissionsException e) {
 			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart,
 					roomId, message, false);
 			throw e;
@@ -195,15 +184,8 @@ public class MessageService {
 							.channelId(channelId).messageId(message.getId()).build());
 			return response;
 
-		} catch (UserNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION,
-					durationStart, message, channelId, false);
-			throw e;
-		} catch (ChannelNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION,
-					durationStart, message, channelId, false);
-			throw e;
-		} catch (InsufficientPermissionsException e) {
+		} catch (UserNotFoundException | ChannelNotFoundException
+				| InsufficientPermissionsException e) {
 			buildFailedMessage(e, LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION,
 					durationStart, message, channelId, false);
 			throw e;
@@ -272,19 +254,8 @@ public class MessageService {
 							.userId(sender.getId()).messageId(messageId).build());
 
 			return response;
-		} catch (MessageNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart,
-					sender, messageId, false);
-			throw e;
-		} catch (UserNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart,
-					sender, messageId, false);
-			throw e;
-		} catch (InsufficientPermissionsException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart,
-					sender, messageId, false);
-			throw e;
-		} catch (CannotEditDeletedMessageException e) {
+		} catch (MessageNotFoundException | UserNotFoundException
+				| InsufficientPermissionsException | CannotEditDeletedMessageException e) {
 			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart,
 					sender, messageId, false);
 			throw e;
@@ -369,15 +340,7 @@ public class MessageService {
 					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_DELETE_MESSAGE_ACTION,
 							LogTimingUtils.calculateDurationDifference(durationStart))
 							.userId(user.getId()).messageId(messageId).build());
-		} catch (MessageNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart,
-					user, messageId, false);
-			throw e;
-		} catch (UserNotFoundException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart,
-					user, messageId, false);
-			throw e;
-		} catch (InsufficientPermissionsException e) {
+		} catch (MessageNotFoundException | UserNotFoundException | InsufficientPermissionsException e) {
 			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart,
 					user, messageId, false);
 			throw e;
