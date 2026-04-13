@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.zvonok.exception.RoomReadStateNotFoundException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.Message;
@@ -16,7 +17,6 @@ import com.zvonok.model.User;
 import com.zvonok.repository.MessageRepository;
 import com.zvonok.repository.RoomReadStateRepository;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -34,6 +34,35 @@ public class RoomReadStateService {
 				.orElseThrow(() -> new RoomReadStateNotFoundException(
 						HttpResponseMessage.HTTP_ROOM_READ_STATE_NOT_FOUND_RESPONSE_MESSAGE
 								.getMessage()));
+	}
+
+	@Transactional
+	public Long getFirstUnreadMessageId(Long roomId, String username) {
+		User user = userService.getUser(username);
+		Room room = roomAccessService.getRoomForUser(roomId, username);
+
+		RoomReadState state = roomReadStateRepository
+				.findByUserIdAndRoomId(user.getId(), room.getId()).orElseGet(() -> {
+					RoomReadState s = new RoomReadState();
+					s.setUser(user);
+					s.setRoom(room);
+					return roomReadStateRepository.save(s);
+				});
+
+		Long lastRead = state.getLastReadMessageId();
+
+		if (lastRead == null) {
+			Message first =
+					messageRepository.findFirstByRoomIdAndSenderIdNotAndDeletedAtIsNullOrderByIdAsc(
+							room.getId(), user.getId());
+			return first != null ? first.getId() : null;
+		}
+
+		Message first = messageRepository
+				.findFirstByRoomIdAndIdGreaterThanAndSenderIdNotAndDeletedAtIsNullOrderByIdAsc(
+						room.getId(), lastRead, user.getId());
+		
+		return first != null ? first.getId() : null;
 	}
 
 	public void markRoomAsRead(String username, Long roomId) {
@@ -69,9 +98,11 @@ public class RoomReadStateService {
 		});
 	}
 
-	public Map<Long, Integer> getUnreadCountsForRooms(Long userId, List<Long> roomIds) {
+	public Map<Long, Integer> getUnreadCountsForRooms(Long username, List<Long> roomIds) {
+		User user = userService.getUser(username);
+
 		List<RoomReadState> states =
-				roomReadStateRepository.findAllByUserIdAndRoomIdIn(userId, roomIds);
+				roomReadStateRepository.findAllByUserIdAndRoomIdIn(user.getId(), roomIds);
 
 		Map<Long, Long> lastReadByRoom =
 				states.stream().collect(Collectors.toMap(s -> s.getRoom().getId(),
@@ -82,12 +113,12 @@ public class RoomReadStateService {
 			Long lastRead = lastReadByRoom.getOrDefault(roomId, 0L);
 			if (lastRead == 0L) {
 				result.put(roomId, messageRepository
-						.countByRoomIdAndSenderIdNotAndDeletedAtIsNull(roomId, userId));
+						.countByRoomIdAndSenderIdNotAndDeletedAtIsNull(roomId, user.getId()));
 			} else {
 				result.put(roomId,
 						messageRepository
 								.countByRoomIdAndIdGreaterThanAndSenderIdNotAndDeletedAtIsNull(
-										roomId, lastRead, userId));
+										roomId, lastRead, user.getId()));
 			}
 		}
 

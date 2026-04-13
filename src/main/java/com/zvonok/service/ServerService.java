@@ -98,7 +98,7 @@ public class ServerService {
 
 			// Создаем дефолтную папку и каналы
 			ChannelFolder defaultFolder = createDefaultFolder(savedServer.getId());
-			createDefaultChannels(defaultFolder.getId());
+			createDefaultChannels(defaultFolder.getId(), owner.getUsername());
 
 			log.info("{}",
 					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_CREATE_SERVER_ACTION,
@@ -506,7 +506,7 @@ public class ServerService {
 		return channelFolderService.createChannelFolder(folder);
 	}
 
-	private void createDefaultChannels(Long folderId) {
+	private void createDefaultChannels(Long folderId, String username) {
 		// Общий канал
 		CreateChannelDto generalChannel = new CreateChannelDto();
 		generalChannel.setName("общий");
@@ -524,8 +524,8 @@ public class ServerService {
 		voiceChannel.setPosition(1);
 		voiceChannel.setUserLimit(15);
 
-		channelService.createChannel(generalChannel);
-		channelService.createChannel(voiceChannel);
+		channelService.createChannel(generalChannel, username);
+		channelService.createChannel(voiceChannel, username);
 	}
 
 	private void buildServerFailedLog(Exception e, String action, long durationStart, Long userId, Server server,

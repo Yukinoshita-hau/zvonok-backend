@@ -30,10 +30,6 @@ public class Channel {
     @Column(nullable = false, length = 100)
     private String name;
 
-    @OneToMany(mappedBy = "channel")
-    @JsonIgnore
-    private List<Message> messages;
-
     @Enumerated(EnumType.STRING)
     private ChannelType type = ChannelType.TEXT;
 

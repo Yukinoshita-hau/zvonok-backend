@@ -1,7 +1,6 @@
 package com.zvonok.controller;
 
 import com.zvonok.documentation.ChannelFolderApiDescriptions;
-import com.zvonok.documentation.CommonApiDescriptions;
 import com.zvonok.documentation.ServerApiDescriptions;
 import com.zvonok.documentation.annotation.ApiResponse400;
 import com.zvonok.documentation.annotation.ApiResponse403;
@@ -21,7 +20,6 @@ import com.zvonok.service.dto.Permission;
 import com.zvonok.service.dto.UpdateChannelFolderDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -64,7 +62,7 @@ public class ChannelFolderController {
 		ensureServerExists(serverId);
 		ensureIsServerMember(userId, serverId);
 
-		List<ChannelFolder> folders = channelFolderService.getActiveChannelFolders(serverId);
+		List<ChannelFolder> folders = channelFolderService.getActiveChannelFolders(serverId, principal.getUsername());
 		return ResponseEntity.ok(folders);
 	}
 

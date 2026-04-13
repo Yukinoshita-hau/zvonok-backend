@@ -1,104 +1,171 @@
 package com.zvonok.service;
 
+import com.zvonok.controller.dto.ChannelMessageResponse;
+import com.zvonok.controller.dto.SenderDto;
 import com.zvonok.exception.ChannelNotFoundException;
+import com.zvonok.exception.InsufficientPermissionsException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.Channel;
 import com.zvonok.model.ChannelFolder;
+import com.zvonok.model.Message;
+import com.zvonok.model.User;
 import com.zvonok.repository.ChannelRepository;
+import com.zvonok.repository.MessageRepository;
 import com.zvonok.service.dto.CreateChannelDto;
+import com.zvonok.service.dto.EventType;
 import com.zvonok.service.dto.UpdateChannelDto;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Service for managing channels within channel folders.
- * Сервис для управления каналами в папках каналов.
+ * Service for managing channels within channel folders. Сервис для управления каналами в папках
+ * каналов.
  */
 @Service
 public class ChannelService {
 
-    private final ChannelRepository channelRepository;
-    private final ChannelFolderService channelFolderService;
+	private final ChannelRepository channelRepository;
+	private final MessageRepository messageRepository;
+	private final ChannelFolderService channelFolderService;
+	private final UserService userService;
+	private final PermissionService permissionService;
 
-    public ChannelService(
-            ChannelRepository channelRepository,
-            @Lazy ChannelFolderService channelFolderService) {
-        this.channelRepository = channelRepository;
-        this.channelFolderService = channelFolderService;
-    }
+	public ChannelService(ChannelRepository channelRepository,
+			MessageRepository messageRepository,
+			@Lazy ChannelFolderService channelFolderService, UserService userService,
+			@Lazy PermissionService permissionService) {
+		this.channelRepository = channelRepository;
+		this.messageRepository = messageRepository;
+		this.channelFolderService = channelFolderService;
+		this.userService = userService;
+		this.permissionService = permissionService;
+	}
 
-    public Channel getChannel(long id) {
-        return channelRepository.findById(id)
-                .orElseThrow(() -> new ChannelNotFoundException(
-                        HttpResponseMessage.HTTP_CHANNEL_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
-    }
+	public Channel getChannel(String username, Long folderId, Long channelId) {
+		User user = userService.getUser(username);
+		Channel channel = getChannel(folderId, channelId);
 
-    public List<Channel> getChannelsByFolderId(Long folderId) {
-        return channelRepository.findByFolderIdAndIsActiveTrue(folderId);
-    }
+		if (!permissionService.canUserViewChannel(user.getId(), channel.getId())) {
+			throw new InsufficientPermissionsException(
+					HttpResponseMessage.HTTP_INSUFFICIENT_PERMISSIONS_RESPONSE_MESSAGE
+							.getMessage());
+		}
 
-    public Channel createChannel(CreateChannelDto createChannelDto) {
-        ChannelFolder folder = channelFolderService.getChannelFolder(createChannelDto.getFolderId());
+		return channel;
+	}
 
-        Channel channel = new Channel();
-        channel.setName(createChannelDto.getName());
-        channel.setFolder(folder);
-        channel.setType(createChannelDto.getType());
-        channel.setPosition(createChannelDto.getPosition());
-        channel.setTopic(createChannelDto.getTopic());
-        channel.setCreatedAt(LocalDateTime.now());
-        channel.setUserLimit(createChannelDto.getUserLimit());
+	public Channel getChannelByIdInternal(Long id) {
+		return channelRepository.findById(id).orElseThrow(() -> new ChannelNotFoundException(
+				HttpResponseMessage.HTTP_CHANNEL_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
+	}
 
-        return channelRepository.save(channel);
-    }
+	public Channel getChannel(Long folderId, Long channelId) {
+		return channelRepository.findByIdAndFolderId(channelId, folderId)
+				.orElseThrow(() -> new ChannelNotFoundException(
+						HttpResponseMessage.HTTP_CHANNEL_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
+	}
 
-    public Channel updateChannel(Long channelId, UpdateChannelDto updateChannelDto) {
-        Channel channel = getChannel(channelId);
+	public List<Channel> getChannelsOrdered(Long folderId) {
+		return channelRepository.findByFolderIdOrderByPosition(folderId).stream()
+				.filter(Channel::getIsActive).collect(Collectors.toList());
+	}
 
-        if (updateChannelDto.getName() != null) {
-            channel.setName(updateChannelDto.getName());
-        }
-        if (updateChannelDto.getPosition() != null) {
-            channel.setPosition(updateChannelDto.getPosition());
-        }
-        if (updateChannelDto.getUserLimit() != null) {
-            channel.setUserLimit(updateChannelDto.getUserLimit());
-        }
-        if (updateChannelDto.getSlowModeSeconds() != null) {
-            channel.setSlowModeSeconds(updateChannelDto.getSlowModeSeconds());
-        }
-        if (updateChannelDto.getTopic() != null) {
-            channel.setTopic(updateChannelDto.getTopic());
-        }
-        if (updateChannelDto.getNsfw() != null) {
-            channel.setNsfw(updateChannelDto.getNsfw());
-        }
-        if (updateChannelDto.getActive() != null) {
-            channel.setIsActive(updateChannelDto.getActive());
-        }
+	public List<Channel> getChannelsByFolderId(Long folderId) {
+		return channelRepository.findByFolderIdAndIsActiveTrue(folderId);
+	}
 
-        return channelRepository.save(channel);
-    }
+	public Channel createChannel(CreateChannelDto createChannelDto, String username) {
+		ChannelFolder folder =
+				channelFolderService.getChannelFolder(createChannelDto.getFolderId(), username);
 
-    public void deleteChannel(Long channelId) {
-        Channel channel = getChannel(channelId);
-        channel.setIsActive(false);
-        channelRepository.save(channel);
-    }
+		Channel channel = new Channel();
+		channel.setName(createChannelDto.getName());
+		channel.setFolder(folder);
+		channel.setType(createChannelDto.getType());
+		channel.setPosition(createChannelDto.getPosition());
+		channel.setTopic(createChannelDto.getTopic());
+		channel.setCreatedAt(LocalDateTime.now());
+		channel.setUserLimit(createChannelDto.getUserLimit());
 
-    public Channel getChannel(Long folderId, Long channelId) {
-        return channelRepository.findByIdAndFolderId(channelId, folderId)
-                .orElseThrow(() -> new ChannelNotFoundException(
-                        HttpResponseMessage.HTTP_CHANNEL_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
-    }
+		return channelRepository.save(channel);
+	}
 
-    public List<Channel> getChannelsOrdered(Long folderId) {
-        return channelRepository.findByFolderIdOrderByPosition(folderId).stream()
-                .filter(Channel::getIsActive)
-                .collect(Collectors.toList());
-    }
+	public Channel updateChannel(Long channelId, UpdateChannelDto updateChannelDto) {
+		Channel channel = getChannelByIdInternal(channelId);
+
+		if (updateChannelDto.getName() != null) {
+			channel.setName(updateChannelDto.getName());
+		}
+		if (updateChannelDto.getPosition() != null) {
+			channel.setPosition(updateChannelDto.getPosition());
+		}
+		if (updateChannelDto.getUserLimit() != null) {
+			channel.setUserLimit(updateChannelDto.getUserLimit());
+		}
+		if (updateChannelDto.getSlowModeSeconds() != null) {
+			channel.setSlowModeSeconds(updateChannelDto.getSlowModeSeconds());
+		}
+		if (updateChannelDto.getTopic() != null) {
+			channel.setTopic(updateChannelDto.getTopic());
+		}
+		if (updateChannelDto.getNsfw() != null) {
+			channel.setNsfw(updateChannelDto.getNsfw());
+		}
+		if (updateChannelDto.getActive() != null) {
+			channel.setIsActive(updateChannelDto.getActive());
+		}
+
+		return channelRepository.save(channel);
+	}
+
+	public void deleteChannel(Long channelId) {
+		Channel channel = getChannelByIdInternal(channelId);
+		channel.setIsActive(false);
+		channelRepository.save(channel);
+	}
+
+	public List<ChannelMessageResponse> getChannelMessage(String username, Long folderId,
+			Long channelId, Long beforeMessageId, int limit) {
+		Channel channel = getChannel(username, folderId, channelId);
+		PageRequest pageRequest = PageRequest.of(0, limit);
+		Page<Message> page;
+
+		if (beforeMessageId == null) {
+			page = messageRepository.findByChannelIdAndDeletedAtIsNullOrderBySentAtDesc(channelId,
+					pageRequest);
+		} else {
+			page = messageRepository.findByChannelIdAndDeletedAtIsNullAndIdLessThanOrderByIdDesc(
+					channelId, beforeMessageId, pageRequest);
+		}
+
+		return page.getContent().stream().sorted(Comparator.comparing(Message::getId))
+				.map(message -> mapToChannelMessageResponse(message, channel)).toList();
+	}
+
+	private ChannelMessageResponse mapToChannelMessageResponse(Message message, Channel channel) {
+		SenderDto sender = new SenderDto(message.getSender().getId(),
+				message.getSender().getUsername(), message.getSender().getAvatarUrl(),
+				message.getSender().getStatus());
+
+		ChannelMessageResponse response = new ChannelMessageResponse();
+		response.setId(message.getId());
+		response.setContent(message.getContent());
+		response.setSender(sender);
+		response.setSentAt(message.getSentAt());
+		response.setType(message.getType());
+		response.setChannelId(channel.getId());
+		response.setEventType(EventType.MESSAGE);
+		response.setReplyToMessageId(message.getReplyToMessageId());
+		response.setEditedAt(message.getEditedAt());
+		return response;
+	}
 }
+
+

@@ -6,6 +6,7 @@ import com.zvonok.exception.CannotEditDeletedMessageException;
 import com.zvonok.exception.ChannelNotFoundException;
 import com.zvonok.exception.InsufficientPermissionsException;
 import com.zvonok.exception.MessageNotFoundException;
+import com.zvonok.exception.MessageReadStatusNotFoundException;
 import com.zvonok.exception.RoomNotFoundException;
 import com.zvonok.exception.UserNotFoundException;
 import com.zvonok.exception.UserNotMemberRoomException;
@@ -22,9 +23,11 @@ import com.zvonok.controller.dto.ShortMessageWrapped;
 import com.zvonok.controller.dto.RoomShortDto;
 import com.zvonok.controller.dto.SenderDto;
 import com.zvonok.model.Message;
+import com.zvonok.model.MessageReadStatus;
 import com.zvonok.model.Room;
 import com.zvonok.model.User;
 import com.zvonok.model.enumeration.MessageType;
+import com.zvonok.repository.MessageReadStatusRepository;
 import com.zvonok.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,12 +42,11 @@ import java.util.List;
 
 /**
  * Service for managing messages in private rooms, group rooms, and channels. Сервис для управления
- * сообщениями в приватных комнатах, групповых комнатах и каналах.
  */
 @Service
-@RequiredArgsConstructor
 @Transactional
 @Slf4j
+@RequiredArgsConstructor
 public class MessageService {
 
 	private final MessageRepository messageRepository;
@@ -54,9 +56,11 @@ public class MessageService {
 	private final ChannelService channelService;
 	private final PermissionService permissionService;
 
+
 	public ShortMessageWrapped sendPrivateMessage(String senderUsername, String receiverUsername,
 			String content) {
-		long durationStart = System.currentTimeMillis();
+
+		Long durationStart = System.currentTimeMillis();
 		Message message = null;
 		Room privateRoom = null;
 
@@ -77,7 +81,8 @@ public class MessageService {
 			message = createMessage(sender, content, privateRoom, null);
 			Message savedMessage = messageRepository.save(message);
 
-			// MessageResponse response = mapToMessageResponse(savedMessage, privateRoom.getId());
+			// MessageResponse response = mapToMessageResponse(savedMessage,
+			// privateRoom.getId());
 			ShortMessageWrapped response = toWrappedShortMessage(savedMessage, EventType.MESSAGE);
 
 			for (User member : privateRoom.getMembers()) {
@@ -95,11 +100,11 @@ public class MessageService {
 			return response;
 		} catch (UserNotFoundException | InsufficientPermissionsException e) {
 			buildFailedMessage(e, LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION,
-					durationStart, privateRoom, message, false);
+					durationStart, privateRoom.getId(), message, false);
 			throw e;
 		} catch (Exception e) {
 			buildFailedMessage(e, LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION,
-					durationStart, privateRoom, message, true);
+					durationStart, privateRoom.getId(), message, true);
 			throw e;
 		}
 
@@ -162,7 +167,7 @@ public class MessageService {
 
 		try {
 			User sender = userService.getUser(senderUsername);
-			Channel channel = channelService.getChannel(channelId);
+			Channel channel = channelService.getChannelByIdInternal(channelId);
 
 			if (!permissionService.canUserSendMessages(sender.getId(), channelId)) {
 				throw new InsufficientPermissionsException(
@@ -173,7 +178,9 @@ public class MessageService {
 			message = createMessage(sender, content, null, channel);
 			Message savedMessage = messageRepository.save(message);
 
-			ChannelMessageResponse response = mapToChannelMessageResponse(savedMessage, channel);
+			ChannelMessageResponse response =
+					mapToChannelMessageResponse(savedMessage, channel, EventType.MESSAGE);
+
 
 			String topicDestination = "/topic/channel." + channelId;
 			messagingTemplate.convertAndSend(topicDestination, response);
@@ -211,13 +218,11 @@ public class MessageService {
 
 			sender = userService.getUser(senderUsername);
 
-			// Проверяем, что пользователь является отправителем
 			if (!message.getSender().getId().equals(sender.getId())) {
 				throw new InsufficientPermissionsException(
 						BusinessRuleMessage.BUSINESS_ONLY_SENDER_CAN_EDIT_MESSAGE.getMessage());
 			}
 
-			// Проверяем, что сообщение не удалено
 			if (message.isDeleted()) {
 				throw new CannotEditDeletedMessageException(
 						BusinessRuleMessage.BUSINESS_CANNOT_EDIT_DELETED_MESSAGE.getMessage());
@@ -230,9 +235,8 @@ public class MessageService {
 			ShortMessageWrapped response =
 					toWrappedShortMessage(savedMessage, EventType.MESSAGE_EDIT);
 
-
-			roomService.updateRoom(savedMessage.getRoom().getId(), senderUsername, null,
-					message.getId(), message.getContent(), message.getSentAt());
+			roomService.updateRoom(message.getRoom().getId(), senderUsername, null, message.getId(),
+					message.getContent(), message.getSentAt());
 
 			// Отправляем обновление через WebSocket
 			if (savedMessage.getRoom() != null) {
@@ -241,8 +245,8 @@ public class MessageService {
 							response);
 				}
 			} else if (savedMessage.getChannel() != null) {
-				ChannelMessageResponse channelResponse =
-						mapToChannelMessageResponse(savedMessage, savedMessage.getChannel());
+				ChannelMessageResponse channelResponse = mapToChannelMessageResponse(savedMessage,
+						savedMessage.getChannel(), EventType.MESSAGE);
 				channelResponse.setEventType(EventType.MESSAGE_EDIT);
 				messagingTemplate.convertAndSend(
 						"/topic/channel." + savedMessage.getChannel().getId(), channelResponse);
@@ -254,8 +258,8 @@ public class MessageService {
 							.userId(sender.getId()).messageId(messageId).build());
 
 			return response;
-		} catch (MessageNotFoundException | UserNotFoundException
-				| InsufficientPermissionsException | CannotEditDeletedMessageException e) {
+		} catch (MessageNotFoundException | UserNotFoundException | InsufficientPermissionsException
+				| CannotEditDeletedMessageException e) {
 			buildFailedMessage(e, LogEventConstants.EVENT_UPDATE_MESSAGE_ACTION, durationStart,
 					sender, messageId, false);
 			throw e;
@@ -284,7 +288,6 @@ public class MessageService {
 			user = userService.getUser(username);
 
 
-			// Проверяем, что пользователь является отправителем или имеет права
 			// администратора
 			boolean isSender = message.getSender().getId().equals(user.getId());
 			boolean isAdmin = false;
@@ -302,14 +305,15 @@ public class MessageService {
 			}
 
 
-			message.setDeletedAt(LocalDateTime.now());
 			messageRepository.save(message);
 
 			List<ShortMessageWrapped> RoomMessages =
 					getRoomMessages(username, message.getRoom().getId(), null, 1);
 
+
 			ShortMessageWrapped lastRoomMessage =
 					RoomMessages.size() == 1 ? RoomMessages.getFirst() : null;
+
 
 			if (lastRoomMessage != null) {
 				roomService.updateRoom(message.getRoom().getId(), username, null,
@@ -324,14 +328,16 @@ public class MessageService {
 				ShortMessageWrapped response =
 						toWrappedShortMessage(message, EventType.MESSAGE_DELETE);
 
+
 				for (User member : message.getRoom().getMembers()) {
 					messagingTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages",
 							response);
 				}
 			} else if (message.getChannel() != null) {
-				ChannelMessageResponse response =
-						mapToChannelMessageResponse(message, message.getChannel());
+				ChannelMessageResponse response = mapToChannelMessageResponse(message,
+						message.getChannel(), EventType.MESSAGE);
 				response.setEventType(EventType.MESSAGE_DELETE);
+
 				messagingTemplate.convertAndSend("/topic/channel." + message.getChannel().getId(),
 						response);
 			}
@@ -340,9 +346,9 @@ public class MessageService {
 					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_DELETE_MESSAGE_ACTION,
 							LogTimingUtils.calculateDurationDifference(durationStart))
 							.userId(user.getId()).messageId(messageId).build());
-		} catch (MessageNotFoundException | UserNotFoundException | InsufficientPermissionsException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart,
-					user, messageId, false);
+		} catch (MessageNotFoundException | UserNotFoundException
+				| InsufficientPermissionsException e) {
+			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart, user, messageId, false);
 			throw e;
 		} catch (Exception e) {
 			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart,
@@ -371,10 +377,11 @@ public class MessageService {
 			Message beforeMessage = getMessage(beforeMessageId);
 			page = messageRepository.findByRoomIdAndDeletedAtIsNullAndIdLessThanOrderByIdDesc(
 					roomId, beforeMessage.getId(), pageRequest);
-		} ;
+		}
 
 		return page.getContent().stream().sorted(java.util.Comparator.comparing(Message::getId))
 				.map(msg -> toWrappedShortMessage(msg, EventType.MESSAGE)).toList();
+
 	}
 
 	public List<MessageResponse> getPrivateMessages(String currentUsername, Long userId) {
@@ -388,7 +395,6 @@ public class MessageService {
 				.stream().map(message -> mapToMessageResponse(message, privateRoom.getId()))
 				.toList();
 	}
-
 
 	public void sendErrorMessage(String username, String message, HttpStatus status) {
 		ChatErrorMessageResponse messageResponse = new ChatErrorMessageResponse();
@@ -411,7 +417,7 @@ public class MessageService {
 		message.setType(MessageType.DEFAULT);
 		message.setRoom(room);
 		message.setChannel(channel);
-		message.setReplyToMessage(null);
+		message.setReplyToMessageId(null);
 		message.setEditedAt(null);
 		message.setDeletedAt(null);
 		message.setSentAt(LocalDateTime.now());
@@ -425,7 +431,7 @@ public class MessageService {
 		RoomShortDto room =
 				new RoomShortDto(message.getRoom().getId(), message.getRoom().getType());
 		return new ShortMessageWrapped(message.getId(), message.getContent(), message.getType(),
-				eventType, message.getSentAt(), sender, room);
+				eventType, message.getSentAt(), sender, room, message.getEditedAt());
 	}
 
 	private MessageResponse mapToMessageResponse(Message message, Long roomId) {
@@ -439,21 +445,21 @@ public class MessageService {
 		return response;
 	}
 
-	private ChannelMessageResponse mapToChannelMessageResponse(Message message, Channel channel) {
+	private ChannelMessageResponse mapToChannelMessageResponse(Message message, Channel channel,
+			EventType eventType) {
+		SenderDto sender =
+				new SenderDto(message.getSender().getId(), message.getSender().getUsername(),
+						message.getSender().getAvatarUrl(), message.getSender().getStatus());
+
 		ChannelMessageResponse response = new ChannelMessageResponse();
 		response.setId(message.getId());
 		response.setContent(message.getContent());
-		response.setSenderUsername(message.getSender().getUsername());
-		response.setSenderId(message.getSender().getId());
+		response.setSender(sender);
 		response.setSentAt(message.getSentAt());
-		response.setMessageType(message.getType());
+		response.setType(message.getType());
 		response.setChannelId(channel.getId());
-		response.setChannelName(channel.getName());
-		response.setServerId(channel.getFolder().getServer().getId());
-		response.setIsEdited(message.isEdited());
-		if (message.getReplyToMessage() != null) {
-			response.setReplyToMessageId(message.getReplyToMessage().getId().toString());
-		}
+		response.setEventType(eventType);
+		response.setEditedAt(message.getEditedAt());
 		return response;
 	}
 
@@ -527,3 +533,4 @@ public class MessageService {
 		}
 	}
 }
+

@@ -1,15 +1,19 @@
 package com.zvonok.controller;
 
+import com.zvonok.controller.dto.GetMessagesReaders;
+import com.zvonok.controller.dto.MessageReadersDto;
 import com.zvonok.controller.dto.ShortMessageWrapped;
 import com.zvonok.controller.dto.UpdateMessageRequest;
 import com.zvonok.documentation.annotation.SecuredApiResponses;
 import com.zvonok.security.dto.UserPrincipal;
+import com.zvonok.service.MessageReadStatusService;
 import com.zvonok.service.MessageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 public class MessageController {
 
 	private final MessageService messageService;
+	private final MessageReadStatusService messageReadStatusService;
 
 	@Operation(summary = "Получить сообщение", description = "Возвращает сообщение по messageId.")
 	@SecuredApiResponses
@@ -52,5 +57,14 @@ public class MessageController {
 			@AuthenticationPrincipal UserPrincipal principal) {
 		messageService.deleteMessage(messageId, principal.getUsername());
 		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/readers")
+	public ResponseEntity<List<GetMessagesReaders>> getMessagesReaders(
+			@AuthenticationPrincipal UserPrincipal principal, @RequestBody MessageReadersDto dto) {
+		List<GetMessagesReaders> response =
+				messageReadStatusService.getReaders(dto.getMessageIds(), principal.getUsername());
+
+		return ResponseEntity.ok(response);
 	}
 }

@@ -1,5 +1,8 @@
 package com.zvonok.controller;
 
+import com.zvonok.controller.dto.ChannelMessageResponse;
+import com.zvonok.documentation.ChannelApiDescriptions;
+import com.zvonok.documentation.ServerApiDescriptions;
 import com.zvonok.documentation.annotation.ApiResponse400;
 import com.zvonok.documentation.annotation.ApiResponse403;
 import com.zvonok.documentation.annotation.ApiResponse404;
@@ -17,8 +20,6 @@ import com.zvonok.service.UserService;
 import com.zvonok.service.dto.CreateChannelDto;
 import com.zvonok.service.dto.Permission;
 import com.zvonok.service.dto.UpdateChannelDto;
-import com.zvonok.documentation.ChannelApiDescriptions;
-import com.zvonok.documentation.ServerApiDescriptions;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -40,7 +41,7 @@ import java.util.List;
 		description = "Эндпоинты для чтения и управления каналами внутри папки каналов сервера.")
 @SecurityRequirement(name = "JWT")
 @RestController
-@RequestMapping("/server/{serverId}/channel-folders/{folderId}/channels")
+@RequestMapping("/servers/{serverId}/channel-folders/{folderId}/channels")
 @RequiredArgsConstructor
 public class ChannelController {
 
@@ -76,20 +77,16 @@ public class ChannelController {
 	@GetMapping("/{channelId}")
 	public Channel getChannel(@PathVariable Long serverId, @PathVariable Long folderId,
 			@PathVariable Long channelId, @AuthenticationPrincipal UserPrincipal principal) {
-		Long userId = getCurrentUserId(principal);
-
 		ensureServerExists(serverId);
 		ensureFolderBelongsToServer(serverId, folderId);
-		ensureCanViewFolder(userId, folderId);
 
-		return channelService.getChannel(channelId);
+		return channelService.getChannel(principal.getUsername(), folderId, channelId);
 	}
 
 	@Operation(summary = "Создать канал в папке",
 			description = "Создаёт новый канал внутри указанной папки каналов. "
 					+ "Сервер должен существовать, папка должна принадлежать серверу;")
 	@SecuredApiResponses
-
 	@ApiResponse400()
 	@ApiResponse403()
 	@ApiResponse404(description = ServerApiDescriptions.SERVER_NOT_FOUND)
@@ -105,7 +102,7 @@ public class ChannelController {
 		ensureCanManageChannels(userId, serverId);
 
 		createChannelDto.setFolderId(folderId);
-		Channel channel = channelService.createChannel(createChannelDto);
+		Channel channel = channelService.createChannel(createChannelDto, principal.getUsername());
 		return ResponseEntity.status(HttpStatus.CREATED).body(channel);
 	}
 
@@ -155,6 +152,20 @@ public class ChannelController {
 		return ResponseEntity.noContent().build();
 	}
 
+	@PostMapping("/{channelId}/messages")
+	public ResponseEntity<List<ChannelMessageResponse>> getChannelMessages(
+			@PathVariable Long serverId, @PathVariable Long folderId,
+			@PathVariable Long channelId, @RequestParam(required = false) Long beforeMessageId,
+			@RequestParam(defaultValue = "15") int limit,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		ensureServerExists(serverId);
+		ensureFolderBelongsToServer(serverId, folderId);
+
+		List<ChannelMessageResponse> messages = channelService.getChannelMessage(
+				principal.getUsername(), folderId, channelId, beforeMessageId, limit);
+		return ResponseEntity.ok(messages);
+	}
+
 	private Long getCurrentUserId(UserPrincipal principal) {
 		User user = userService.getUser(principal.getUsername());
 		return user.getId();
@@ -185,4 +196,3 @@ public class ChannelController {
 		}
 	}
 }
-

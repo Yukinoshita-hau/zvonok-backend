@@ -1,11 +1,12 @@
 package com.zvonok.controller;
 
 import com.zvonok.controller.dto.ChannelMessageResponse;
-import com.zvonok.controller.dto.InviteCallDto;
 import com.zvonok.exception.AuthenticatedPrincipalRequiredException;
 import com.zvonok.exception_handler.annotation.ApiException;
 import com.zvonok.exception_handler.enumeration.BusinessRuleMessage;
+import com.zvonok.service.MessageReadStatusService;
 import com.zvonok.service.MessageService;
+import com.zvonok.service.dto.MessageReadStatusContent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -15,6 +16,7 @@ import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
@@ -26,6 +28,7 @@ import java.security.Principal;
 public class ChatController {
 
 	private final MessageService messageService;
+	private final MessageReadStatusService readStatusService;
 
 	@MessageMapping("/private/{receiverUsername}")
 	public void sendPrivateMessage(@DestinationVariable String receiverUsername,
@@ -46,12 +49,12 @@ public class ChatController {
 	}
 
 	@MessageMapping("/channel/{channelId}")
-	public ChannelMessageResponse sendChannelMessage(@DestinationVariable Long channelId,
-			Principal principal, @Payload String content) {
+	public void sendChannelMessage(@DestinationVariable Long channelId, Principal principal,
+			@Payload String content) {
 		String sender = resolvePrincipalName(principal);
 		validateContent(content);
 
-		return messageService.sendChannelMessage(sender, channelId, content);
+		messageService.sendChannelMessage(sender, channelId, content);
 	}
 
 	@MessageMapping("/edit/{messageId}")
@@ -68,6 +71,13 @@ public class ChatController {
 		String username = resolvePrincipalName(principal);
 
 		messageService.deleteMessage(messageId, username);
+	}
+
+	@MessageMapping("/read/{messageId}")
+	public void handleRead(@DestinationVariable Long messageId,
+			Principal principal) {
+		String sender = resolvePrincipalName(principal);
+		readStatusService.markMessageAsRead(messageId, sender);
 	}
 
 	@MessageExceptionHandler()

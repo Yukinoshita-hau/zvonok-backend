@@ -244,7 +244,7 @@ public class PermissionService {
 		}
 
 		// Шаг 2: Разрешения папки (наследуются каналом)
-		Channel channel = channelService.getChannel(channelId);
+		Channel channel = channelService.getChannelByIdInternal(channelId);
 		ChannelFolder folder = channel.getFolder();
 
 		long folderPermissions = calculateFolderPermissionsValue(member, roles, folder.getId());
@@ -363,3 +363,4 @@ public class PermissionService {
 				.anyMatch(role -> Permission.hasPermission(role.getServerPermissions(), Permission.ADMINISTRATOR));
 	}
 }
+

@@ -142,7 +142,7 @@ public class MessageServiceTest {
     void sendChannelMessage_shouldReturnChannelMessageResponse_whenValidData() {
         // Arrange
         when(userService.getUser(testSenderUsername)).thenReturn(sender);
-        when(channelService.getChannel(CHANNEL_ID)).thenReturn(testChannel);
+        when(channelService.getChannelByIdInternal(CHANNEL_ID)).thenReturn(testChannel);
         when(permissionService.canUserSendMessages(sender.getId(), CHANNEL_ID)).thenReturn(true);
         when(messageRepository.save(any(Message.class))).thenAnswer(invocation -> {
             Message msg = invocation.getArgument(0);
@@ -168,7 +168,7 @@ public class MessageServiceTest {
     void sendChannelMessage_shouldThrowException_whenNoPermissions() {
         // Arrange
         when(userService.getUser(testSenderUsername)).thenReturn(sender);
-        when(channelService.getChannel(CHANNEL_ID)).thenReturn(testChannel);
+        when(channelService.getChannelByIdInternal(CHANNEL_ID)).thenReturn(testChannel);
         when(permissionService.canUserSendMessages(sender.getId(), CHANNEL_ID)).thenReturn(false);
 
         // Act & Assert
@@ -256,3 +256,4 @@ public class MessageServiceTest {
         );
     }
 }
+

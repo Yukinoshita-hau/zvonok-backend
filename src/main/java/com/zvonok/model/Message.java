@@ -39,8 +39,7 @@ public class Message {
     @Column(nullable = false)
     private MessageType type = MessageType.DEFAULT;
     
-    @ManyToOne @JoinColumn(name = "reply_to_message_id")
-    private Message replyToMessage; // Ссылка на сообщение, на которое отвечают
+    private Long replyToMessageId;
 
     private LocalDateTime editedAt; // null если не редактировалось
 

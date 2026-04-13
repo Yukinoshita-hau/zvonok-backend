@@ -8,7 +8,6 @@ import com.zvonok.exception.RoomSizeMaxTenMembersException;
 import com.zvonok.exception.UserIsNotYourFriendException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.Room;
-import com.zvonok.model.RoomReadState;
 import com.zvonok.model.User;
 import com.zvonok.model.enumeration.RoomType;
 import com.zvonok.repository.RoomRepository;
@@ -33,8 +32,8 @@ public class RoomService {
 	private final RoomRepository roomRepository;
 	private final UserService userService;
 	private final FriendService friendService;
-	private final RoomReadStateService roomReadStateService;
 	private final RoomAccessService roomAccessService;
+	private final RoomReadStateService roomReadStateService;
 
 	public Room getRoom(Long id, String username) {
 		return roomAccessService.getRoomForUser(id, username);

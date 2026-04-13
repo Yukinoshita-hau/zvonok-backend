@@ -76,7 +76,10 @@ public enum HttpResponseMessage {
 
 	// LiveKit
 	HTTP_LIVEKIT_ROOM_RESPONSE_MESSAGE("LikeKit room error"),
-	HTTP_LIVEKIT_TOKEN_GENERATE_ERROR_RESPONSE_MESSAGE("Failed to generate LiveKit token");
+	HTTP_LIVEKIT_TOKEN_GENERATE_ERROR_RESPONSE_MESSAGE("Failed to generate LiveKit token"),
+
+	// MessageReadStatus
+	HTTP_MESSAGE_READ_STATUS_RESPONSE_MESSAGE("MessageReadStatus was not found");
 
 	private final String message;
 

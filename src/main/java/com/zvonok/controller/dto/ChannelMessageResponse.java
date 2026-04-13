@@ -10,14 +10,11 @@ import java.time.LocalDateTime;
 public class ChannelMessageResponse {
     private Long id;
     private String content;
-    private String senderUsername;
-    private Long senderId;
+	private SenderDto sender;
     private LocalDateTime sentAt;
-    private MessageType messageType;
+    private MessageType type;
     private Long channelId;
-    private String channelName;
-    private Long serverId;
     private EventType eventType;
-    private String replyToMessageId;
-    private Boolean isEdited;
+    private Long replyToMessageId;
+	private LocalDateTime editedAt;
 }
