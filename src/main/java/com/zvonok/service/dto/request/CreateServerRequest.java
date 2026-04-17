@@ -25,4 +25,6 @@ public class CreateServerRequest {
 	@Min(value = 10, message = "maxMembers must be at least 10")
 	@Max(10000)
 	private Integer maxMembers;
+
+	private boolean isPrivate; 
 }

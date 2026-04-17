@@ -30,17 +30,20 @@ public class MessageReadStatusService {
 	public void markMessageAsRead(Long messageId, String username) {
 		Message message = messageService.getMessage(messageId);
 		User user = userService.getUser(username);
-		readStatusRepo.findByMessageIdAndUserId(messageId, user.getId()).orElseGet(() -> {
-			MessageReadStatus readStatus = new MessageReadStatus();
-			readStatus.setMessage(message);
-			readStatus.setUser(user);
-			readStatus.setReadAt(LocalDateTime.now());
-			return readStatusRepo.save(readStatus);
-		});
+	
+		if (message.getSender().getId().equals(user.getId())) {
+			return;
+		}
+
+		int inserted = readStatusRepo.insertIngnore(messageId, user.getId(), LocalDateTime.now());
+
+		if (inserted == 0) {
+			return;
+		}
 
 		Room room = message.getRoom();
 
-		room.getMembers().stream().filter(member -> !member.getId().equals(user.getId()))
+		room.getMembers().stream()
 				.forEach(member -> messagingTemplate.convertAndSendToUser(member.getUsername(),
 						"/queue/message-read",
 						MessageReadStatusContent.builder().messageId(messageId).roomId(room.getId())

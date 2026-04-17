@@ -36,6 +36,10 @@ public class Server {
 
 	private LocalDateTime createdAt;
 
+	private String bannerUrl;
+
+	private boolean isPrivate = false;
+
 	@ManyToOne
 	@JoinColumn(name = "owner_id", nullable = false)
 	private User owner;

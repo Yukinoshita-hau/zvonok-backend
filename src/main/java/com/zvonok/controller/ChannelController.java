@@ -152,7 +152,7 @@ public class ChannelController {
 		return ResponseEntity.noContent().build();
 	}
 
-	@PostMapping("/{channelId}/messages")
+	@GetMapping("/{channelId}/messages")
 	public ResponseEntity<List<ChannelMessageResponse>> getChannelMessages(
 			@PathVariable Long serverId, @PathVariable Long folderId,
 			@PathVariable Long channelId, @RequestParam(required = false) Long beforeMessageId,

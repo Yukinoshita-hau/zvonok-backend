@@ -1,5 +1,6 @@
 package com.zvonok.service;
 
+import com.amazonaws.services.s3.model.S3Object;
 import com.zvonok.controller.dto.MyUser;
 import com.zvonok.exception.UserNotFoundException;
 import com.zvonok.exception.UserWIthThisUsernameAlreadyExistException;
@@ -10,8 +11,11 @@ import com.zvonok.repository.UserRepository;
 import com.zvonok.service.dto.CreateUserDto;
 import com.zvonok.service.dto.UpdateUserDto;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -24,6 +28,10 @@ import java.util.Optional;
 public class UserService {
 
 	private final UserRepository userRepository;
+	private final S3Service s3Service;
+
+	@Value("${s3.localEndpoint}")
+	private String endpoint;
 
 	public User getUser(Long id) {
 		return userRepository.findById(id).orElseThrow(() -> new UserNotFoundException(
@@ -76,10 +84,6 @@ public class UserService {
 
 		User user = getUser(username);
 
-System.out.println(userDto.getUsername());	
-System.out.println(userDto.getEmail());	
-System.out.println(userDto.getAvatarUrl());	
-
 		if (userDto.getUsername() != null && !userDto.getUsername().isEmpty()) {
 			userRepository.findByUsername(userDto.getUsername()).ifPresent(existingUser -> {
 				if (!existingUser.getUsername().equals(username)) {
@@ -106,13 +110,21 @@ System.out.println(userDto.getAvatarUrl());
 			user.setAvatarUrl(userDto.getAvatarUrl());
 		}
 
-		System.out.println(user.getUsername());
-		System.out.println(user.getEmail());
-		System.out.println(user.getAvatarUrl());
-
 		User response = userRepository.save(user);
 
 		return myUserWrapper(response);
+	}
+
+	public void uploadAvatar(String username, InputStream inputStream, long contentLength,
+			String contentType, String extension) {
+		User user = getUser(username);
+		String timestamp = String.valueOf(System.currentTimeMillis());
+		String avatarName = username + "_" + timestamp + extension;
+
+		s3Service.uploadFile(avatarName, inputStream, contentLength, contentType);
+
+		user.setAvatarUrl(endpoint + "/" + avatarName);
+		userRepository.save(user);
 	}
 
 	public MyUser myUserWrapper(User user) {
@@ -122,6 +134,7 @@ System.out.println(userDto.getAvatarUrl());
 		myUser.setEmail(user.getEmail());
 		myUser.setIsEmailVerified(user.getIsEmailVerified());
 		myUser.setStatus(user.getStatus());
+		myUser.setAvatarUrl(user.getAvatarUrl());
 		myUser.setLastSeenAt(user.getLastSeenAt());
 		myUser.setUpdatedAt(user.getUpdatedAt());
 		myUser.setCreatedAt(user.getCreatedAt());

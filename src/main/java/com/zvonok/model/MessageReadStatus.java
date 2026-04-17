@@ -12,7 +12,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "message_read_status")
+@Table(name = "message_read_status", uniqueConstraints = @UniqueConstraint(columnNames = { "message_id", "user_id" }))
 public class MessageReadStatus {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

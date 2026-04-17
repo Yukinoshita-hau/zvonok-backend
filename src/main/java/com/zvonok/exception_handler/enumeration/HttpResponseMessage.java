@@ -78,6 +78,9 @@ public enum HttpResponseMessage {
 	HTTP_LIVEKIT_ROOM_RESPONSE_MESSAGE("LikeKit room error"),
 	HTTP_LIVEKIT_TOKEN_GENERATE_ERROR_RESPONSE_MESSAGE("Failed to generate LiveKit token"),
 
+	// S3
+	HTTP_FILE_NOT_FOUND_RESPONSE_MESSAGE("file was not found"),
+
 	// MessageReadStatus
 	HTTP_MESSAGE_READ_STATUS_RESPONSE_MESSAGE("MessageReadStatus was not found");
 

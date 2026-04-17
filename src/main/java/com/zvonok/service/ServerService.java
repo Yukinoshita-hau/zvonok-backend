@@ -75,7 +75,7 @@ public class ServerService {
 		try {
 
 			validateCreateServerRequest(request);
-
+			System.out.println(request.isPrivate());
 			User owner = userService.getUser(ownerId);
 
 			// Создаем сервер
@@ -85,6 +85,7 @@ public class ServerService {
 			server.setOwner(owner);
 			server.setMaxMember(request.getMaxMembers() != null ? request.getMaxMembers() : 1000);
 			server.setCreatedAt(LocalDateTime.now());
+			server.setPrivate(request.isPrivate());
 
 			savedServer = serverRepository.save(server);
 
@@ -583,6 +584,7 @@ public class ServerService {
 				.memberCount(serverMemberService.countServerMembers(server.getId()))
 				.ownerId(server.getOwner().getId()).ownerName(server.getOwner().getUsername())
 				.createdAt(server.getCreatedAt()).channelFolders(server.getChannelFolders())
+				.bannerUrl(server.getBannerUrl()).isPrivate(server.isPrivate())
 				.build();
 	}
 

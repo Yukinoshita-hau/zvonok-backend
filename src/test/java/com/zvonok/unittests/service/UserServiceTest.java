@@ -5,6 +5,7 @@ import com.zvonok.exception.UserWIthThisUsernameAlreadyExistException;
 import com.zvonok.exception.UserWithThisEmailAlreadyExistException;
 import com.zvonok.model.User;
 import com.zvonok.repository.UserRepository;
+import com.zvonok.service.S3Service;
 import com.zvonok.service.UserService;
 import com.zvonok.service.dto.CreateUserDto;
 import com.zvonok.service.dto.UpdateUserDto;
@@ -32,6 +33,9 @@ public class UserServiceTest {
 
 	@InjectMocks
 	private UserService userService;
+
+	@InjectMocks
+	private S3Service storageService;
 
 	private User testUser;
 	private CreateUserDto createDto;

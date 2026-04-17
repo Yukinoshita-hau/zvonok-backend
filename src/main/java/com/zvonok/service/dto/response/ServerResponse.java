@@ -49,5 +49,9 @@ public class ServerResponse {
 	@Schema(description = "Список папок каналов на сервере.",
 			accessMode = Schema.AccessMode.READ_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
 	private List<ChannelFolder> channelFolders;
+
+	private String bannerUrl;
+
+	private boolean isPrivate;
 }
 

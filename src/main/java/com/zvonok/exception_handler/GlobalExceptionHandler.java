@@ -1,5 +1,6 @@
 package com.zvonok.exception_handler;
 
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.zvonok.exception.InvalidBooleanFormatException;
 import com.zvonok.exception_handler.annotation.ApiException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
@@ -113,6 +114,12 @@ public class GlobalExceptionHandler {
 		JsonErrorResponse errorResponse = new JsonErrorResponse(
 				HttpResponseMessage.HTTP_REFRESH_TOKEN_NOT_TRANSFERRED.getMessage(), HttpStatus.BAD_REQUEST.value());
 		return ResponseEntity.status(errorResponse.getStatus()).body(errorResponse);
+	}
+
+	@ExceptionHandler(AmazonS3Exception.class)
+	public ResponseEntity<JsonErrorResponse> handleAmazonS3Exception(AmazonS3Exception e) {
+		JsonErrorResponse errorResponse = new JsonErrorResponse(e.getMessage(), e.getStatusCode());
+		return ResponseEntity.status(e.getStatusCode()).body(errorResponse);
 	}
 
 	private String toHumanExpectedType(Class<?> requiredType) {

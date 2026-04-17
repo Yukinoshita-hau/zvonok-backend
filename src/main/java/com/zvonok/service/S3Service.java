@@ -4,9 +4,12 @@ import java.io.InputStream;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.zvonok.exception.FileStorageNotFoundException;
+import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -19,6 +22,7 @@ public class S3Service {
 
 	public void uploadFile(String key, InputStream inputStream, long contentLength,
 			String contentType) {
+		System.out.println(key);
 		ObjectMetadata metadata = new ObjectMetadata();
 		metadata.setContentLength(contentLength);
 		metadata.setContentType(contentType);
@@ -26,8 +30,15 @@ public class S3Service {
 	}
 
 	public S3Object downloadFile(String key) {
-		System.out.println(key);
-		return s3Client.getObject(bucketName, key);
+		try {
+			return s3Client.getObject(bucketName, key);
+		} catch (AmazonS3Exception e) {
+			if ("NoSuchKey".equals(e.getErrorCode())) {
+				throw new FileStorageNotFoundException(
+						HttpResponseMessage.HTTP_FILE_NOT_FOUND_RESPONSE_MESSAGE.getMessage());
+			}
+			throw e;
+		}
 	}
 
 	public void deleteFile(String key) {
