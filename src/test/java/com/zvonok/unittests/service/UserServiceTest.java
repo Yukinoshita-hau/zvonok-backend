@@ -101,7 +101,6 @@ public class UserServiceTest {
 		when(userRepository.findByEmail(testUser.getUsername())).thenReturn(Optional.empty());
 		when(userRepository.findByUsername(testUser.getUsername())).thenReturn(Optional.of(testUser));
 		when(userRepository.findByUsername(newUsername)).thenReturn(Optional.of(existingUser));
-		updateDto.setUsername(newUsername);
 
 		assertThrows(UserWIthThisUsernameAlreadyExistException.class,
 				() -> userService.updateMyUser(testUser.getUsername(), updateDto));
@@ -117,7 +116,6 @@ public class UserServiceTest {
 		when(userRepository.findByEmail(testUser.getUsername())).thenReturn(Optional.empty());
 		when(userRepository.findByUsername(testUser.getUsername())).thenReturn(Optional.of(testUser));
 		when(userRepository.findByEmail(newEmail)).thenReturn(Optional.of(existingUser));
-		updateDto.setEmail(newEmail);
 
 		assertThrows(UserWithThisEmailAlreadyExistException.class,
 				() -> userService.updateMyUser(testUser.getUsername(), updateDto));
@@ -130,7 +128,6 @@ public class UserServiceTest {
 		when(userRepository.findByEmail(testUser.getUsername())).thenReturn(Optional.empty());
 		when(userRepository.findByUsername(testUser.getUsername())).thenReturn(Optional.of(testUser));
 		when(userRepository.save(any(User.class))).thenReturn(testUser);
-		updateDto.setUsername(testUser.getUsername());
 
 		assertDoesNotThrow(() -> userService.updateMyUser(testUser.getUsername(), updateDto));
 
@@ -144,7 +141,6 @@ public class UserServiceTest {
 		when(userRepository.findByUsername(testUser.getUsername())).thenReturn(Optional.of(testUser));
 		when(userRepository.findByEmail(testUser.getEmail())).thenReturn(Optional.of(testUser));
 		when(userRepository.save(any(User.class))).thenReturn(testUser);
-		updateDto.setEmail(testUser.getEmail());
 
 		assertDoesNotThrow(() -> userService.updateMyUser(testUser.getUsername(), updateDto));
 

@@ -37,8 +37,7 @@ public class ChannelService {
 	private final UserService userService;
 	private final PermissionService permissionService;
 
-	public ChannelService(ChannelRepository channelRepository,
-			MessageRepository messageRepository,
+	public ChannelService(ChannelRepository channelRepository, MessageRepository messageRepository,
 			@Lazy ChannelFolderService channelFolderService, UserService userService,
 			@Lazy PermissionService permissionService) {
 		this.channelRepository = channelRepository;
@@ -151,8 +150,8 @@ public class ChannelService {
 
 	private ChannelMessageResponse mapToChannelMessageResponse(Message message, Channel channel) {
 		SenderDto sender = new SenderDto(message.getSender().getId(),
-				message.getSender().getUsername(), message.getSender().getAvatarUrl(),
-				message.getSender().getStatus());
+				message.getSender().getUsername(), message.getSender().getDisplayName(),
+				message.getSender().getAvatarUrl(), message.getSender().getStatus());
 
 		ChannelMessageResponse response = new ChannelMessageResponse();
 		response.setId(message.getId());

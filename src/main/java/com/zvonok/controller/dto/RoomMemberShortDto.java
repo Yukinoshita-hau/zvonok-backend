@@ -13,7 +13,7 @@ public class RoomMemberShortDto {
 	private String displayName;
 	private UserStatus status;
 	private LocalDateTime lastSeenAt;
-	private String avatartUrl;
+	private String avatarUrl;
 	private LocalDateTime updatedAt;
 	private LocalDateTime createdAt;
 }

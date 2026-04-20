@@ -22,10 +22,11 @@ public class LiveKitTokenService {
 	@Value("${livekit.server-url}")
 	private String serverUrl;
 
-	public LiveKitTokenResponse generateToken(String roomName, String identity) {
+	public LiveKitTokenResponse generateToken(String roomName, String identity, String displayName) {
 		try {
 			AccessToken token = new AccessToken(apiKey, apiSecret);
 			token.setIdentity(identity);
+			token.setName(displayName);
 
 			token.addGrants(new RoomJoin(true), new RoomName(roomName));
 

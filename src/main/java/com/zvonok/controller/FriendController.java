@@ -96,6 +96,8 @@ public class FriendController {
 				.senderAvatarUrl(friendRequest.getSender().getAvatarUrl())
 				.receiverId(friendRequest.getReceiver().getId())
 				.receiverUsername(friendRequest.getReceiver().getUsername())
+				.receiverDisplayName(friendRequest.getReceiver().getDisplayName())
+				.receiverAvatarUrl(friendRequest.getReceiver().getAvatarUrl())
 				.status(friendRequest.getStatus()).createdAt(friendRequest.getCreatedAt())
 				.updatedAt(friendRequest.getUpdatedAt()).build();
 	}

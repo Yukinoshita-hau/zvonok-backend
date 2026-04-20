@@ -31,9 +31,9 @@ public class RoomService {
 
 	private final RoomRepository roomRepository;
 	private final UserService userService;
-	private final FriendService friendService;
 	private final RoomAccessService roomAccessService;
 	private final RoomReadStateService roomReadStateService;
+	private final FriendShipAccessService friendAccessService;
 
 	public Room getRoom(Long id, String username) {
 		return roomAccessService.getRoomForUser(id, username);
@@ -93,26 +93,32 @@ public class RoomService {
 			List<String> roomMemberUsernames) {
 		User creator = userService.getUser(creatorUsername);
 
-		if (roomMemberUsernames.size() < 2) {
-			throw new InvalidRoomSizeException(
-					HttpResponseMessage.HTTP_INVALID_ROOM_SIZE_RESPONSE_MESSAGE.getMessage());
-		}
-
-		// Получаем пользователей по именам через UserService
 		List<User> members = new ArrayList<>();
-		Long creatorUsernameId = userService.getUser(creatorUsername).getId();
+
+		Long creatorUsernameId = creator.getId();
 		for (String username : roomMemberUsernames) {
-			Long usernameId = userService.getUser(username).getId();
-			if (!friendService.areFriends(creatorUsernameId, usernameId)) {
+			User member = userService.getUser(username);
+
+			if (member.getId().equals(creator.getId())) {
+				continue;
+			}
+
+			if (!friendAccessService.areFriends(creatorUsernameId, member.getId())) {
 				throw new UserIsNotYourFriendException(
 						username + HttpResponseMessage.HTTP_USER_NOT_YOUR_FRIEND_RESPONSE_MESSAGE
 								.getMessage());
 			}
-			members.add(userService.getUser(username));
+
+			if (members.stream().noneMatch(u -> u.getId().equals(member.getId()))) {
+				members.add(member);
+			}
 		}
 
-		if (!members.contains(creator)) {
-			members.add(creator);
+		members.add(creator);
+
+		if (members.size() < 3) {
+			throw new InvalidRoomSizeException(
+					HttpResponseMessage.HTTP_INVALID_ROOM_SIZE_RESPONSE_MESSAGE.getMessage());
 		}
 
 		if (members.size() > 15) {
@@ -120,6 +126,7 @@ public class RoomService {
 					HttpResponseMessage.HTTP_ROOM_SIZE_MAX_FIFTEEN_MEMBERS_RESPONSE_MESSAGE
 							.getMessage());
 		}
+
 
 		Room room = new Room();
 		room.setName(roomName);
@@ -160,7 +167,7 @@ public class RoomService {
 			m.setDisplayName(u.getDisplayName());
 			m.setStatus(u.getStatus());
 			m.setLastSeenAt(u.getLastSeenAt());
-			m.setAvatartUrl(u.getAvatarUrl());
+			m.setAvatarUrl(u.getAvatarUrl());
 			m.setUpdatedAt(u.getUpdatedAt());
 			m.setCreatedAt(u.getCreatedAt());
 			return m;

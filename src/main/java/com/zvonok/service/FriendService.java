@@ -25,13 +25,13 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class FriendService {
 
 	private final UserService userService;
 	private final FriendRequestRepository friendRequestRepository;
 	private final FriendshipRepository friendshipRepository;
 	private final SimpMessagingTemplate simpMessagingTemplate;
+	private final RoomService roomService;
 
 	public List<Friendship> getFriendships(Long userId) {
 		ensureUserExists(userId);
@@ -104,6 +104,8 @@ public class FriendService {
 		friendRequestRepository.save(friendRequest);
 
 		createFriendship(friendRequest.getSender(), friendRequest.getReceiver());
+		roomService.createOrGetPrivateRoom(friendRequest.getSender().getUsername(),
+				friendRequest.getReceiver().getUsername());
 
 		FriendEventMessage response =
 				toFriendEventMessage(friendRequest, FriendEventType.FRIEND_REQUEST_ACCEPTED);
@@ -185,8 +187,7 @@ public class FriendService {
 
 		friendshipRepository.delete(friendship);
 
-		FriendEventMessage response =
-				toFriendEventMessage(null, FriendEventType.FRIEND_DELETE);
+		FriendEventMessage response = toFriendEventMessage(null, FriendEventType.FRIEND_DELETE);
 
 		simpMessagingTemplate.convertAndSendToUser(friendship.getUserOne().getUsername(),
 				BrokerPath.FRIEND_REQUESTS_QUEUE_PATH.getPath(), response);
