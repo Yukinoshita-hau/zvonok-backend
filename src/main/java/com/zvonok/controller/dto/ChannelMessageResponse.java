@@ -16,5 +16,6 @@ public class ChannelMessageResponse {
     private Long channelId;
     private EventType eventType;
     private Long replyToMessageId;
+	private ReplyPreviewDto replyPreview;
 	private LocalDateTime editedAt;
 }

@@ -17,4 +17,6 @@ public class ShortMessageWrapped {
 	private final SenderDto sender;
 	private final RoomShortDto room;
 	private final LocalDateTime editedAt;
+	private final Long replyToMessageId;
+	private final ReplyPreviewDto replyPreview;
 }

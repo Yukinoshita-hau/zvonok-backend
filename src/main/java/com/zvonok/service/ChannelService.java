@@ -1,6 +1,7 @@
 package com.zvonok.service;
 
 import com.zvonok.controller.dto.ChannelMessageResponse;
+import com.zvonok.controller.dto.ReplyPreviewDto;
 import com.zvonok.controller.dto.SenderDto;
 import com.zvonok.exception.ChannelNotFoundException;
 import com.zvonok.exception.InsufficientPermissionsException;
@@ -21,7 +22,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -144,11 +149,17 @@ public class ChannelService {
 					channelId, beforeMessageId, pageRequest);
 		}
 
+		Map<Long, ReplyPreviewDto> replyPreviewByParentId =
+				buildReplyPreviewByParentId(page.getContent());
+
 		return page.getContent().stream().sorted(Comparator.comparing(Message::getId))
-				.map(message -> mapToChannelMessageResponse(message, channel)).toList();
+				.map(message -> mapToChannelMessageResponse(message, channel,
+						replyPreviewByParentId.get(message.getReplyToMessageId())))
+				.toList();
 	}
 
-	private ChannelMessageResponse mapToChannelMessageResponse(Message message, Channel channel) {
+	private ChannelMessageResponse mapToChannelMessageResponse(Message message, Channel channel,
+			ReplyPreviewDto replyPreview) {
 		SenderDto sender = new SenderDto(message.getSender().getId(),
 				message.getSender().getUsername(), message.getSender().getDisplayName(),
 				message.getSender().getAvatarUrl(), message.getSender().getStatus());
@@ -162,9 +173,60 @@ public class ChannelService {
 		response.setChannelId(channel.getId());
 		response.setEventType(EventType.MESSAGE);
 		response.setReplyToMessageId(message.getReplyToMessageId());
+		response.setReplyPreview(replyPreview);
 		response.setEditedAt(message.getEditedAt());
 		return response;
 	}
-}
 
+	private Map<Long, ReplyPreviewDto> buildReplyPreviewByParentId(List<Message> messages) {
+		Set<Long> replyToIds = new HashSet<>();
+		for (Message message : messages) {
+			if (message.getReplyToMessageId() != null) {
+				replyToIds.add(message.getReplyToMessageId());
+			}
+		}
+
+		if (replyToIds.isEmpty()) {
+			return Map.of();
+		}
+
+		Map<Long, Message> parentById = new HashMap<>();
+		for (Message parent : messageRepository.findAllById(replyToIds)) {
+			parentById.put(parent.getId(), parent);
+		}
+
+		Map<Long, ReplyPreviewDto> previewByParentId = new HashMap<>();
+		for (Long replyToId : replyToIds) {
+			Message parent = parentById.get(replyToId);
+			if (parent == null) {
+				previewByParentId.put(replyToId,
+						new ReplyPreviewDto(replyToId, null, null, null, null, null, true));
+				continue;
+			}
+
+			boolean deleted = parent.isDeleted();
+			String snippet = deleted ? null : buildSnippet(parent.getContent());
+			previewByParentId.put(replyToId,
+					new ReplyPreviewDto(parent.getId(), parent.getSender().getId(),
+							parent.getSender().getUsername(), parent.getSender().getDisplayName(),
+							snippet, parent.getType(), deleted));
+		}
+
+		return previewByParentId;
+	}
+
+	private String buildSnippet(String content) {
+		if (content == null) {
+			return null;
+		}
+
+		String trimmed = content.trim();
+		int maxLength = 120;
+		if (trimmed.length() <= maxLength) {
+			return trimmed;
+		}
+
+		return trimmed.substring(0, maxLength) + "...";
+	}
+}
 

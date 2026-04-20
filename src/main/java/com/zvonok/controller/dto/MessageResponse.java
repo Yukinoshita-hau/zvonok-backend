@@ -38,4 +38,12 @@ public class MessageResponse {
 	@Schema(description = "Тип события (если сообщение системное/событийное).",
 			example = "MESSAGE_CREATED", accessMode = Schema.AccessMode.READ_ONLY)
 	private EventType eventType;
+
+	@Schema(description = "ID родительского сообщения для reply (если есть).", example = "321",
+			accessMode = Schema.AccessMode.READ_ONLY)
+	private Long replyToMessageId;
+
+	@Schema(description = "Компактный preview родительского сообщения для reply.",
+			accessMode = Schema.AccessMode.READ_ONLY)
+	private ReplyPreviewDto replyPreview;
 }
