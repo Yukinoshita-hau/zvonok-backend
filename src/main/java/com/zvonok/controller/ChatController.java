@@ -1,12 +1,12 @@
 package com.zvonok.controller;
 
-import com.zvonok.controller.dto.ChannelMessageResponse;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.zvonok.controller.dto.WebSocketMessageRequest;
 import com.zvonok.exception.AuthenticatedPrincipalRequiredException;
 import com.zvonok.exception_handler.annotation.ApiException;
 import com.zvonok.exception_handler.enumeration.BusinessRuleMessage;
 import com.zvonok.service.MessageReadStatusService;
 import com.zvonok.service.MessageService;
-import com.zvonok.service.dto.MessageReadStatusContent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -16,7 +16,6 @@ import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
@@ -32,29 +31,35 @@ public class ChatController {
 
 	@MessageMapping("/private/{receiverUsername}")
 	public void sendPrivateMessage(@DestinationVariable String receiverUsername,
-			Principal principal, @Payload String content) {
+			Principal principal, @Payload JsonNode payload) {
 		String sender = resolvePrincipalName(principal);
-		validateContent(content);
+		WebSocketMessageRequest request = parseMessageRequest(payload);
+		validateContent(request.getContent());
 
-		messageService.sendPrivateMessage(sender, receiverUsername, content);
+		messageService.sendPrivateMessage(sender, receiverUsername, request.getContent(),
+				request.getReplyToMessageId());
 	}
 
 	@MessageMapping("/send/{roomId}")
 	public void sendMessage(@DestinationVariable Long roomId, Principal principal,
-			@Payload String content) {
+			@Payload JsonNode payload) {
 		String sender = resolvePrincipalName(principal);
-		validateContent(content);
+		WebSocketMessageRequest request = parseMessageRequest(payload);
+		validateContent(request.getContent());
 
-		messageService.sendMessage(sender, roomId, content);
+		messageService.sendMessage(sender, roomId, request.getContent(),
+				request.getReplyToMessageId());
 	}
 
 	@MessageMapping("/channel/{channelId}")
 	public void sendChannelMessage(@DestinationVariable Long channelId, Principal principal,
-			@Payload String content) {
+			@Payload JsonNode payload) {
 		String sender = resolvePrincipalName(principal);
-		validateContent(content);
+		WebSocketMessageRequest request = parseMessageRequest(payload);
+		validateContent(request.getContent());
 
-		messageService.sendChannelMessage(sender, channelId, content);
+		messageService.sendChannelMessage(sender, channelId, request.getContent(),
+				request.getReplyToMessageId());
 	}
 
 	@MessageMapping("/edit/{messageId}")
@@ -105,5 +110,51 @@ public class ChatController {
 		if (content == null || content.trim().isEmpty()) {
 			throw new IllegalArgumentException("Message content must not be empty");
 		}
+	}
+
+	private WebSocketMessageRequest parseMessageRequest(JsonNode payload) {
+		if (payload == null || payload.isNull()) {
+			return new WebSocketMessageRequest(null, null);
+		}
+
+		if (payload.isTextual()) {
+			return new WebSocketMessageRequest(payload.asText(), null);
+		}
+
+		String content = payload.has("content") && !payload.get("content").isNull()
+				? payload.get("content").asText()
+				: null;
+
+		Long replyToMessageId = extractNullableLong(payload, "replyToMessageId");
+		if (replyToMessageId == null) {
+			replyToMessageId = extractNullableLong(payload, "parentMessageId");
+		}
+
+		return new WebSocketMessageRequest(content, replyToMessageId);
+	}
+
+	private Long extractNullableLong(JsonNode payload, String fieldName) {
+		if (!payload.has(fieldName) || payload.get(fieldName).isNull()) {
+			return null;
+		}
+
+		JsonNode node = payload.get(fieldName);
+		if (node.isNumber()) {
+			return node.longValue();
+		}
+
+		if (node.isTextual()) {
+			String raw = node.asText().trim();
+			if (raw.isEmpty()) {
+				return null;
+			}
+			try {
+				return Long.parseLong(raw);
+			} catch (NumberFormatException e) {
+				throw new IllegalArgumentException(fieldName + " must be a valid number");
+			}
+		}
+
+		throw new IllegalArgumentException(fieldName + " must be a valid number");
 	}
 }

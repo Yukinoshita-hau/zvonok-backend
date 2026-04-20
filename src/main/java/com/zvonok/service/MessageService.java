@@ -2,10 +2,12 @@ package com.zvonok.service;
 
 import com.zvonok.controller.dto.ChannelMessageResponse;
 import com.zvonok.controller.dto.ChatErrorMessageResponse;
+import com.zvonok.controller.dto.ReplyPreviewDto;
 import com.zvonok.exception.CannotEditDeletedMessageException;
 import com.zvonok.exception.ChannelNotFoundException;
 import com.zvonok.exception.InsufficientPermissionsException;
 import com.zvonok.exception.MessageNotFoundException;
+import com.zvonok.exception.MessageTargetValidationException;
 import com.zvonok.exception.RoomNotFoundException;
 import com.zvonok.exception.UserNotFoundException;
 import com.zvonok.exception.UserNotMemberRoomException;
@@ -34,8 +36,12 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Service for managing messages in private rooms, group rooms, and channels. Сервис для управления
@@ -55,7 +61,7 @@ public class MessageService {
 
 
 	public ShortMessageWrapped sendPrivateMessage(String senderUsername, String receiverUsername,
-			String content) {
+			String content, Long replyToMessageId) {
 
 		Long durationStart = System.currentTimeMillis();
 		Message message = null;
@@ -75,7 +81,9 @@ public class MessageService {
 								.getMessage());
 			}
 
-			message = createMessage(sender, content, privateRoom, null);
+			validateReplyTarget(replyToMessageId, privateRoom, null);
+
+			message = createMessage(sender, content, privateRoom, null, replyToMessageId);
 			Message savedMessage = messageRepository.save(message);
 
 			// MessageResponse response = mapToMessageResponse(savedMessage,
@@ -107,7 +115,8 @@ public class MessageService {
 
 	}
 
-	public ShortMessageWrapped sendMessage(String senderUsername, long roomId, String content) {
+	public ShortMessageWrapped sendMessage(String senderUsername, long roomId, String content,
+			Long replyToMessageId) {
 		long durationStart = System.currentTimeMillis();
 		Message message = null;
 
@@ -124,7 +133,9 @@ public class MessageService {
 								.getMessage());
 			}
 
-			message = createMessage(sender, content, room, null);
+			validateReplyTarget(replyToMessageId, room, null);
+
+			message = createMessage(sender, content, room, null, replyToMessageId);
 			Message savedMessage = messageRepository.save(message);
 
 			// MessageResponse response = mapToMessageResponse(savedMessage, room.getId());
@@ -158,7 +169,7 @@ public class MessageService {
 	}
 
 	public ChannelMessageResponse sendChannelMessage(String senderUsername, Long channelId,
-			String content) {
+			String content, Long replyToMessageId) {
 		long durationStart = System.currentTimeMillis();
 		Message message = null;
 
@@ -172,7 +183,9 @@ public class MessageService {
 								.getMessage());
 			}
 
-			message = createMessage(sender, content, null, channel);
+			validateReplyTarget(replyToMessageId, null, channel);
+
+			message = createMessage(sender, content, null, channel, replyToMessageId);
 			Message savedMessage = messageRepository.save(message);
 
 			ChannelMessageResponse response =
@@ -302,22 +315,23 @@ public class MessageService {
 			}
 
 
+			message.setDeletedAt(LocalDateTime.now());
 			messageRepository.save(message);
 
-			List<ShortMessageWrapped> RoomMessages =
-					getRoomMessages(username, message.getRoom().getId(), null, 1);
+			if (message.getRoom() != null) {
+				List<ShortMessageWrapped> RoomMessages =
+						getRoomMessages(username, message.getRoom().getId(), null, 1);
 
+				ShortMessageWrapped lastRoomMessage =
+						RoomMessages.size() == 1 ? RoomMessages.getFirst() : null;
 
-			ShortMessageWrapped lastRoomMessage =
-					RoomMessages.size() == 1 ? RoomMessages.getFirst() : null;
-
-
-			if (lastRoomMessage != null) {
-				roomService.updateRoom(message.getRoom().getId(), username, null,
-						lastRoomMessage.getId(), lastRoomMessage.getContent(),
-						lastRoomMessage.getSentAt());
-			} else {
-				roomService.updateRoom(message.getRoom().getId(), username, null, null, null);
+				if (lastRoomMessage != null) {
+					roomService.updateRoom(message.getRoom().getId(), username, null,
+							lastRoomMessage.getId(), lastRoomMessage.getContent(),
+							lastRoomMessage.getSentAt());
+				} else {
+					roomService.updateRoom(message.getRoom().getId(), username, null, null, null);
+				}
 			}
 
 			// Отправляем событие удаления через WebSocket
@@ -377,8 +391,13 @@ public class MessageService {
 					roomId, beforeMessage.getId(), pageRequest);
 		}
 
+		Map<Long, ReplyPreviewDto> replyPreviewByParentId =
+				buildReplyPreviewByParentId(page.getContent());
+
 		return page.getContent().stream().sorted(java.util.Comparator.comparing(Message::getId))
-				.map(msg -> toWrappedShortMessage(msg, EventType.MESSAGE)).toList();
+				.map(msg -> toWrappedShortMessage(msg, EventType.MESSAGE,
+						replyPreviewByParentId.get(msg.getReplyToMessageId())))
+				.toList();
 
 	}
 
@@ -389,8 +408,13 @@ public class MessageService {
 			return new ArrayList<>();
 		}
 
-		return messageRepository.findByRoomIdAndDeletedAtIsNullOrderBySentAtAsc(privateRoom.getId())
-				.stream().map(message -> mapToMessageResponse(message, privateRoom.getId()))
+		List<Message> messages =
+				messageRepository.findByRoomIdAndDeletedAtIsNullOrderBySentAtAsc(privateRoom.getId());
+		Map<Long, ReplyPreviewDto> replyPreviewByParentId = buildReplyPreviewByParentId(messages);
+
+		return messages.stream()
+				.map(message -> mapToMessageResponse(message, privateRoom.getId(),
+						replyPreviewByParentId.get(message.getReplyToMessageId())))
 				.toList();
 	}
 
@@ -408,14 +432,15 @@ public class MessageService {
 
 	// ===== PRIVATE HELPER METHODS =====
 
-	private Message createMessage(User sender, String content, Room room, Channel channel) {
+	private Message createMessage(User sender, String content, Room room, Channel channel,
+			Long replyToMessageId) {
 		Message message = new Message();
 		message.setSender(sender);
 		message.setContent(content);
 		message.setType(MessageType.DEFAULT);
 		message.setRoom(room);
 		message.setChannel(channel);
-		message.setReplyToMessageId(null);
+		message.setReplyToMessageId(replyToMessageId);
 		message.setEditedAt(null);
 		message.setDeletedAt(null);
 		message.setSentAt(LocalDateTime.now());
@@ -423,16 +448,24 @@ public class MessageService {
 	}
 
 	private ShortMessageWrapped toWrappedShortMessage(Message message, EventType eventType) {
+		ReplyPreviewDto replyPreview = resolveReplyPreview(message.getReplyToMessageId());
+		return toWrappedShortMessage(message, eventType, replyPreview);
+	}
+
+	private ShortMessageWrapped toWrappedShortMessage(Message message, EventType eventType,
+			ReplyPreviewDto replyPreview) {
 		SenderDto sender = new SenderDto(message.getSender().getId(),
 				message.getSender().getUsername(), message.getSender().getDisplayName(),
 				message.getSender().getAvatarUrl(), message.getSender().getStatus());
 		RoomShortDto room =
 				new RoomShortDto(message.getRoom().getId(), message.getRoom().getType());
 		return new ShortMessageWrapped(message.getId(), message.getContent(), message.getType(),
-				eventType, message.getSentAt(), sender, room, message.getEditedAt());
+				eventType, message.getSentAt(), sender, room, message.getEditedAt(),
+				message.getReplyToMessageId(), replyPreview);
 	}
 
-	private MessageResponse mapToMessageResponse(Message message, Long roomId) {
+	private MessageResponse mapToMessageResponse(Message message, Long roomId,
+			ReplyPreviewDto replyPreview) {
 		MessageResponse response = new MessageResponse();
 		response.setId(message.getId());
 		response.setContent(message.getContent());
@@ -440,6 +473,8 @@ public class MessageService {
 		response.setSentAt(message.getSentAt());
 		response.setMessageType(message.getType());
 		response.setRoomId(roomId);
+		response.setReplyToMessageId(message.getReplyToMessageId());
+		response.setReplyPreview(replyPreview);
 		return response;
 	}
 
@@ -457,8 +492,101 @@ public class MessageService {
 		response.setType(message.getType());
 		response.setChannelId(channel.getId());
 		response.setEventType(eventType);
+		response.setReplyToMessageId(message.getReplyToMessageId());
+		response.setReplyPreview(resolveReplyPreview(message.getReplyToMessageId()));
 		response.setEditedAt(message.getEditedAt());
 		return response;
+	}
+
+	private void validateReplyTarget(Long replyToMessageId, Room room, Channel channel) {
+		if (replyToMessageId == null) {
+			return;
+		}
+
+		Message parent = getMessage(replyToMessageId);
+		if (parent.isDeleted()) {
+			throw new MessageTargetValidationException("Cannot reply to a deleted message");
+		}
+
+		if (room != null) {
+			if (parent.getRoom() == null || !room.getId().equals(parent.getRoom().getId())) {
+				throw new MessageTargetValidationException(
+						"Reply target message must belong to the same room");
+			}
+			return;
+		}
+
+		if (channel != null && (parent.getChannel() == null
+				|| !channel.getId().equals(parent.getChannel().getId()))) {
+			throw new MessageTargetValidationException(
+					"Reply target message must belong to the same channel");
+		}
+	}
+
+	private Map<Long, ReplyPreviewDto> buildReplyPreviewByParentId(List<Message> messages) {
+		Set<Long> replyToIds = new HashSet<>();
+		for (Message message : messages) {
+			if (message.getReplyToMessageId() != null) {
+				replyToIds.add(message.getReplyToMessageId());
+			}
+		}
+
+		if (replyToIds.isEmpty()) {
+			return Map.of();
+		}
+
+		Map<Long, Message> parentById = new HashMap<>();
+		for (Message parent : messageRepository.findAllById(replyToIds)) {
+			parentById.put(parent.getId(), parent);
+		}
+
+		Map<Long, ReplyPreviewDto> previewByParentId = new HashMap<>();
+		for (Long replyToId : replyToIds) {
+			Message parent = parentById.get(replyToId);
+			if (parent == null) {
+				previewByParentId.put(replyToId, buildMissingReplyPreview(replyToId));
+			} else {
+				previewByParentId.put(replyToId, buildReplyPreview(parent));
+			}
+		}
+
+		return previewByParentId;
+	}
+
+	private ReplyPreviewDto resolveReplyPreview(Long replyToMessageId) {
+		if (replyToMessageId == null) {
+			return null;
+		}
+
+		return messageRepository.findById(replyToMessageId).map(this::buildReplyPreview)
+				.orElseGet(() -> buildMissingReplyPreview(replyToMessageId));
+	}
+
+	private ReplyPreviewDto buildReplyPreview(Message parent) {
+		boolean deleted = parent.isDeleted();
+		String snippet = deleted ? null : buildSnippet(parent.getContent());
+
+		return new ReplyPreviewDto(parent.getId(), parent.getSender().getId(),
+				parent.getSender().getUsername(), parent.getSender().getDisplayName(), snippet,
+				parent.getType(), deleted);
+	}
+
+	private ReplyPreviewDto buildMissingReplyPreview(Long replyToMessageId) {
+		return new ReplyPreviewDto(replyToMessageId, null, null, null, null, null, true);
+	}
+
+	private String buildSnippet(String content) {
+		if (content == null) {
+			return null;
+		}
+
+		String trimmed = content.trim();
+		int maxLength = 120;
+		if (trimmed.length() <= maxLength) {
+			return trimmed;
+		}
+
+		return trimmed.substring(0, maxLength) + "...";
 	}
 
 	private void buildFailedMessage(Exception e, String action, long durationStart, Room room,
@@ -531,4 +659,3 @@ public class MessageService {
 		}
 	}
 }
-
