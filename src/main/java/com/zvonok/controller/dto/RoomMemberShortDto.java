@@ -10,6 +10,7 @@ import lombok.Setter;
 public class RoomMemberShortDto {
 	private Long id;
 	private String username;
+	private String displayName;
 	private UserStatus status;
 	private LocalDateTime lastSeenAt;
 	private String avatartUrl;

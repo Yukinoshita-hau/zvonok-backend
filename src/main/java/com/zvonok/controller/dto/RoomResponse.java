@@ -13,6 +13,7 @@ public class RoomResponse {
 	private Long id;
 	private String name;
 	private RoomType type;
+	private String avatarUrl;
 	private Boolean isActive;
 	private LocalDateTime createdAt;
 	private Long lastMessageId;

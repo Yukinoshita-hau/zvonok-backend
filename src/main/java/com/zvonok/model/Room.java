@@ -29,6 +29,8 @@ public class Room {
 	@Enumerated(EnumType.STRING)
 	private RoomType type = RoomType.PRIVATE;
 
+	private String avatarUrl;
+
 	private Boolean isActive = true;
 
 	private LocalDateTime createdAt;
@@ -36,6 +38,7 @@ public class Room {
 	private Long lastMessageId;
 	private String lastMessageContent;
 	private LocalDateTime lastActivityAt;
+
 
 	@ManyToMany
 	@JoinTable(name = "room_members", joinColumns = @JoinColumn(name = "room_id"),

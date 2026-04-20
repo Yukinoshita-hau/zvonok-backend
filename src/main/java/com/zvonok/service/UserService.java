@@ -1,6 +1,5 @@
 package com.zvonok.service;
 
-import com.amazonaws.services.s3.model.S3Object;
 import com.zvonok.controller.dto.MyUser;
 import com.zvonok.exception.UserNotFoundException;
 import com.zvonok.exception.UserWIthThisUsernameAlreadyExistException;
@@ -14,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -73,8 +71,11 @@ public class UserService {
 
 		User user = new User();
 		user.setUsername(userDto.getUsername());
+		user.setDisplayName(userDto.getUsername());
+		user.setAvatarUrl(null);
 		user.setEmail(userDto.getEmail());
 		user.setPassword(userDto.getPassword());
+		user.setAboutMe(null);
 
 		return userRepository.save(user);
 	}
@@ -84,30 +85,16 @@ public class UserService {
 
 		User user = getUser(username);
 
-		if (userDto.getUsername() != null && !userDto.getUsername().isEmpty()) {
-			userRepository.findByUsername(userDto.getUsername()).ifPresent(existingUser -> {
-				if (!existingUser.getUsername().equals(username)) {
-					throw new UserWIthThisUsernameAlreadyExistException(
-							HttpResponseMessage.HTTP_USER_WITH_THIS_USERNAME_ALREADY_EXIST_RESPONSE_MESSAGE
-									.getMessage());
-				}
-			});
-			user.setUsername(userDto.getUsername());
+		if (userDto.getDisplayName() != null && !userDto.getDisplayName().isEmpty()) {
+			user.setDisplayName(userDto.getDisplayName());
 		}
 
-		if (userDto.getEmail() != null && !userDto.getEmail().isEmpty()) {
-			userRepository.findByEmail(userDto.getEmail()).ifPresent(existingUser -> {
-				if (!existingUser.getUsername().equals(username)) {
-					throw new UserWithThisEmailAlreadyExistException(
-							HttpResponseMessage.HTTP_USER_WITH_THIS_EMAIL_ALREADY_EXIST_RESPONSE_MESSAGE
-									.getMessage());
-				}
-			});
-			user.setEmail(userDto.getEmail());
-		}
-
-		if (userDto.getAvatarUrl() != null) {
+		if (userDto.getAvatarUrl() != null && !userDto.getAvatarUrl().isEmpty()) {
 			user.setAvatarUrl(userDto.getAvatarUrl());
+		}
+
+		if (userDto.getAboutMe() != null && !userDto.getAboutMe().isEmpty()) {
+			user.setAboutMe(userDto.getAboutMe());
 		}
 
 		User response = userRepository.save(user);
@@ -131,6 +118,9 @@ public class UserService {
 		MyUser myUser = new MyUser();
 		myUser.setId(user.getId());
 		myUser.setUsername(user.getUsername());
+		myUser.setDisplayName(user.getDisplayName());
+		myUser.setAboutMe(user.getAboutMe());
+		myUser.setAvatarUrl(user.getAvatarUrl());
 		myUser.setEmail(user.getEmail());
 		myUser.setIsEmailVerified(user.getIsEmailVerified());
 		myUser.setStatus(user.getStatus());

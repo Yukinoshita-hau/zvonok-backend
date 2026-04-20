@@ -24,6 +24,8 @@ public class FriendResponse {
 			accessMode = Schema.AccessMode.READ_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
 	String friendUsername;
 
+	String friendDisplayName;
+
 	@Schema(description = "URL аватара пользователя-друга.",
 			example = "https://cdn.zvonok.app/avatars/42.png",
 			accessMode = Schema.AccessMode.READ_ONLY)

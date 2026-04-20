@@ -24,6 +24,8 @@ public class FriendRequestResponse {
 			accessMode = Schema.AccessMode.READ_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
 	String senderUsername;
 
+	String senderDisplayName;
+
 	@Schema(description = "ссылка на аватар отправителя.",
 			accessMode = Schema.AccessMode.READ_ONLY, requiredMode = Schema.RequiredMode.REQUIRED)
 	String senderAvatarUrl;

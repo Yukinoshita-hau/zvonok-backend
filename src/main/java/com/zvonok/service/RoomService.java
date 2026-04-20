@@ -81,6 +81,7 @@ public class RoomService {
 		room.setIsActive(true);
 		room.setCreatedAt(LocalDateTime.now());
 		room.setMembers(members);
+		room.setAvatarUrl(null);
 		room.setLastMessageId(null);
 		room.setLastMessageContent(null);
 		room.setLastActivityAt(room.getCreatedAt());
@@ -125,6 +126,7 @@ public class RoomService {
 		room.setType(RoomType.GROUP);
 		room.setIsActive(true);
 		room.setCreatedAt(LocalDateTime.now());
+		room.setAvatarUrl(null);
 		room.setMembers(members);
 		room.setLastMessageId(null);
 		room.setLastMessageContent(null);
@@ -142,6 +144,7 @@ public class RoomService {
 		dto.setId(room.getId());
 		dto.setName(room.getName());
 		dto.setType(room.getType());
+		dto.setAvatarUrl(room.getAvatarUrl());
 		dto.setIsActive(room.getIsActive());
 		dto.setCreatedAt(room.getCreatedAt());
 		dto.setLastMessageId(room.getLastMessageId());
@@ -154,6 +157,7 @@ public class RoomService {
 			RoomMemberShortDto m = new RoomMemberShortDto();
 			m.setId(u.getId());
 			m.setUsername(u.getUsername());
+			m.setDisplayName(u.getDisplayName());
 			m.setStatus(u.getStatus());
 			m.setLastSeenAt(u.getLastSeenAt());
 			m.setAvatartUrl(u.getAvatarUrl());

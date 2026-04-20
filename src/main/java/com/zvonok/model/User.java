@@ -26,6 +26,12 @@ public class User {
 	@Column(unique = true, nullable = false, length = 50)
 	private String username;
 
+	@Column(unique = false, nullable = false, length = 50)
+	private String displayName;
+
+	@Column(unique =  false, nullable = true, length = 1000)
+	private String aboutMe;
+
 	@Column(unique = true, nullable = false, length = 100)
 	@JsonIgnore
 	private String email;
@@ -42,6 +48,7 @@ public class User {
 
 	private LocalDateTime lastSeenAt;
 
+	@Column(unique = true, nullable = true, length = 100)
 	private String avatarUrl;
 
 	@UpdateTimestamp

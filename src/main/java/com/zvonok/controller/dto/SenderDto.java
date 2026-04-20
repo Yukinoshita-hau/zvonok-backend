@@ -9,6 +9,7 @@ import lombok.Getter;
 public class SenderDto {
     private final Long id;
     private final String username;
+	private final String displayName;
     private final String avatarUrl;
     private final UserStatus status;
 }

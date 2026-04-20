@@ -3,7 +3,6 @@ package com.zvonok.controller.dto;
 import java.time.LocalDateTime;
 import com.zvonok.model.enumeration.MessageType;
 import com.zvonok.service.dto.EventType;
-import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 

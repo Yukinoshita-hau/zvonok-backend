@@ -38,7 +38,7 @@ public class FriendController {
 			description = "Возвращает список друзей текущего пользователя.")
 	@SecuredApiResponses
 	@ApiResponse(responseCode = "200", description = FriendApiDescriptions.FRIEND_GET_LIST_SUCCESS)
-	@GetMapping
+	@GetMapping()
 	public ResponseEntity<List<FriendResponse>> getFriends(
 			@AuthenticationPrincipal UserPrincipal principal) {
 		User currentUser = getCurrentUser(principal);
@@ -83,7 +83,7 @@ public class FriendController {
 				: friendship.getUserOne();
 
 		return FriendResponse.builder().friendshipId(friendship.getId()).friendId(friend.getId())
-				.friendUsername(friend.getUsername()).friendAvatarUrl(friend.getAvatarUrl())
+				.friendUsername(friend.getUsername()).friendDisplayName(friend.getDisplayName()).friendAvatarUrl(friend.getAvatarUrl())
 				.friendStatus(friend.getStatus()).friendshipSince(friendship.getCreatedAt())
 				.build();
 	}
@@ -92,6 +92,8 @@ public class FriendController {
 		return FriendRequestResponse.builder().requestId(friendRequest.getId())
 				.senderId(friendRequest.getSender().getId())
 				.senderUsername(friendRequest.getSender().getUsername())
+				.senderDisplayName(friendRequest.getSender().getDisplayName())
+				.senderAvatarUrl(friendRequest.getSender().getAvatarUrl())
 				.receiverId(friendRequest.getReceiver().getId())
 				.receiverUsername(friendRequest.getReceiver().getUsername())
 				.status(friendRequest.getStatus()).createdAt(friendRequest.getCreatedAt())

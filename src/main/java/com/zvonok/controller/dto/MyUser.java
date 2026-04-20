@@ -10,6 +10,8 @@ import lombok.Setter;
 public class MyUser {
 	private Long id;
 	private String username;
+	private String displayName;
+	private String aboutMe;
 	private String email;
 	private Boolean isEmailVerified;
 	private String avatarUrl;

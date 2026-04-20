@@ -345,7 +345,8 @@ public class MessageService {
 							.userId(user.getId()).messageId(messageId).build());
 		} catch (MessageNotFoundException | UserNotFoundException
 				| InsufficientPermissionsException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart, user, messageId, false);
+			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart,
+					user, messageId, false);
 			throw e;
 		} catch (Exception e) {
 			buildFailedMessage(e, LogEventConstants.EVENT_DELETE_MESSAGE_ACTION, durationStart,
@@ -422,9 +423,9 @@ public class MessageService {
 	}
 
 	private ShortMessageWrapped toWrappedShortMessage(Message message, EventType eventType) {
-		SenderDto sender =
-				new SenderDto(message.getSender().getId(), message.getSender().getUsername(),
-						message.getSender().getAvatarUrl(), message.getSender().getStatus());
+		SenderDto sender = new SenderDto(message.getSender().getId(),
+				message.getSender().getUsername(), message.getSender().getDisplayName(),
+				message.getSender().getAvatarUrl(), message.getSender().getStatus());
 		RoomShortDto room =
 				new RoomShortDto(message.getRoom().getId(), message.getRoom().getType());
 		return new ShortMessageWrapped(message.getId(), message.getContent(), message.getType(),
@@ -444,9 +445,9 @@ public class MessageService {
 
 	private ChannelMessageResponse mapToChannelMessageResponse(Message message, Channel channel,
 			EventType eventType) {
-		SenderDto sender =
-				new SenderDto(message.getSender().getId(), message.getSender().getUsername(),
-						message.getSender().getAvatarUrl(), message.getSender().getStatus());
+		SenderDto sender = new SenderDto(message.getSender().getId(),
+				message.getSender().getUsername(), message.getSender().getDisplayName(),
+				message.getSender().getAvatarUrl(), message.getSender().getStatus());
 
 		ChannelMessageResponse response = new ChannelMessageResponse();
 		response.setId(message.getId());
