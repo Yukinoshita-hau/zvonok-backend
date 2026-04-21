@@ -395,9 +395,13 @@ public class MessageService {
 				buildReplyPreviewByParentId(page.getContent());
 
 		return page.getContent().stream().sorted(java.util.Comparator.comparing(Message::getId))
-				.map(msg -> toWrappedShortMessage(msg, EventType.MESSAGE,
-						replyPreviewByParentId.get(msg.getReplyToMessageId())))
-				.toList();
+				.map(msg -> {
+					Long replyToMessageId = msg.getReplyToMessageId();
+					ReplyPreviewDto replyPreview = replyToMessageId == null ? null
+							: replyPreviewByParentId.get(replyToMessageId);
+
+					return toWrappedShortMessage(msg, EventType.MESSAGE, replyPreview);
+				}).toList();
 
 	}
 
@@ -408,14 +412,17 @@ public class MessageService {
 			return new ArrayList<>();
 		}
 
-		List<Message> messages =
-				messageRepository.findByRoomIdAndDeletedAtIsNullOrderBySentAtAsc(privateRoom.getId());
+		List<Message> messages = messageRepository
+				.findByRoomIdAndDeletedAtIsNullOrderBySentAtAsc(privateRoom.getId());
 		Map<Long, ReplyPreviewDto> replyPreviewByParentId = buildReplyPreviewByParentId(messages);
 
-		return messages.stream()
-				.map(message -> mapToMessageResponse(message, privateRoom.getId(),
-						replyPreviewByParentId.get(message.getReplyToMessageId())))
-				.toList();
+		return messages.stream().map(message -> {
+			Long replyToMessageId = message.getReplyToMessageId();
+			ReplyPreviewDto replyPreview =
+					replyToMessageId == null ? null : replyPreviewByParentId.get(replyToMessageId);
+
+			return mapToMessageResponse(message, privateRoom.getId(), replyPreview);
+		}).toList();
 	}
 
 	public void sendErrorMessage(String username, String message, HttpStatus status) {
@@ -532,7 +539,7 @@ public class MessageService {
 		}
 
 		if (replyToIds.isEmpty()) {
-			return Map.of();
+			return new HashMap<>();
 		}
 
 		Map<Long, Message> parentById = new HashMap<>();
