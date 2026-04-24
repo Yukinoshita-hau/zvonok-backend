@@ -60,61 +60,6 @@ public class MessageService {
 	private final PermissionService permissionService;
 
 
-	public ShortMessageWrapped sendPrivateMessage(String senderUsername, String receiverUsername,
-			String content, Long replyToMessageId) {
-
-		Long durationStart = System.currentTimeMillis();
-		Message message = null;
-		Room privateRoom = null;
-
-		try {
-			privateRoom = roomService.createOrGetPrivateRoom(senderUsername, receiverUsername);
-			User sender = userService.getUser(senderUsername);
-
-			// Проверяем, что отправитель является участником комнаты
-			boolean isMember = privateRoom.getMembers().stream()
-					.anyMatch(member -> member.getId().equals(sender.getId()));
-
-			if (!isMember) {
-				throw new InsufficientPermissionsException(
-						BusinessRuleMessage.BUSINESS_USER_NOT_MEMBER_PRIVATE_ROOM_MESSAGE
-								.getMessage());
-			}
-
-			validateReplyTarget(replyToMessageId, privateRoom, null);
-
-			message = createMessage(sender, content, privateRoom, null, replyToMessageId);
-			Message savedMessage = messageRepository.save(message);
-
-			// MessageResponse response = mapToMessageResponse(savedMessage,
-			// privateRoom.getId());
-			ShortMessageWrapped response = toWrappedShortMessage(savedMessage, EventType.MESSAGE);
-
-			for (User member : privateRoom.getMembers()) {
-				messagingTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages",
-						response);
-			}
-
-			roomService.updateRoom(privateRoom.getId(), senderUsername, privateRoom.getName(),
-					message.getId(), message.getContent(), message.getSentAt());
-
-			log.info("{}",
-					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION,
-							LogTimingUtils.calculateDurationDifference(durationStart))
-							.roomId(privateRoom.getId()).messageId(message.getId()).build());
-			return response;
-		} catch (UserNotFoundException | InsufficientPermissionsException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION,
-					durationStart, privateRoom.getId(), message, false);
-			throw e;
-		} catch (Exception e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_PRIVATE_MESSAGE_ACTION,
-					durationStart, privateRoom.getId(), message, true);
-			throw e;
-		}
-
-	}
-
 	public ShortMessageWrapped sendMessage(String senderUsername, long roomId, String content,
 			Long replyToMessageId) {
 		long durationStart = System.currentTimeMillis();

@@ -9,6 +9,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import com.zvonok.exception.UserNotFoundException;
 import com.zvonok.model.User;
 import com.zvonok.repository.UserRepository;
+import com.zvonok.service.S3Service;
 import com.zvonok.service.UserService;
 
 @DataJpaTest
@@ -18,10 +19,11 @@ public class UserServiceTest {
     private UserRepository repository;
 
     private UserService service;
+	private S3Service s3Service;
 
     @BeforeEach
     void setUp() {
-        service = new UserService(repository);
+        service = new UserService(repository, s3Service);
     }
 
     @Test

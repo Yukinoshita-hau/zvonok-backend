@@ -5,6 +5,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.zvonok.controller.dto.AcceptCallDto;
+import com.zvonok.controller.dto.DeclineCallDto;
 import com.zvonok.controller.dto.InviteCallDto;
 import com.zvonok.exception.LiveKitRoomException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
@@ -13,6 +14,7 @@ import com.zvonok.model.User;
 import com.zvonok.model.enumeration.RoomType;
 import com.zvonok.service.dto.AcceptCallResponse;
 import com.zvonok.service.dto.CallType;
+import com.zvonok.service.dto.DeclineCallResponse;
 import com.zvonok.service.dto.InviteCallResponse;
 import lombok.RequiredArgsConstructor;
 
@@ -47,6 +49,16 @@ public class CallService {
 		messagingTemplate.convertAndSendToUser(dto.getCallerUsername(), CALL_QUEUE_PATH, response);
 	}
 
+	public void callDecline(String declineUsername, DeclineCallDto dto) {
+		Room room = roomService.getRoom(dto.getChatRoomId(), declineUsername);
+
+		DeclineCallResponse response = DeclineResponseWrapper(dto, room, declineUsername);
+
+		room.getMembers().stream().forEach(m -> {
+			messagingTemplate.convertAndSendToUser(m.getUsername(), CALL_QUEUE_PATH, response);
+		});
+	}
+
 	private AcceptCallResponse acceptResponseWrapper(AcceptCallDto dto, Room room,
 			String username) {
 		AcceptCallResponse response = new AcceptCallResponse();
@@ -60,6 +72,16 @@ public class CallService {
 		return response;
 	}
 
+	private DeclineCallResponse DeclineResponseWrapper(DeclineCallDto dto, Room room, String username) {
+		DeclineCallResponse response = new DeclineCallResponse();
+	
+		response.setType(CallType.CALL_DECLINE);
+		response.setChatRoomId(room.getId());
+		response.setFromUser(username);
+		response.setTimestamp(LocalDateTime.now());
+		
+		return response;
+	}
 	private InviteCallResponse inviteResponseWrapper(InviteCallDto dto, Room room,
 			String username) {
 		InviteCallResponse response = new InviteCallResponse();
@@ -73,6 +95,7 @@ public class CallService {
 
 		return response;
 	}
+
 
 	private String createLiveKitRoomName(Room room) {
 		if (room.getType().equals(RoomType.PRIVATE)) {

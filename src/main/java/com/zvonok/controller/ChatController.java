@@ -29,17 +29,6 @@ public class ChatController {
 	private final MessageService messageService;
 	private final MessageReadStatusService readStatusService;
 
-	@MessageMapping("/private/{receiverUsername}")
-	public void sendPrivateMessage(@DestinationVariable String receiverUsername,
-			Principal principal, @Payload JsonNode payload) {
-		String sender = resolvePrincipalName(principal);
-		WebSocketMessageRequest request = parseMessageRequest(payload);
-		validateContent(request.getContent());
-
-		messageService.sendPrivateMessage(sender, receiverUsername, request.getContent(),
-				request.getReplyToMessageId());
-	}
-
 	@MessageMapping("/send/{roomId}")
 	public void sendMessage(@DestinationVariable Long roomId, Principal principal,
 			@Payload JsonNode payload) {

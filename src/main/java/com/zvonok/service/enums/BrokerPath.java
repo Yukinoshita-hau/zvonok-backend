@@ -6,8 +6,9 @@ import lombok.Getter;
 public enum BrokerPath {
 	FRIEND_REQUESTS_QUEUE_PATH("/queue/friend-requests"),
 
-	ERRORS_QUEUE_PATH("/queue/errors");
+	ERRORS_QUEUE_PATH("/queue/errors"),
 
+	ROOM_EVENTS_QUEUE_PATH("/queue/room-events");
 
 	private final String path;
 

@@ -11,7 +11,11 @@ import com.zvonok.model.Room;
 import com.zvonok.model.User;
 import com.zvonok.model.enumeration.RoomType;
 import com.zvonok.repository.RoomRepository;
+import com.zvonok.service.dto.RoomEvents;
+import com.zvonok.service.enums.BrokerPath;
+import com.zvonok.service.enums.RoomEventsType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +38,7 @@ public class RoomService {
 	private final RoomAccessService roomAccessService;
 	private final RoomReadStateService roomReadStateService;
 	private final FriendShipAccessService friendAccessService;
+	private final SimpMessagingTemplate messagingTemplate;
 
 	public Room getRoom(Long id, String username) {
 		return roomAccessService.getRoomForUser(id, username);
@@ -139,7 +144,15 @@ public class RoomService {
 		room.setLastMessageContent(null);
 		room.setLastActivityAt(room.getCreatedAt());
 
-		return roomRepository.save(room);
+		Room savedRoom = roomRepository.save(room);
+
+		RoomEvents response	= RoomEvents.builder().type(RoomEventsType.ROOM_CREATED).build();
+
+		room.getMembers().stream().forEach(m -> {
+			messagingTemplate.convertAndSendToUser(m.getUsername(), BrokerPath.ROOM_EVENTS_QUEUE_PATH.getPath(), response);
+		});
+
+		return savedRoom;
 	}
 
 	private Optional<Room> findPrivateRoomBetweenUsers(Long user1, Long user2) {
