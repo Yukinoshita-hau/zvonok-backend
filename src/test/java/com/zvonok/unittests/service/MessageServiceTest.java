@@ -112,7 +112,6 @@ public class MessageServiceTest {
         testRoom.setMembers(List.of(sender, receiver));
     }
 
-
     @Test
     void editMessage_shouldReturnUpdatedResponse_whenValidData() {
         // Arrange
