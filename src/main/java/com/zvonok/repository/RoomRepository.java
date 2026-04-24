@@ -21,4 +21,15 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     List<Room> findAllByMembersContainingAndIsActiveTrue(User user);
     @Query("SELECT SIZE(r.members) FROM Room r WHERE r.id = :roomId")
     Integer countMembersInRoom(@Param("roomId") Long roomId);
+
+    @Query("""
+            select distinct recipient.username
+            from Room r
+            join r.members changedUser
+            join r.members recipient
+            where changedUser.id = :userId
+              and r.isActive = true
+            """)
+    List<String> findUsernamesWhoShareRoomsWithUser(@Param("userId") Long userId);
+
 }

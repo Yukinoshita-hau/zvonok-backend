@@ -4,6 +4,7 @@ import com.zvonok.model.User;
 import com.zvonok.service.UserService;
 import com.zvonok.service.dto.CreateUserDto;
 import com.zvonok.service.dto.UpdateUserDto;
+import com.zvonok.service.dto.UserShortDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -18,8 +19,8 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping("/{id}")
-    public ResponseEntity<User> getUserById(@PathVariable long id) {
-        return ResponseEntity.ok(userService.getUser(id));
+    public ResponseEntity<UserShortDto> getUserById(@PathVariable long id) {
+        return ResponseEntity.ok(userService.getUserShort(id));
     }
 
     @PostMapping("/")

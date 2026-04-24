@@ -8,6 +8,8 @@ import com.zvonok.model.User;
 import com.zvonok.repository.UserRepository;
 import com.zvonok.service.dto.CreateUserDto;
 import com.zvonok.service.dto.UpdateUserDto;
+import com.zvonok.service.dto.UserShortDto;
+import com.zvonok.service.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,11 +25,17 @@ import java.time.LocalDateTime;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final UserMapper userMapper;
+    private final UserEventService userEventService;
 
     public User getUser(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(
                         HttpResponseMessage.HTTP_USER_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
+    }
+
+    public UserShortDto getUserShort(Long id) {
+        return userMapper.toUserShortDto(getUser(id));
     }
 
     public User getUser(String username) {
@@ -75,7 +83,7 @@ public class UserService {
     @Transactional
     public User updateUser(Long id, UpdateUserDto userDto) {
         User user = getUser(id);
-        
+
         if (userDto.getUsername() != null && !userDto.getUsername().isEmpty()) {
             userRepository.findByUsername(userDto.getUsername())
                     .ifPresent(existingUser -> {
@@ -85,7 +93,7 @@ public class UserService {
                     });
             user.setUsername(userDto.getUsername());
         }
-        
+
         if (userDto.getEmail() != null && !userDto.getEmail().isEmpty()) {
             userRepository.findByEmail(userDto.getEmail())
                     .ifPresent(existingUser -> {
@@ -95,12 +103,14 @@ public class UserService {
                     });
             user.setEmail(userDto.getEmail());
         }
-        
+
         if (userDto.getAvatarUrl() != null) {
             user.setAvatarUrl(userDto.getAvatarUrl());
         }
-        
-        return userRepository.save(user);
+
+        User savedUser = userRepository.save(user);
+        userEventService.notifyUserProfileUpdated(savedUser);
+        return savedUser;
     }
 
     /**
