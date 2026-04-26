@@ -8,7 +8,9 @@ public enum BrokerPath {
 
 	ERRORS_QUEUE_PATH("/queue/errors"),
 
-	ROOM_EVENTS_QUEUE_PATH("/queue/room-events");
+	ROOM_EVENTS_QUEUE_PATH("/queue/room-events"),
+
+	UPDATED_USER_QUEUE_PATH("/queue/users");
 
 	private final String path;
 

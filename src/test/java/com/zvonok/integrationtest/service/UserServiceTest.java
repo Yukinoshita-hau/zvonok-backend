@@ -10,51 +10,53 @@ import com.zvonok.exception.UserNotFoundException;
 import com.zvonok.model.User;
 import com.zvonok.repository.UserRepository;
 import com.zvonok.service.S3Service;
+import com.zvonok.service.UserEventPublisherService;
 import com.zvonok.service.UserService;
 
 @DataJpaTest
 public class UserServiceTest {
 
-    @Autowired
-    private UserRepository repository;
+	@Autowired
+	private UserRepository repository;
 
-    private UserService service;
+	private UserService service;
 	private S3Service s3Service;
+	private UserEventPublisherService publisherService;
 
-    @BeforeEach
-    void setUp() {
-        service = new UserService(repository, s3Service);
-    }
+	@BeforeEach
+	void setUp() {
+		service = new UserService(repository, publisherService, s3Service);
+	}
 
-    @Test
-    public void getUser_shouldReturnUser_whenUserExists() {
-        // Arrange - создаем пользователя в базе
-        User user = new User();
-        user.setUsername("testuser");
-        user.setEmail("test@example.com");
-        user.setPassword("password123");
-        user.setIsEmailVerified(false);
+	@Test
+	public void getUser_shouldReturnUser_whenUserExists() {
+		// Arrange - создаем пользователя в базе
+		User user = new User();
+		user.setUsername("testuser");
+		user.setEmail("test@example.com");
+		user.setPassword("password123");
+		user.setIsEmailVerified(false);
 
-        final User savedUser = repository.save(user);
-        
-        // Act
-        final User foundUser = service.getUser(savedUser.getId());
+		final User savedUser = repository.save(user);
 
-        // Assert
-        assertNotNull(foundUser);
-        assertEquals(savedUser.getId(), foundUser.getId());
-        assertEquals(savedUser.getUsername(), foundUser.getUsername());
-        assertEquals(savedUser.getEmail(), foundUser.getEmail());
-    }
+		// Act
+		final User foundUser = service.getUser(savedUser.getId());
 
-    @Test
-    public void getUser_shouldThrowException_whenUserNotFound() {
-        // Arrange
-        Long nonExistentId = 999L;
+		// Assert
+		assertNotNull(foundUser);
+		assertEquals(savedUser.getId(), foundUser.getId());
+		assertEquals(savedUser.getUsername(), foundUser.getUsername());
+		assertEquals(savedUser.getEmail(), foundUser.getEmail());
+	}
 
-        // Act & Assert
-        assertThrows(UserNotFoundException.class, () -> {
-            service.getUser(nonExistentId);
-        });
-    }
+	@Test
+	public void getUser_shouldThrowException_whenUserNotFound() {
+		// Arrange
+		Long nonExistentId = 999L;
+
+		// Act & Assert
+		assertThrows(UserNotFoundException.class, () -> {
+			service.getUser(nonExistentId);
+		});
+	}
 }

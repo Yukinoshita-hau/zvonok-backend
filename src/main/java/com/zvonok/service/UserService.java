@@ -26,6 +26,7 @@ import java.util.Optional;
 public class UserService {
 
 	private final UserRepository userRepository;
+	private final UserEventPublisherService publisherService;
 	private final S3Service s3Service;
 
 	@Value("${s3.localEndpoint}")
@@ -99,9 +100,11 @@ public class UserService {
 
 		User response = userRepository.save(user);
 
+		publisherService.publishUserProfileUpdated(user);
 		return myUserWrapper(response);
 	}
 
+	@Transactional
 	public void uploadAvatar(String username, InputStream inputStream, long contentLength,
 			String contentType, String extension) {
 		User user = getUser(username);
@@ -111,6 +114,8 @@ public class UserService {
 		s3Service.uploadFile(avatarName, inputStream, contentLength, contentType);
 
 		user.setAvatarUrl(endpoint + "/" + avatarName);
+
+		publisherService.publishUserProfileUpdated(user);
 		userRepository.save(user);
 	}
 
