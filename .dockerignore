@@ -1,4 +1,3 @@
-target
 .mvn
 mvnw
 mvnw.cmd
@@ -9,4 +8,4 @@ mvnw.cmd
 README.md
 HELP.md
 docker-compose.yml
-
+.env

@@ -1,4 +1,9 @@
-FROM openjdk:26-ea-21-oraclelinux8
+FROM eclipse-temurin:21-jre
+
 WORKDIR /opt/app
-COPY zvonok-0.0.1-SNAPSHOT.jar /opt/app/zvonok.jar
-ENTRYPOINT ["java", "-jar", "zvonok.jar"]
+
+COPY target/zvonok-0.0.1-SNAPSHOT.jar app.jar
+
+EXPOSE 8080
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
