@@ -25,7 +25,7 @@ public class SecurityConfig {
 	private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
 
 	@Value("${security.allowedOrigins}")
-	private final String allowedOrigins;
+	private String allowedOrigins;
 
 	@Bean
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
