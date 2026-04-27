@@ -11,7 +11,7 @@ FROM eclipse-temurin:21-jre
 
 WORKDIR /opt/app
 
-COPY target/zvonok-0.0.1-SNAPSHOT.jar app.jar
+COPY --from=build /app/target/*.jar app.jar
 
 EXPOSE 8080
 
