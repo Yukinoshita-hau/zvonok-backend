@@ -10,6 +10,8 @@ import io.livekit.server.RoomJoin;
 import io.livekit.server.RoomName;
 import lombok.RequiredArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 public class LiveKitTokenService {
@@ -22,11 +24,21 @@ public class LiveKitTokenService {
 	@Value("${livekit.server-url}")
 	private String serverUrl;
 
+	@Value("${livekit.token-ttl-minutes:10}")
+	private int tokenTtlMinutes;
+
+	@Deprecated
 	public LiveKitTokenResponse generateToken(String roomName, String identity, String displayName) {
+		return generateCallToken(roomName, identity, displayName, null);
+	}
+
+	public LiveKitTokenResponse generateCallToken(String roomName, String identity, String displayName,
+			Long callId) {
 		try {
 			AccessToken token = new AccessToken(apiKey, apiSecret);
 			token.setIdentity(identity);
 			token.setName(displayName);
+			token.setTtl(tokenTtlMinutes * 60L);
 
 			token.addGrants(new RoomJoin(true), new RoomName(roomName));
 
@@ -35,6 +47,8 @@ public class LiveKitTokenService {
 			LiveKitTokenResponse response = new LiveKitTokenResponse();
 			response.setServerUrl(serverUrl);
 			response.setParticipantToken(jwt);
+			response.setCallId(callId);
+			response.setExpiresAt(LocalDateTime.now().plusMinutes(tokenTtlMinutes));
 
 			return response;
 		} catch (Exception e) {

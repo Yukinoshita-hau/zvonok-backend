@@ -19,6 +19,10 @@ public class LiveKitController {
 	private final LiveKitTokenService liveKitTokenService;
 	private final UserService userService;
 
+	/**
+	 * @deprecated Use POST /api/calls/{callId}/token for call flows.
+	 */
+	@Deprecated
 	@GetMapping("/token")
 	public LiveKitTokenResponse getToken(@RequestParam("room") String roomName,
 			Principal principal) {
