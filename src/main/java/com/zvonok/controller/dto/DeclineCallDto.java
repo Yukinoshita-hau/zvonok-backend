@@ -6,6 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class DeclineCallDto {
+	Long callId;
 	Long chatRoomId;
 	String declineUsername;
 }
