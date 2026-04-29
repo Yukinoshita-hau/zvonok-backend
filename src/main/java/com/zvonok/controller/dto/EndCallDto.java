@@ -5,8 +5,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class AcceptCallDto {
-	Long callId;
-	Long chatRoomId;
-	String callerUsername;
+public class EndCallDto {
+    Long callId;
+    Long chatRoomId;
 }
