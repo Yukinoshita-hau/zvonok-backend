@@ -74,9 +74,11 @@ public class CallSessionService {
 
         if (room.getType() == RoomType.PRIVATE) {
             createPrivateParticipants(session, caller, room);
+            publishCallStartedToHost(session, caller);
             publishPrivateInvite(session, caller);
         } else {
             createGroupParticipants(session, caller, room);
+            publishCallStartedToHost(session, caller);
             publishGroupStart(session, caller);
         }
 
@@ -268,6 +270,12 @@ public class CallSessionService {
             participant.setJoinedAt(LocalDateTime.now());
         }
         return participant;
+    }
+
+    private void publishCallStartedToHost(CallSession session, User caller) {
+        BaseCallEvent event = event(CallType.CALL_STARTED, session, caller.getUsername(),
+                CallParticipantStatus.ACCEPTED);
+        callEventPublisher.sendToUser(caller.getUsername(), event);
     }
 
     private void publishPrivateInvite(CallSession session, User caller) {

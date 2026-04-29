@@ -2,6 +2,7 @@ package com.zvonok.service.dto;
 
 public enum CallType {
 	CALL_INVITE,
+	CALL_STARTED,
 	CALL_ACCEPT,
 	CALL_ACCEPTED,
 	CALL_DECLINE,

@@ -136,6 +136,7 @@ export interface BaseCallEvent {
 | Event | Recipient | When backend sends | Required frontend reaction | PRIVATE behavior | GROUP behavior | Important fields |
 |---|---|---|---|---|---|---|
 | `CALL_INVITE` | Receiver only (private) / all non-initiator participants (group) | On start call | Show incoming ringing UI; persist `callId`, `roomType`, `liveKitRoomName` | Receiver gets invite | Non-host members get invite | `callId`, `roomId/chatRoomId`, `roomType`, `liveKitRoomName`, `callerUsername` |
+| `CALL_STARTED` | Initiator/host only | On successful start call creation | Persist `callId` immediately; move to outgoing_ringing/connecting pipeline and request token by `callId` | Caller gets started event | Host gets started event | `callId`, `roomId/chatRoomId`, `roomType`, `liveKitRoomName`, `callerUsername`, `hostUsername`, `callStatus` |
 | `CALL_ACCEPTED` | All call participants | On private accept | Move to connecting, fetch token by `callId` | Yes | No |
 | `CALL_ACCEPT` (legacy) | All call participants | Also on private accept | Treat as legacy duplicate of `CALL_ACCEPTED` (dedupe by `eventId` and/or semantic guard) | Yes | No |
 | `CALL_PARTICIPANT_JOINED` | All call participants | On group accept | Update group participant list/status | No | Yes | `participantStatus=ACCEPTED`, `callId` |
@@ -174,6 +175,7 @@ export interface LiveKitTokenResponse {
 ### Token usage rule for frontend
 - Новый call flow: **только** `POST /api/calls/{callId}/token`.
 - Frontend не должен сам придумывать roomName для call token endpoint.
+- Outgoing flow source of truth should now be `CALL_STARTED` (contains `callId`), not locally derived room name.
 
 ---
 
@@ -183,7 +185,7 @@ export interface LiveKitTokenResponse {
 1. User clicks call in private room.
 2. Front sends `/app/call/invite` with `{ chatRoomId, callType }`.
 3. Receiver gets `CALL_INVITE` on `/user/queue/call`.
-4. Caller может не получить отдельный "started" event сейчас (gap); frontend caller должен локально выставить `outgoing_ringing` сразу после sendInvite.
+4. Caller receives `CALL_STARTED` with `callId` and persists call context.
 5. Receiver accept: sends `/app/call/accept` with `{ callId }` (preferred).
 6. Backend sends `CALL_ACCEPTED` + legacy `CALL_ACCEPT` участникам.
 7. Both sides call `POST /api/calls/{callId}/token`, then connect LiveKit using returned `serverUrl` + `participantToken`.
@@ -208,7 +210,7 @@ export interface LiveKitTokenResponse {
 1. Host sends `/app/call/invite` with `chatRoomId`.
 2. Backend creates session `ACTIVE`, host participant `ACCEPTED`, others `INVITED`.
 3. Other members get `CALL_INVITE` (сейчас не `GROUP_CALL_STARTED`).
-4. Host должен запрашивать token после local start (или после первого релевантного event, если вы так строите UX).
+4. Host receives `CALL_STARTED` with `callId` and then calls `POST /api/calls/{callId}/token`.
 
 ### Incoming GROUP member
 - On `CALL_INVITE` with `roomType=GROUP`: показать "join ongoing group call" UI.
@@ -307,11 +309,9 @@ export interface CallState {
 
 ## Known backend gaps affecting frontend (must be handled)
 
-1. Caller may not receive explicit "call started" event on private start (only receiver gets invite).
-   - Frontend should set outgoing state optimistically after invite send.
-2. Group "join/leave" granular events неполные (`CALL_PARTICIPANT_LEFT` не публикуется сейчас).
-3. `CallType` enum содержит значения, которые пока не используются фактически.
-4. `callType` из `InviteCallDto` не возвращается в `BaseCallEvent`.
+1. Group "join/leave" granular events неполные (`CALL_PARTICIPANT_LEFT` не публикуется сейчас).
+2. `CallType` enum содержит значения, которые пока не используются фактически.
+3. `callType` из `InviteCallDto` не возвращается в `BaseCallEvent`.
 
 ---
 
