@@ -8,7 +8,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class InviteCallResponse extends BaseCallEvent {
-	CallInviteType callType;
+	CallInviteType mediaType;
 	String fromUser;
 	String liveKitRoomName;
 	LocalDateTime timestamp;

@@ -1,5 +1,6 @@
 package com.zvonok.controller;
 
+import com.zvonok.controller.dto.ActiveCallResponse;
 import com.zvonok.controller.dto.MessageResponse;
 import com.zvonok.controller.dto.RoomResponse;
 import com.zvonok.controller.dto.ShortMessageWrapped;
@@ -18,6 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import com.zvonok.model.Room;
 import com.zvonok.security.dto.UserPrincipal;
 import com.zvonok.service.RoomService;
+import com.zvonok.service.CallSessionService;
 import com.zvonok.service.MessageService;
 import com.zvonok.service.RoomReadStateService;
 
@@ -42,6 +44,7 @@ public class RoomController {
 	private final RoomService roomService;
 	private final MessageService messageService;
 	private final RoomReadStateService roomReadStateService;
+    private final CallSessionService callSessionService;
 
 	@Operation(summary = "Получить все комнаты пользователя", description = "Возвращает все комнаты пользователя")
 	@GetMapping("/all")
@@ -130,4 +133,13 @@ public class RoomController {
 		roomReadStateService.markRoomAsRead(principal.getUsername(), roomId);
 		return ResponseEntity.noContent().build();
 	}
+
+
+    @GetMapping("/{roomId}/active-call")
+    public ResponseEntity<ActiveCallResponse> getActiveCall(@PathVariable Long roomId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return callSessionService.findActiveCallResponse(roomId, principal.getName())
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
 }

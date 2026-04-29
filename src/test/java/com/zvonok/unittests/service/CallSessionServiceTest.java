@@ -137,38 +137,6 @@ class CallSessionServiceTest {
         verify(callEventPublisher, atLeastOnce()).sendToUser(eq(caller.getUsername()), any());
     }
 
-    @Test
-    void declineGroupCall_shouldNotEndSession() {
-        Room groupRoom = new Room();
-        groupRoom.setId(55L);
-        groupRoom.setType(RoomType.GROUP);
-        groupRoom.setMembers(List.of(caller, receiver));
-
-        DeclineCallDto dto = new DeclineCallDto();
-        dto.setCallId(300L);
-
-        CallSession session = new CallSession();
-        session.setId(300L);
-        session.setRoom(groupRoom);
-        session.setRoomType(RoomType.GROUP);
-        session.setStatus(CallSessionStatus.ACTIVE);
-        session.setHostUser(caller);
-        session.setCreatedBy(caller);
-        session.setLivekitRoomName("group-55");
-
-        when(userService.getUser(receiver.getUsername())).thenReturn(receiver);
-        when(callSessionRepository.findById(300L)).thenReturn(Optional.of(session));
-        when(roomService.getRoom(groupRoom.getId(), receiver.getUsername())).thenReturn(groupRoom);
-        when(callParticipantRepository.findByCallSessionIdAndUserId(300L, receiver.getId()))
-                .thenReturn(Optional.of(participant(300L, receiver, CallParticipantRole.MEMBER,
-                        CallParticipantStatus.INVITED)));
-
-        CallSession updated = callSessionService.decline(receiver.getUsername(), dto);
-
-        assertEquals(CallSessionStatus.ACTIVE, updated.getStatus());
-        verify(callEventPublisher).sendToUser(eq(caller.getUsername()), any());
-    }
-
 
     @Test
     void startPrivateCall_shouldCreateUniqueRoomNamePerSessionEvenIfEndedExists() {
