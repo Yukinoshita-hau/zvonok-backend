@@ -15,7 +15,6 @@ public class CallService {
 
 	private final CallSessionService callSessionService;
 
-	@Transactional(readOnly = true)
 	public void callInvite(String callerUsername, InviteCallDto dto) {
 		callSessionService.startCall(callerUsername, dto);
 	}
