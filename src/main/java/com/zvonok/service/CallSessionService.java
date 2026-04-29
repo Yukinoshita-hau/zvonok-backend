@@ -1,6 +1,8 @@
 package com.zvonok.service;
 
 import com.zvonok.controller.dto.AcceptCallDto;
+import com.zvonok.controller.dto.ActiveCallResponse;
+import com.zvonok.controller.dto.CallParticipantResponse;
 import com.zvonok.controller.dto.DeclineCallDto;
 import com.zvonok.controller.dto.EndCallDto;
 import com.zvonok.controller.dto.InviteCallDto;
@@ -13,6 +15,7 @@ import com.zvonok.model.CallSession;
 import com.zvonok.model.Room;
 import com.zvonok.model.User;
 import com.zvonok.model.enumeration.CallParticipantRole;
+import com.zvonok.model.enumeration.CallEndReason;
 import com.zvonok.model.enumeration.CallParticipantStatus;
 import com.zvonok.model.enumeration.CallSessionStatus;
 import com.zvonok.model.enumeration.RoomType;
@@ -26,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -112,9 +116,14 @@ public class CallSessionService {
                 return session;
             }
             participant.setStatus(CallParticipantStatus.ACCEPTED);
+            participant.setAcceptedAt(LocalDateTime.now());
+            participant.setLastSeenAt(LocalDateTime.now());
             callParticipantRepository.save(participant);
 
             session.setStatus(CallSessionStatus.ACTIVE);
+            if (session.getActivatedAt() == null) {
+                session.setActivatedAt(LocalDateTime.now());
+            }
             callSessionRepository.save(session);
 
             publishToParticipants(session, event(CallType.CALL_ACCEPTED, session, username,
@@ -150,7 +159,7 @@ public class CallSessionService {
             session.setStatus(CallSessionStatus.DECLINED);
             session.setEndedAt(LocalDateTime.now());
             session.setEndedByUser(actor);
-            session.setEndReason("DECLINED");
+            session.setEndReason(CallEndReason.DECLINED);
             callSessionRepository.save(session);
 
             publishToParticipants(session, event(CallType.CALL_DECLINED, session, username,
@@ -189,7 +198,7 @@ public class CallSessionService {
             session.setStatus(CallSessionStatus.ENDED);
             session.setEndedAt(LocalDateTime.now());
             session.setEndedByUser(actor);
-            session.setEndReason("PRIVATE_PARTICIPANT_LEFT");
+            session.setEndReason(CallEndReason.USER_ENDED);
             callSessionRepository.save(session);
 
             publishToParticipants(session, event(CallType.CALL_ENDED, session, username,
@@ -204,7 +213,7 @@ public class CallSessionService {
             session.setStatus(CallSessionStatus.ENDED);
             session.setEndedAt(LocalDateTime.now());
             session.setEndedByUser(actor);
-            session.setEndReason("NO_ACTIVE_PARTICIPANTS");
+            session.setEndReason(CallEndReason.ALL_LEFT);
             callSessionRepository.save(session);
 
             publishToParticipants(session, event(CallType.CALL_ENDED, session, username,
@@ -232,7 +241,7 @@ public class CallSessionService {
         session.setStatus(CallSessionStatus.ENDED);
         session.setEndedAt(LocalDateTime.now());
         session.setEndedByUser(actor);
-        session.setEndReason("ENDED_BY_USER");
+        session.setEndReason(session.getRoomType() == RoomType.GROUP ? CallEndReason.HOST_ENDED : CallEndReason.USER_ENDED);
         callSessionRepository.save(session);
 
         List<CallParticipant> participants = callParticipantRepository.findAllByCallSessionId(session.getId());
@@ -272,6 +281,46 @@ public class CallSessionService {
         return callParticipantRepository.findAllByCallSessionId(callId);
     }
 
+    public Optional<ActiveCallResponse> findActiveCallResponse(Long roomId, String username) {
+        Room room = roomService.getRoom(roomId, username);
+        List<CallSession> candidates = callSessionRepository.findAllByRoomIdAndStatusInOrderByCreatedAtDesc(roomId,
+                ACTIVE_OR_RINGING);
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        }
+        CallSession freshest = candidates.getFirst();
+        if (candidates.size() > 1) {
+            List<CallSession> stale = candidates.subList(1, candidates.size());
+            stale.forEach(call -> {
+                call.setStatus(CallSessionStatus.ENDED);
+                call.setEndedAt(LocalDateTime.now());
+                call.setEndReason(CallEndReason.STALE_CLEANUP);
+            });
+            callSessionRepository.saveAll(stale);
+        }
+
+        List<CallParticipant> participants = callParticipantRepository.findAllByCallSessionId(freshest.getId());
+        int participantsCount = (int) participants.stream()
+                .filter(p -> p.getStatus() == CallParticipantStatus.ACCEPTED || p.getStatus() == CallParticipantStatus.JOINED)
+                .count();
+        return Optional.of(ActiveCallResponse.builder()
+                .callId(freshest.getId())
+                .chatRoomId(room.getId())
+                .roomId(room.getId())
+                .roomType(freshest.getRoomType())
+                .status(freshest.getStatus())
+                .liveKitRoomName(freshest.getLivekitRoomName())
+                .hostUsername(freshest.getHostUser().getUsername())
+                .callerUsername(freshest.getCreatedBy().getUsername())
+                .callType(freshest.getRoomType().name())
+                .participantsCount(participantsCount)
+                .participants(participants.stream().map(this::toParticipantResponse).toList())
+                .startedAt(freshest.getStartedAt())
+                .activatedAt(freshest.getActivatedAt())
+                .createdAt(freshest.getCreatedAt())
+                .build());
+    }
+
     private CallSession resolveSessionForAction(String username, Long callId, Long roomId) {
         if (callId != null) {
             CallSession session = getCallSession(callId);
@@ -306,7 +355,7 @@ public class CallSessionService {
                         CallParticipantRole.HOST, CallParticipantStatus.ACCEPTED));
             } else {
                 callParticipantRepository.save(createParticipant(session, member,
-                        CallParticipantRole.MEMBER, CallParticipantStatus.INVITED));
+                        CallParticipantRole.MEMBER, CallParticipantStatus.RINGING));
             }
         }
     }
@@ -345,7 +394,7 @@ public class CallSessionService {
 
     private void publishGroupStart(CallSession session, User caller) {
         BaseCallEvent event = event(CallType.CALL_INVITE, session, caller.getUsername(),
-                CallParticipantStatus.INVITED);
+                CallParticipantStatus.RINGING);
 
         List<CallParticipant> participants = callParticipantRepository.findAllByCallSessionId(session.getId());
         participants.stream()
@@ -374,10 +423,27 @@ public class CallSessionService {
         event.setLiveKitRoomName(session.getLivekitRoomName());
         event.setCallerUsername(session.getCreatedBy().getUsername());
         event.setHostUsername(session.getHostUser().getUsername());
+        event.setParticipantUsername(actorUsername);
+        event.setCallType(session.getRoomType().name());
         event.setCallStatus(session.getStatus());
         event.setParticipantStatus(participantStatus);
+        event.setParticipantsCount((int) callParticipantRepository.countByCallSessionIdAndStatusIn(
+                session.getId(), Set.of(CallParticipantStatus.ACCEPTED, CallParticipantStatus.JOINED)));
         event.setOccurredAt(LocalDateTime.now());
         return event;
+    }
+
+    private CallParticipantResponse toParticipantResponse(CallParticipant participant) {
+        return CallParticipantResponse.builder()
+                .userId(participant.getUser().getId())
+                .username(participant.getUser().getUsername())
+                .displayName(participant.getUser().getDisplayName())
+                .avatarUrl(participant.getUser().getAvatarUrl())
+                .status(participant.getStatus())
+                .joinedAt(participant.getJoinedAt())
+                .acceptedAt(participant.getAcceptedAt())
+                .leftAt(participant.getLeftAt())
+                .build();
     }
 
     private String createPendingLiveKitRoomName(Room room) {

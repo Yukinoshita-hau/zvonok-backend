@@ -6,6 +6,7 @@ import com.zvonok.model.CallSession;
 import com.zvonok.model.enumeration.CallParticipantStatus;
 import com.zvonok.model.enumeration.CallSessionStatus;
 import com.zvonok.model.enumeration.RoomType;
+import com.zvonok.repository.CallParticipantRepository;
 import com.zvonok.service.dto.LiveKitTokenResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,8 +24,9 @@ public class LiveKitCallTokenService {
     private final CallSessionService callSessionService;
     private final LiveKitTokenService liveKitTokenService;
     private final UserService userService;
+    private final CallParticipantRepository callParticipantRepository;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public LiveKitTokenResponse issueCallToken(Long callId, String username) {
         CallSession session = callSessionService.getCallSession(callId);
         CallParticipant participant = callSessionService.getParticipant(callId, username);
@@ -35,6 +37,12 @@ public class LiveKitCallTokenService {
 
         validateCallStatus(session);
         validateParticipantStatus(participant, session);
+        participant.setStatus(CallParticipantStatus.JOINED);
+        if (participant.getJoinedAt() == null) {
+            participant.setJoinedAt(java.time.LocalDateTime.now());
+        }
+        participant.setLastSeenAt(java.time.LocalDateTime.now());
+        callParticipantRepository.save(participant);
 
         return liveKitTokenService.generateCallToken(session.getLivekitRoomName(), username,
                 userService.getUser(username).getDisplayName(), callId);
@@ -42,8 +50,7 @@ public class LiveKitCallTokenService {
 
     private void validateCallStatus(CallSession session) {
         if (session.getRoomType() == RoomType.PRIVATE) {
-            if (session.getStatus() != CallSessionStatus.RINGING
-                    && session.getStatus() != CallSessionStatus.ACTIVE) {
+            if (session.getStatus() != CallSessionStatus.ACTIVE) {
                 throw new InsufficientPermissionsException("Call is not available for token issuance");
             }
             return;

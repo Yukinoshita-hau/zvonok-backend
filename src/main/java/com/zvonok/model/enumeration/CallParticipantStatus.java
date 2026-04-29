@@ -1,11 +1,10 @@
 package com.zvonok.model.enumeration;
 
 public enum CallParticipantStatus {
-    INVITED,
     RINGING,
     ACCEPTED,
     JOINED,
+    MISSED,
     DECLINED,
-    LEFT,
-    KICKED
+    LEFT
 }

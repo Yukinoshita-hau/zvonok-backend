@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface CallSessionRepository extends JpaRepository<CallSession, Long> {
@@ -18,4 +19,8 @@ public interface CallSessionRepository extends JpaRepository<CallSession, Long> 
     boolean existsByRoomIdAndStatusIn(Long roomId, Collection<CallSessionStatus> statuses);
 
     Optional<CallSession> findByLivekitRoomName(String livekitRoomName);
+
+    List<CallSession> findAllByRoomIdAndStatusInOrderByCreatedAtDesc(Long roomId, Collection<CallSessionStatus> statuses);
+
+    List<CallSession> findAllByStatusIn(Collection<CallSessionStatus> statuses);
 }

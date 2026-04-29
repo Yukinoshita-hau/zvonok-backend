@@ -50,8 +50,17 @@ public class CallParticipant {
     @Column(name = "joined_at")
     private LocalDateTime joinedAt;
 
+    @Column(name = "accepted_at")
+    private LocalDateTime acceptedAt;
+
     @Column(name = "left_at")
     private LocalDateTime leftAt;
+
+    @Column(name = "declined_at")
+    private LocalDateTime declinedAt;
+
+    @Column(name = "last_seen_at")
+    private LocalDateTime lastSeenAt;
 
     @Version
     private Long version;

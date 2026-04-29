@@ -1,6 +1,7 @@
 package com.zvonok.model;
 
 import com.zvonok.model.enumeration.CallSessionStatus;
+import com.zvonok.model.enumeration.CallEndReason;
 import com.zvonok.model.enumeration.RoomType;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -51,6 +52,9 @@ public class CallSession {
     @Column(name = "started_at", nullable = false)
     private LocalDateTime startedAt;
 
+    @Column(name = "activated_at")
+    private LocalDateTime activatedAt;
+
     @Column(name = "ended_at")
     private LocalDateTime endedAt;
 
@@ -58,8 +62,9 @@ public class CallSession {
     @JoinColumn(name = "ended_by_user_id")
     private User endedByUser;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "end_reason", length = 64)
-    private String endReason;
+    private CallEndReason endReason;
 
     @Version
     private Long version;
