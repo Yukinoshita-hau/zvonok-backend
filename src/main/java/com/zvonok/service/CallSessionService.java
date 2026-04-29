@@ -49,7 +49,6 @@ public class CallSessionService {
         CallSession existing = callSessionRepository
                 .findFirstByRoomIdAndStatusInOrderByCreatedAtDesc(room.getId(), ACTIVE_OR_RINGING)
                 .orElse(null);
-
         if (existing != null) {
             if (room.getType() == RoomType.PRIVATE) {
                 publishPrivateInvite(existing, caller);
