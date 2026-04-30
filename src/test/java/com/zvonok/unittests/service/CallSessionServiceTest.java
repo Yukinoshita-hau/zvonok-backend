@@ -161,7 +161,7 @@ class CallSessionServiceTest {
         when(roomService.getRoom(groupRoom.getId(), receiver.getUsername())).thenReturn(groupRoom);
         when(callParticipantRepository.findByCallSessionIdAndUserId(300L, receiver.getId()))
                 .thenReturn(Optional.of(participant(300L, receiver, CallParticipantRole.MEMBER,
-                        CallParticipantStatus.INVITED)));
+                        CallParticipantStatus.RINGING)));
 
         CallSession updated = callSessionService.decline(receiver.getUsername(), dto);
 

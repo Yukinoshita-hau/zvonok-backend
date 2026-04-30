@@ -20,7 +20,10 @@ public class BaseCallEvent {
 	String liveKitRoomName;
 	String callerUsername;
 	String hostUsername;
+	String participantUsername;
+	RoomType callRoomType;
 	CallSessionStatus callStatus;
 	CallParticipantStatus participantStatus;
+	Integer participantsCount;
 	LocalDateTime occurredAt;
 }
