@@ -1,8 +1,10 @@
 package com.zvonok.service;
 
 import com.zvonok.exception.InsufficientPermissionsException;
+import com.zvonok.exception.LiveKitRoomSyncException;
 import com.zvonok.model.CallParticipant;
 import com.zvonok.model.CallSession;
+import com.zvonok.model.enumeration.CallEndReason;
 import com.zvonok.model.enumeration.CallParticipantStatus;
 import com.zvonok.model.enumeration.CallSessionStatus;
 import com.zvonok.model.enumeration.RoomType;
@@ -25,6 +27,7 @@ public class LiveKitCallTokenService {
     private final LiveKitTokenService liveKitTokenService;
     private final UserService userService;
 	private final CallParticipantRepository callParticipantRepository;
+	private final LiveKitRoomAdminService liveKitRoomAdminService;
 
     @Transactional
     public LiveKitTokenResponse issueCallToken(Long callId, String username) {
@@ -37,16 +40,24 @@ public class LiveKitCallTokenService {
 
         validateCallStatus(session);
         validateParticipantStatus(participant, session);
-		participant.setStatus(CallParticipantStatus.JOINED);
-		if (participant.getJoinedAt() == null) {
-			participant.setJoinedAt(LocalDateTime.now());
-		}
+
 		participant.setLastSeenAt(LocalDateTime.now());
 		callParticipantRepository.save(participant);
 
         return liveKitTokenService.generateCallToken(session.getLivekitRoomName(), username,
                 userService.getUser(username).getDisplayName(), callId);
     }
+
+	private void ensureLiveKitRoomIsActual(CallSession session) {
+		try {
+			if (!liveKitRoomAdminService.roomExist(session.getLivekitRoomName())) {
+				callSessionService.endSystemIfStale(session, CallEndReason.STALE_CLEANUP);
+				throw new InsufficientPermissionsException("Call is no longer available");
+			}
+		} catch (LiveKitRoomSyncException e) {
+			throw new LiveKitRoomSyncException(e.getMessage());
+		}
+	}
 
     private void validateCallStatus(CallSession session) {
         if (session.getRoomType() == RoomType.PRIVATE) {

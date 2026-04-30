@@ -267,6 +267,31 @@ public class CallSessionService {
 		return session;
 	}
 
+	public void endSystemIfStale(CallSession session, CallEndReason reason) {
+		if (session == null || isTerminal(session.getStatus())) {
+			return;
+		}
+
+		session.setStatus(CallSessionStatus.ENDED);
+		session.setEndedAt(LocalDateTime.now());
+		session.setEndedByUser(session.getHostUser());
+		session.setEndReason(reason);
+		callSessionRepository.save(session);
+
+		List<CallParticipant> participants = callParticipantRepository.findAllByCallSessionId(session.getId());
+
+		participants.stream()
+			.filter(p -> p.getStatus() != CallParticipantStatus.DECLINED && p.getStatus() != CallParticipantStatus.LEFT)
+			.forEach(p -> {
+				p.setStatus(CallParticipantStatus.LEFT);
+				p.setLeftAt(LocalDateTime.now());
+			});
+
+		callParticipantRepository.saveAll(participants);
+
+		publishToParticipants(session, event(CallType.CALL_END, session, "system", CallParticipantStatus.LEFT));
+	}
+
 	@Transactional(readOnly = true)
 	public CallSession getCallSession(Long callId) {
 		return callSessionRepository.findById(callId)
