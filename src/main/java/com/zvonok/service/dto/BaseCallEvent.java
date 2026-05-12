@@ -1,5 +1,6 @@
 package com.zvonok.service.dto;
 
+import com.zvonok.model.enumeration.CallEndReason;
 import com.zvonok.model.enumeration.CallParticipantStatus;
 import com.zvonok.model.enumeration.CallSessionStatus;
 import com.zvonok.model.enumeration.RoomType;
@@ -25,5 +26,6 @@ public class BaseCallEvent {
 	CallSessionStatus callStatus;
 	CallParticipantStatus participantStatus;
 	Integer participantsCount;
+	CallEndReason endReason;
 	LocalDateTime occurredAt;
 }

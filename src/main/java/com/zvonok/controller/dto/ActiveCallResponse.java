@@ -4,22 +4,26 @@ import java.util.List;
 import com.zvonok.model.enumeration.CallSessionStatus;
 import com.zvonok.model.enumeration.RoomType;
 import lombok.Builder;
+import lombok.Getter;
+import lombok.Setter;
 import java.time.LocalDateTime;
 
+@Getter
+@Setter
 @Builder
-public record ActiveCallResponse (
-	Long callId,
-	Long chatRoomId,
-	Long roomId,
-	RoomType roomType,
-	CallSessionStatus status,
-	String liveKitRoomName,
-	String hostUsername,
-	String callerUsername,
-	String callType,
-	int participantsCount,
-	List<CallParticipantResponse> participants,
-	LocalDateTime startedAt,
-	LocalDateTime activatedAt,
-	LocalDateTime createAt
-) {}
+public class ActiveCallResponse {
+	private Long callId;
+	private Long chatRoomId;
+	private Long roomId;
+	private RoomType roomType;
+	private CallSessionStatus status;
+	private String liveKitRoomName;
+	private String hostUsername;
+	private String callerUsername;
+	private String callType;
+	private int participantsCount;
+	private List<CallParticipantResponse> participants;
+	private LocalDateTime startedAt;
+	private LocalDateTime activatedAt;
+	private LocalDateTime createAt;
+}

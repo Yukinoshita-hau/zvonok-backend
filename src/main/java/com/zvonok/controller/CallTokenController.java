@@ -3,6 +3,7 @@ package com.zvonok.controller;
 import com.zvonok.security.dto.UserPrincipal;
 import com.zvonok.service.LiveKitCallTokenService;
 import com.zvonok.service.dto.LiveKitTokenResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/calls")
 @RequiredArgsConstructor
+@SecurityRequirement(name = "JWT")
 public class CallTokenController {
 
     private final LiveKitCallTokenService liveKitCallTokenService;
@@ -20,6 +22,7 @@ public class CallTokenController {
     @PostMapping("/{callId}/token")
     public LiveKitTokenResponse issueCallToken(@PathVariable Long callId,
             @AuthenticationPrincipal UserPrincipal principal) {
+
         return liveKitCallTokenService.issueCallToken(callId, principal.getName());
     }
 }

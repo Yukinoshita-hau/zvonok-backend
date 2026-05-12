@@ -19,6 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import com.zvonok.model.Room;
 import com.zvonok.security.dto.UserPrincipal;
 import com.zvonok.service.RoomService;
+import com.zvonok.service.CallQueryService;
 import com.zvonok.service.CallSessionService;
 import com.zvonok.service.MessageService;
 import com.zvonok.service.RoomReadStateService;
@@ -45,7 +46,7 @@ public class RoomController {
 	private final RoomService roomService;
 	private final MessageService messageService;
 	private final RoomReadStateService roomReadStateService;
-	private final CallSessionService callSessionService;
+	private final CallQueryService callQueryService;
 
 	@Operation(summary = "Получить все комнаты пользователя",
 			description = "Возвращает все комнаты пользователя")
@@ -146,7 +147,7 @@ public class RoomController {
 	@GetMapping("/{roomId}/active-call")
 	public ResponseEntity<ActiveCallResponse> getActiveCall(@PathVariable Long roomId,
 			@AuthenticationPrincipal UserPrincipal principal) {
-		ActiveCallResponse response = callSessionService.findActiveCallResponse(roomId, principal.getUsername());
+		ActiveCallResponse response = callQueryService.findActiveCallResponse(roomId, principal.getUsername());
 		if (response == null) {
 			return ResponseEntity.noContent().build();
 		} else {

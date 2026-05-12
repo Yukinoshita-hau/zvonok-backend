@@ -44,6 +44,10 @@ public class RoomService {
 		return roomAccessService.getRoomForUser(id, username);
 	}
 
+	public Room getRoomForUpdate(Long id, String username) {
+		return roomAccessService.getRoomForUserForRoomUpdate(id, username);
+	}
+
 	public List<RoomResponse> getUserRoomsWithUnread(String username) {
 		User user = userService.getUser(username);
 
@@ -131,7 +135,6 @@ public class RoomService {
 					HttpResponseMessage.HTTP_ROOM_SIZE_MAX_FIFTEEN_MEMBERS_RESPONSE_MESSAGE
 							.getMessage());
 		}
-
 
 		Room room = new Room();
 		room.setName(roomName);

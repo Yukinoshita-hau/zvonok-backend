@@ -16,7 +16,7 @@ public class CallService {
 
 	private final CallSessionService callSessionService;
 
-		public void callInvite(String callerUsername, InviteCallDto dto) {
+	public void callInvite(String callerUsername, InviteCallDto dto) {
 		callSessionService.startCall(callerUsername, dto);
 	}
 

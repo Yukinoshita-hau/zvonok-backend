@@ -1,18 +1,17 @@
 package com.zvonok.service;
 
+import com.zvonok.exception.CallStateConflictException;
 import com.zvonok.exception.InsufficientPermissionsException;
-import com.zvonok.exception.LiveKitRoomSyncException;
-import com.zvonok.model.CallParticipant;
-import com.zvonok.model.CallSession;
+import com.zvonok.exception.LiveKitRoomNotFoundException;
+import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.enumeration.CallEndReason;
 import com.zvonok.model.enumeration.CallParticipantStatus;
 import com.zvonok.model.enumeration.CallSessionStatus;
 import com.zvonok.model.enumeration.RoomType;
-import com.zvonok.repository.CallParticipantRepository;
+import com.zvonok.service.dto.CallTokenContext;
 import com.zvonok.service.dto.LiveKitTokenResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Set;
 
@@ -25,62 +24,97 @@ public class LiveKitCallTokenService {
 
     private final CallSessionService callSessionService;
     private final LiveKitTokenService liveKitTokenService;
-    private final UserService userService;
-	private final CallParticipantRepository callParticipantRepository;
 	private final LiveKitRoomAdminService liveKitRoomAdminService;
 
-    @Transactional
-    public LiveKitTokenResponse issueCallToken(Long callId, String username) {
-        CallSession session = callSessionService.getCallSession(callId);
-        CallParticipant participant = callSessionService.getParticipant(callId, username);
+	/*	TODO: крч то что это транзакция в которой проиходит межсетевой запрос это плохо по ряду причин которые ты знаешь
+	 *  TODO: и надо вынести всё что связанно с транзакции в иное место
+	 *  TODO: а где стучусь к livekit делать без транзакции
+	 *  TODO: крч ты знаешь что делать
+	 */
+	public LiveKitTokenResponse issueCallToken(Long callId, String username) {
+		CallTokenContext context = callSessionService.getCallTokenContext(callId, username);
 
-        if (participant == null) {
-            throw new InsufficientPermissionsException("User is not participant of this call");
-        }
+		validateCallStatus(context);
+		validateParticipantStatus(context);
 
-        validateCallStatus(session);
-        validateParticipantStatus(participant, session);
+		ensureLiveKitRoomForToken(context);
 
-		participant.setLastSeenAt(LocalDateTime.now());
-		callParticipantRepository.save(participant);
+		Set<CallSessionStatus> allowedCallStatuses = 
+			context.roomType() == RoomType.PRIVATE
+				? Set.of(CallSessionStatus.ACTIVE, CallSessionStatus.RINGING)
+				: Set.of(CallSessionStatus.ACTIVE);
 
-        return liveKitTokenService.generateCallToken(session.getLivekitRoomName(), username,
-                userService.getUser(username).getDisplayName(), callId);
-    }
+		callSessionService.assertTokenStillAllowedAndTouch(context.callId(), username, allowedCallStatuses, ALLOWED_PARTICIPANT_STATUSES);
 
-	private void ensureLiveKitRoomIsActual(CallSession session) {
-		try {
-			if (!liveKitRoomAdminService.roomExist(session.getLivekitRoomName())) {
-				callSessionService.endSystemIfStale(session, CallEndReason.STALE_CLEANUP);
-				throw new InsufficientPermissionsException("Call is no longer available");
+		return liveKitTokenService.generateCallToken(
+				context.livekitRoomName(),
+				username,
+				context.displayName(),
+				context.callId()
+		);
+	}
+
+	private void ensureLiveKitRoomForToken(CallTokenContext context) {
+		if (shouldLiveKitRoomAlreadyExist(context)) {
+			try {
+				liveKitRoomAdminService.requireExistingRoom(context.livekitRoomName());
+			} catch (LiveKitRoomNotFoundException e) {
+				callSessionService.endSystemIfStale(
+						context.callId(), 
+						CallEndReason.STALE_CLEANUP
+				);
+
+				throw new CallStateConflictException(
+						HttpResponseMessage.HTTP_LIVEKIT_CALL_STATE_CONFLICT_RESPONSE_MESSAGE.getMessage()
+				);
 			}
-		} catch (LiveKitRoomSyncException e) {
-			throw new LiveKitRoomSyncException(e.getMessage());
+
+			return;
+		}
+
+		liveKitRoomAdminService.ensureRoomReady(context.livekitRoomName());
+		callSessionService.markLiveKitRoomReady(context.callId());
+	}
+
+	private void validateCallStatus(CallTokenContext context) {
+		if (context.roomType() == RoomType.PRIVATE) {
+			if (context.callStatus() != CallSessionStatus.ACTIVE
+					&& context.callStatus() != CallSessionStatus.RINGING) {
+				throw new InsufficientPermissionsException("Call is not available for token issuance");
+			}
+			return;
+		}
+
+		if (context.callStatus() != CallSessionStatus.ACTIVE) {
+			throw new InsufficientPermissionsException("Group call must be ACTIVE to issue token");
 		}
 	}
 
-    private void validateCallStatus(CallSession session) {
-        if (session.getRoomType() == RoomType.PRIVATE) {
-            if (session.getStatus() != CallSessionStatus.ACTIVE && session.getStatus() != CallSessionStatus.RINGING) {
-                throw new InsufficientPermissionsException("Call is not available for token issuance");
-            }
-            return;
-        }
+	private void validateParticipantStatus(CallTokenContext context) {
+		if (ALLOWED_PARTICIPANT_STATUSES.contains(context.participantStatus())) {
+			return;
+		}
 
-        if (session.getStatus() != CallSessionStatus.ACTIVE) {
-            throw new InsufficientPermissionsException("Group call must be ACTIVE to issue token");
-        }
-    }
+		if (context.roomType() == RoomType.PRIVATE
+				&& context.participantStatus() == CallParticipantStatus.RINGING) {
+			throw new InsufficientPermissionsException("Receiver must accept private call before token issuance");	
+		}
 
-    private void validateParticipantStatus(CallParticipant participant, CallSession session) {
-        if (ALLOWED_PARTICIPANT_STATUSES.contains(participant.getStatus())) {
-            return;
-        }
+		throw new InsufficientPermissionsException(
+				"Participant status does not allow token issuance"
+		);
+	}
 
-        if (session.getRoomType() == RoomType.PRIVATE && participant.getStatus() == CallParticipantStatus.RINGING) {
-            throw new InsufficientPermissionsException("Receiver must accept private call before token issuance");
-        }
+	private boolean shouldLiveKitRoomAlreadyExist(CallTokenContext context) {
+		if (context.callStatus() != CallSessionStatus.ACTIVE) {
+			return false;
+		}
 
-        throw new InsufficientPermissionsException("Participant status does not allow token issuance");
-    }
+		if (context.livekitRoomReadyAt() == null) {
+			return false;
+		}
+
+		return context.livekitRoomReadyAt()
+			.isBefore(LocalDateTime.now().minusSeconds(10));
+	}
 }

@@ -4,7 +4,4 @@ public enum CallSessionStatus {
     RINGING,
     ACTIVE,
     ENDED,
-    DECLINED,
-    CANCELLED,
-    MISSED
 }

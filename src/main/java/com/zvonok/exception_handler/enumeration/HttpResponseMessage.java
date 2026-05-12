@@ -74,9 +74,14 @@ public enum HttpResponseMessage {
 	HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE("Message was not found"),
 	HTTP_AUTH_PRINCEPAL_REQUIRED_RESPONSE_MESSAGE("Authenticated principal required for this WebSocket operation"),
 
+	// CallSession
+	HTTP_CALL_SESSION_NOT_FOUND_RESPONSE_MESSAGE("Call session not found"),
+
 	// LiveKit
 	HTTP_LIVEKIT_ROOM_RESPONSE_MESSAGE("LikeKit room error"),
+	HTTP_LIVEKIT_ROOM_NOT_FOUND_RESPONSE_MESSAGE("LiveKit room was not found"),
 	HTTP_LIVEKIT_TOKEN_GENERATE_ERROR_RESPONSE_MESSAGE("Failed to generate LiveKit token"),
+	HTTP_LIVEKIT_CALL_STATE_CONFLICT_RESPONSE_MESSAGE("Call room no longer exist"),
 
 	// S3
 	HTTP_FILE_NOT_FOUND_RESPONSE_MESSAGE("file was not found"),

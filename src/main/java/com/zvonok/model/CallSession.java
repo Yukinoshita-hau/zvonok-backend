@@ -55,6 +55,9 @@ public class CallSession {
 	@Column(name = "activated_at")
 	private LocalDateTime activatedAt;
 
+	@Column(name = "livekit_room_ready_at")
+	private LocalDateTime livekitRoomReadyAt;
+
     @Column(name = "ended_at")
     private LocalDateTime endedAt;
 

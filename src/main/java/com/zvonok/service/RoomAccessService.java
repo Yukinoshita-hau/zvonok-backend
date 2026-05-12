@@ -37,4 +37,25 @@ public class RoomAccessService {
 
 		return room;
 	}
+
+	@Transactional
+	public Room getRoomForUserForRoomUpdate(Long roomId, String username) {
+		User user = userService.getUser(username);
+		Room room = roomRepository.findByIdForUpdate(roomId).orElseThrow(() -> new RoomNotFoundException(
+				HttpResponseMessage.HTTP_ROOM_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
+
+		if (!room.getIsActive()) {
+			throw new RoomNotFoundException(
+					HttpResponseMessage.HTTP_ROOM_NOT_FOUND_RESPONSE_MESSAGE.getMessage());
+		} ;
+
+		boolean isMember = room.getMembers().stream().anyMatch(m -> m.getId().equals(user.getId()));
+
+		if (!isMember) {
+			throw new UserNotMemberRoomException(
+					HttpResponseMessage.HTTP_USER_NOT_MEMBER_ROOM_RESPONSE_MESSAGE.getMessage());
+		}
+
+		return room;
+	}
 }
