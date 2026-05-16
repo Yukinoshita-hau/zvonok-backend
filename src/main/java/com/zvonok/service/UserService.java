@@ -6,6 +6,7 @@ import com.zvonok.exception.UserWIthThisUsernameAlreadyExistException;
 import com.zvonok.exception.UserWithThisEmailAlreadyExistException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.User;
+import com.zvonok.model.enumeration.UserStatus;
 import com.zvonok.repository.UserRepository;
 import com.zvonok.service.dto.CreateUserDto;
 import com.zvonok.service.dto.UpdateUserDto;
@@ -117,6 +118,42 @@ public class UserService {
 
 		publisherService.publishUserProfileUpdated(user);
 		userRepository.save(user);
+	}
+
+	@Transactional
+	public User markOnline(String username) {
+		User user = getUser(username);
+
+		if (user.getStatus() == UserStatus.ONLINE) {
+			return user;
+		}
+
+		user.setStatus(UserStatus.ONLINE);
+		user.setLastSeenAt(null);
+
+		User saved = userRepository.save(user);
+
+		publisherService.publishUserProfileUpdated(saved);
+
+		return saved;
+	}
+
+	@Transactional
+	public User markOffline(String username) {
+		User user = getUser(username);
+
+		if (user.getStatus() == UserStatus.OFFLINE) {
+			return user;
+		}
+
+		user.setStatus(UserStatus.OFFLINE);
+		user.setLastSeenAt(LocalDateTime.now());
+
+		User saved = userRepository.save(user);
+
+		publisherService.publishUserProfileUpdated(saved);
+
+		return saved;
 	}
 
 	public MyUser myUserWrapper(User user) {

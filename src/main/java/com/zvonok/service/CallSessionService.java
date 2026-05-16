@@ -7,6 +7,7 @@ import com.zvonok.controller.dto.DeclineCallDto;
 import com.zvonok.controller.dto.EndCallDto;
 import com.zvonok.controller.dto.InviteCallDto;
 import com.zvonok.controller.dto.LeaveCallDto;
+import com.zvonok.controller.dto.RestoreCallSessionResponse;
 import com.zvonok.exception.CallSessionNotFoundException;
 import com.zvonok.exception.CallStateConflictException;
 import com.zvonok.exception.InsufficientPermissionsException;
@@ -25,14 +26,17 @@ import com.zvonok.repository.CallSessionRepository;
 import com.zvonok.service.dto.BaseCallEvent;
 import com.zvonok.service.dto.CallTokenContext;
 import com.zvonok.service.dto.CallType;
+import com.zvonok.service.dto.LiveKitTokenResponse;
 import com.zvonok.utils.TransactionUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -62,12 +66,8 @@ public class CallSessionService {
 				.orElse(null);
 
 		if (existing != null) {
-			publishCallStartedToHost(existing, caller);
-
-			if (room.getType() == RoomType.PRIVATE && existing.getCreatedBy().getId().equals(caller.getId())) {
-				publishPrivateInvite(existing, caller);
-			} 
-			return existing;
+			throw new CallStateConflictException(
+					"Cannot start a new call while another call is active or ringing");
 		}
 
 		if (room.getType() == RoomType.PRIVATE && room.getMembers().size() != 2) {
@@ -351,7 +351,8 @@ public class CallSessionService {
 				.callerUsername(freshest.getCreatedBy().getUsername())
 				.callType(freshest.getRoomType().name())
 				.participants(participants.stream().map(p -> toParticipantResponse(p)).toList())
-				.startedAt(freshest.getStartedAt()).createAt(freshest.getCreatedAt()).build();
+				.startedAt(freshest.getStartedAt()).activatedAt(freshest.getActivatedAt())
+				.createAt(freshest.getCreatedAt()).build();
 	}
 
 	@Transactional(readOnly = true)
@@ -372,6 +373,7 @@ public class CallSessionService {
 				session.getRoomType(), session.getStatus(), session.getLivekitRoomReadyAt(),
 				username, user.getDisplayName(), participant.getStatus());
 	}
+
 
 	private CallSession resolveSessionForAction(String username, Long callId, Long roomId) {
 		if (callId != null) {

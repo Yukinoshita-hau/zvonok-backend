@@ -8,7 +8,6 @@ import com.zvonok.model.User;
 import com.zvonok.repository.FriendshipRepository;
 import com.zvonok.repository.RoomRepository;
 import com.zvonok.repository.UserRepository;
-import com.zvonok.service.dto.EventType;
 import com.zvonok.service.dto.UserProfileUpdatedEvent;
 import com.zvonok.service.dto.response.UserShortResponse;
 import com.zvonok.service.enums.BrokerPath;

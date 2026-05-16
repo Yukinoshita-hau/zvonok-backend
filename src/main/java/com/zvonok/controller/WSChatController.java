@@ -24,7 +24,7 @@ import java.security.Principal;
 @MessageMapping("/chat")
 @RequiredArgsConstructor
 @Slf4j
-public class ChatController {
+public class WSChatController {
 
 	private final MessageService messageService;
 	private final MessageReadStatusService readStatusService;

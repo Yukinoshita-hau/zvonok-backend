@@ -3,6 +3,7 @@ package com.zvonok.repository;
 import com.zvonok.model.CallParticipant;
 import com.zvonok.model.enumeration.CallParticipantStatus;
 import com.zvonok.model.enumeration.CallSessionStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -33,6 +34,23 @@ public interface CallParticipantRepository extends JpaRepository<CallParticipant
 		@Param("seenAt") LocalDateTime seenAt,
 		@Param("allowedCallStatuses") Collection<CallSessionStatus> allowedCallStatuses,
 		@Param("allowedParticipantStatuses") Collection<CallParticipantStatus> allowedParticipantStatuses
+	);
+
+	@Query("""
+		select cp from CallParticipant cp
+		join fetch cp.callSession cs
+		join fetch cs.room r
+		where cp.user.id = :userId
+			and cp.status in :participantStatuses
+			and cp.leftAt is null
+			and cs.status in :sessionStatuses
+		order by coalesce(cp.lastSeenAt, cp.acceptedAt, cp.joinedAt, cp.createdAt) desc
+	""")
+	List<CallParticipant> findRestoreCandidates(
+		@Param("userId") Long userId,
+		@Param("participantStatuses") Collection<CallParticipantStatus> participantStatuses,
+		@Param("sessionStatuses") Collection<CallSessionStatus> sessionStatuses,
+		Pageable pageable	
 	);
 
 	long countByCallSessionIdAndStatusIn(Long callSessionId,

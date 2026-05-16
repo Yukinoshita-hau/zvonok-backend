@@ -1,18 +1,27 @@
 package com.zvonok.service;
 
+import com.zvonok.controller.dto.RestoreCallSessionResponse;
 import com.zvonok.exception.CallStateConflictException;
 import com.zvonok.exception.InsufficientPermissionsException;
 import com.zvonok.exception.LiveKitRoomNotFoundException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
+import com.zvonok.model.CallParticipant;
+import com.zvonok.model.CallSession;
+import com.zvonok.model.User;
 import com.zvonok.model.enumeration.CallEndReason;
 import com.zvonok.model.enumeration.CallParticipantStatus;
 import com.zvonok.model.enumeration.CallSessionStatus;
 import com.zvonok.model.enumeration.RoomType;
+import com.zvonok.repository.CallParticipantRepository;
 import com.zvonok.service.dto.CallTokenContext;
 import com.zvonok.service.dto.LiveKitTokenResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
