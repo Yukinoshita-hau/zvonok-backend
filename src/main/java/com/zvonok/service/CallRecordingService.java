@@ -26,8 +26,11 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class CallRecordingService {
 
-	public final Set<CallRecordingStatus> ACTIVE_RECORDING_STATUSES = Set.of(
+	private static final Set<CallRecordingStatus> BLOCKING_RECORDING_STATUSES = Set.of(
 			CallRecordingStatus.STARTING, CallRecordingStatus.ACTIVE, CallRecordingStatus.STOPPING);
+
+	private static final Set<CallRecordingStatus> STOPPABLE_RECORDING_STATUSES =
+			Set.of(CallRecordingStatus.STARTING, CallRecordingStatus.ACTIVE);
 
 	private final CallSessionService callSessionService;
 	private final UserService userService;
@@ -45,7 +48,7 @@ public class CallRecordingService {
 		validateCanStartRecording(session, actor);
 
 		callRecordingRepository.findFirstByCallSessionIdAndStatusInOrderByStartedAtDesc(
-				session.getId(), ACTIVE_RECORDING_STATUSES).ifPresent(existing -> {
+				session.getId(), BLOCKING_RECORDING_STATUSES).ifPresent(existing -> {
 					throw new CallStateConflictException(
 							"Recording is already active for this call");
 				});
@@ -82,39 +85,36 @@ public class CallRecordingService {
 		CallSession session = callSessionService.getCallSessionForUpdate(callId);
 		User actor = userService.getUser(username);
 
-		validateCanStartRecording(session, actor);
+		validateCanStopRecording(session, actor);
 
 		CallRecording recording = callRecordingRepository
 				.findFirstByCallSessionIdAndStatusInOrderByStartedAtDesc(session.getId(),
-						ACTIVE_RECORDING_STATUSES)
+						BLOCKING_RECORDING_STATUSES)
 				.orElseThrow(
 						() -> new CallStateConflictException("No active recording for this call"));
 
+		if (recording.getStatus() == CallRecordingStatus.STOPPING) {
+			return recording;
+		}
+
+		if (recording.getStatus() != CallRecordingStatus.STARTING
+				&& recording.getStatus() != CallRecordingStatus.ACTIVE) {
+			throw new CallStateConflictException(
+					"Recording cannot be stopped from status " + recording.getStatus());
+		}
+
 		recording.setStatus(CallRecordingStatus.STOPPING);
-		callRecordingRepository.save(recording);
+		callRecordingRepository.saveAndFlush(recording);
 
 		LivekitEgress.EgressInfo egressInfo =
 				liveKitEgressAdminService.stopEgress(recording.getEgressId());
 
-		recording.setEndedAt(LocalDateTime.now());
-
-		if (egressInfo.getStatus() == LivekitEgress.EgressStatus.EGRESS_COMPLETE) {
-			recording.setStatus(CallRecordingStatus.COMPLETED);
-
-			if (egressInfo.getFileResultsCount() > 0) {
-				recording.setFileLocation(egressInfo.getFileResults(0).getLocation());
-			}
-		} else if (egressInfo.getStatus() == LivekitEgress.EgressStatus.EGRESS_FAILED) {
-			recording.setStatus(CallRecordingStatus.FAILED);
-			recording.setErrorMessage(egressInfo.getError());
-		} else {
-			recording.setStatus(CallRecordingStatus.STOPPING);
-		}
+		applyEgressResult(recording, egressInfo);
 
 		recording = callRecordingRepository.save(recording);
 
 		TransactionUtils.runAfterCommit(() -> {
-			session.getRoom().getMembers().stream().forEach(m -> {
+			session.getRoom().getMembers().forEach(m -> {
 				messagingTemplate.convertAndSendToUser(m.getUsername(), callRecordingPath,
 						CallRecordingPayload.builder().action(CallRecordingAction.RECORDING_STOP)
 								.sessionId(session.getId()).build());
@@ -122,6 +122,34 @@ public class CallRecordingService {
 		});
 
 		return recording;
+	}
+
+	private void applyEgressResult(CallRecording recording, LivekitEgress.EgressInfo egressInfo) {
+		if (egressInfo.getStatus() == LivekitEgress.EgressStatus.EGRESS_COMPLETE) {
+			recording.setStatus(CallRecordingStatus.COMPLETED);
+			recording.setEndedAt(LocalDateTime.now());
+
+			if (egressInfo.getFileResultsCount() > 0) {
+				recording.setFileLocation(egressInfo.getFileResults(0).getLocation());
+			}
+
+			return;
+		}
+
+		if (egressInfo.getStatus() == LivekitEgress.EgressStatus.EGRESS_FAILED
+				|| egressInfo.getStatus() == LivekitEgress.EgressStatus.EGRESS_ABORTED) {
+			recording.setStatus(CallRecordingStatus.FAILED);
+			recording.setEndedAt(LocalDateTime.now());
+			recording.setErrorMessage(egressInfo.getError());
+			return;
+		}
+
+		if (egressInfo.getStatus() == LivekitEgress.EgressStatus.EGRESS_ENDING) {
+			recording.setStatus(CallRecordingStatus.STOPPING);
+			return;
+		}
+
+		recording.setStatus(CallRecordingStatus.STOPPING);
 	}
 
 	private void validateCanStartRecording(CallSession session, User actor) {
