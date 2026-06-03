@@ -28,16 +28,15 @@ public class CallRestoreService {
 	public Optional<RestoreCallSessionResponse> restoreCallSession(String username) {
 		User user = userService.getUser(username);
 
-		CallParticipant participant = callParticipantRepository
-			.findRestoreCandidates(
-					user.getId(),
-					List.of(CallParticipantStatus.ACCEPTED, CallParticipantStatus.JOINED),
-					CallSessionService.ACTIVE_OR_RINGING, PageRequest.of(0, 1)
-			)
-			.stream()
-			.findFirst()
-			.orElse(null);
-	
+		CallParticipant participant =
+				callParticipantRepository
+						.findRestoreCandidates(user.getId(),
+								List.of(CallParticipantStatus.ACCEPTED,
+										CallParticipantStatus.JOINED,
+										CallParticipantStatus.RINGING),
+								CallSessionService.ACTIVE_OR_RINGING, PageRequest.of(0, 1))
+						.stream().findFirst().orElse(null);
+
 		if (participant == null) {
 			return Optional.empty();
 		}
@@ -48,25 +47,16 @@ public class CallRestoreService {
 			return Optional.empty();
 		}
 
-		LiveKitTokenResponse token = tokenService.issueCallToken(
-			session.getId(),
-			username
-		);
+		LiveKitTokenResponse token = tokenService.issueCallToken(session.getId(), username);
 
 		participant.setLastSeenAt(LocalDateTime.now());
 
-		return Optional.of(RestoreCallSessionResponse.builder()
-				.restorable(true)
-				.callId(session.getId())
-				.chatRoomId(session.getRoom().getId())
-				.roomId(session.getRoom().getId())
-				.roomType(session.getRoomType())
-				.callStatus(session.getStatus())
-				.participantStatus(participant.getStatus())
-				.liveKitRoomName(session.getLivekitRoomName())
-				.serverUrl(token.getServerUrl())
-				.participantToken(token.getParticipantToken())
-				.expiresAt(token.getExpiresAt())
+		return Optional.of(RestoreCallSessionResponse.builder().restorable(true)
+				.callId(session.getId()).chatRoomId(session.getRoom().getId())
+				.roomId(session.getRoom().getId()).roomType(session.getRoomType())
+				.callStatus(session.getStatus()).participantStatus(participant.getStatus())
+				.liveKitRoomName(session.getLivekitRoomName()).serverUrl(token.getServerUrl())
+				.participantToken(token.getParticipantToken()).expiresAt(token.getExpiresAt())
 				.build());
 	}
 
@@ -80,7 +70,8 @@ public class CallRestoreService {
 		}
 
 		if (participant.getStatus() != CallParticipantStatus.ACCEPTED
-				&& participant.getStatus() != CallParticipantStatus.JOINED) {
+				&& participant.getStatus() != CallParticipantStatus.JOINED
+				&& participant.getStatus() != CallParticipantStatus.RINGING) {
 			return false;
 		}
 
@@ -90,10 +81,8 @@ public class CallRestoreService {
 		}
 
 		/*
-		if (!isWithinRestoreWindow(participant)) {
-			return false;
-		}
-		*/
+		 * if (!isWithinRestoreWindow(participant)) { return false; }
+		 */
 
 		return true;
 	}
@@ -103,7 +92,6 @@ public class CallRestoreService {
 			return true;
 		}
 
-		return participant.getLastSeenAt()
-			.isAfter(LocalDateTime.now().minusSeconds(90));
+		return participant.getLastSeenAt().isAfter(LocalDateTime.now().minusSeconds(90));
 	}
 }
