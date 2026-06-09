@@ -13,6 +13,7 @@ import com.zvonok.model.enumeration.CallParticipantStatus;
 import com.zvonok.model.enumeration.CallSessionStatus;
 import com.zvonok.repository.CallParticipantRepository;
 import com.zvonok.service.dto.LiveKitTokenResponse;
+import com.zvonok.service.enums.CallRestoreType;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
@@ -44,20 +45,19 @@ public class CallRestoreService {
 		CallSession session = participant.getCallSession();
 
 		if (!canRestore(session, participant)) {
-			return Optional.empty();
+			return Optional.of(RestoreCallSessionResponse.empty());
+			// return Optional.empty();
+		}
+
+		if (participant.getStatus() == CallParticipantStatus.RINGING) {
+			return Optional.of(buildIncomingCallResponse(session, participant));
 		}
 
 		LiveKitTokenResponse token = tokenService.issueCallToken(session.getId(), username);
 
 		participant.setLastSeenAt(LocalDateTime.now());
 
-		return Optional.of(RestoreCallSessionResponse.builder().restorable(true)
-				.callId(session.getId()).chatRoomId(session.getRoom().getId())
-				.roomId(session.getRoom().getId()).roomType(session.getRoomType())
-				.callStatus(session.getStatus()).participantStatus(participant.getStatus())
-				.liveKitRoomName(session.getLivekitRoomName()).serverUrl(token.getServerUrl())
-				.participantToken(token.getParticipantToken()).expiresAt(token.getExpiresAt())
-				.build());
+		return Optional.of(buildActiveCallResponse(session, participant, token));
 	}
 
 	private boolean canRestore(CallSession session, CallParticipant participant) {
@@ -85,6 +85,26 @@ public class CallRestoreService {
 		 */
 
 		return true;
+	}
+
+	private RestoreCallSessionResponse buildActiveCallResponse(CallSession session, CallParticipant participant, LiveKitTokenResponse token) {
+						
+		return RestoreCallSessionResponse.builder().restorable(true).callRestoreType(CallRestoreType.ACTIVE_CALL)
+				.callId(session.getId()).chatRoomId(session.getRoom().getId())
+				.roomId(session.getRoom().getId()).roomType(session.getRoomType())
+				.callStatus(session.getStatus()).hostUsername(session.getHostUser().getUsername()).participantStatus(participant.getStatus())
+				.liveKitRoomName(session.getLivekitRoomName()).serverUrl(token.getServerUrl())
+				.participantToken(token.getParticipantToken()).expiresAt(token.getExpiresAt())
+				.build();
+	}
+
+	private RestoreCallSessionResponse buildIncomingCallResponse(CallSession session, CallParticipant participant) {
+						
+		return RestoreCallSessionResponse.builder().restorable(true).callRestoreType(CallRestoreType.INCOMING_CALL)
+				.callId(session.getId()).chatRoomId(session.getRoom().getId())
+				.roomId(session.getRoom().getId()).roomType(session.getRoomType())
+				.callStatus(session.getStatus()).hostUsername(session.getHostUser().getUsername()).participantStatus(participant.getStatus())
+				.build();
 	}
 
 	private boolean isWithinRestoreWindow(CallParticipant participant) {

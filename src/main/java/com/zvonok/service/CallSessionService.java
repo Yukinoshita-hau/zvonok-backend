@@ -294,7 +294,7 @@ public class CallSessionService {
 								.getMessage()));
 	}
 
-	@Transactional()
+	@Transactional
 	public CallSession getCallSessionForUpdate(Long callId) {
 		return callSessionRepository.findByIdForUpdate(callId)
 				.orElseThrow(() -> new CallSessionNotFoundException(
