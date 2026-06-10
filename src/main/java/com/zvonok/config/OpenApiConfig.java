@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.security.SecurityScheme;
 		info = @Info(title = "Zvonok - платформа для обмена информацией в реальном времене",
 				description = "Api платформы zvonok", version = "0.0.1",
 				contact = @Contact(name = "Mirzuev Rashid", email = "mirzuevRashid@yandex.ru",
-						url = "none")))
+						url = "https://zvonok.info")))
 @SecurityScheme(name = "JWT", type = SecuritySchemeType.HTTP, bearerFormat = "JWT",
 		scheme = "bearer")
 public class OpenApiConfig {

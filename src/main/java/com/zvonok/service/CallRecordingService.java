@@ -80,6 +80,26 @@ public class CallRecordingService {
 		return recording;
 	}
 
+	public LivekitEgress.EgressInfo safeStopEgress(String egressId) {
+		int attempts = 5;
+
+		for (int i = 0; i < attempts; i++) {
+			try {
+				return liveKitEgressAdminService.stopEgress(egressId);
+			} catch (Exception e) {
+				if (i == attempts - 1)
+					throw e;
+
+				try {
+					Thread.sleep(300); // 200–500ms обычно достаточно
+				} catch (InterruptedException ignored) {
+				}
+			}
+		}
+
+		throw new IllegalStateException("unreachable");
+	}
+
 	@Transactional
 	public CallRecording stopRecording(Long callId, String username) {
 		CallSession session = callSessionService.getCallSessionForUpdate(callId);
@@ -106,8 +126,8 @@ public class CallRecordingService {
 		recording.setStatus(CallRecordingStatus.STOPPING);
 		callRecordingRepository.saveAndFlush(recording);
 
-		LivekitEgress.EgressInfo egressInfo =
-				liveKitEgressAdminService.stopEgress(recording.getEgressId());
+		//LivekitEgress.EgressInfo egressInfo = liveKitEgressAdminService.stopEgress(recording.getEgressId());
+		LivekitEgress.EgressInfo egressInfo = safeStopEgress(recording.getEgressId());
 
 		applyEgressResult(recording, egressInfo);
 
