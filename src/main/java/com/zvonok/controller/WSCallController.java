@@ -15,6 +15,7 @@ import com.zvonok.controller.dto.ChatErrorMessageResponse;
 import com.zvonok.controller.dto.DeclineCallDto;
 import com.zvonok.controller.dto.EndCallDto;
 import com.zvonok.controller.dto.InviteCallDto;
+import com.zvonok.controller.dto.JoinCallDto;
 import com.zvonok.controller.dto.LeaveCallDto;
 import com.zvonok.exception.AuthenticatedPrincipalRequiredException;
 import com.zvonok.exception_handler.annotation.ApiException;
@@ -44,6 +45,12 @@ public class WSCallController {
 	public void callAcceptEvent(Principal principal, @Payload AcceptCallDto dto) {
 		String username = resolvePrincipalName(principal);
 		callService.callAccept(username, dto);
+	}
+
+	@MessageMapping("/join")
+	public void callJoin(Principal principal, @Payload JoinCallDto dto) {
+		String username = resolvePrincipalName(principal);
+		callService.callJoin(username, dto);
 	}
 
 	@MessageMapping("/decline")

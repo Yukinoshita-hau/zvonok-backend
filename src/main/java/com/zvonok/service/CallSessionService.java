@@ -6,9 +6,13 @@ import com.zvonok.controller.dto.CallParticipantResponse;
 import com.zvonok.controller.dto.DeclineCallDto;
 import com.zvonok.controller.dto.EndCallDto;
 import com.zvonok.controller.dto.InviteCallDto;
+import com.zvonok.controller.dto.JoinCallDto;
 import com.zvonok.controller.dto.LeaveCallDto;
+import com.zvonok.exception.CallAlreadyEndException;
 import com.zvonok.exception.CallSessionNotFoundException;
 import com.zvonok.exception.CallStateConflictException;
+import com.zvonok.exception.IncorrectParticipantStatus;
+import com.zvonok.exception.IncorrectParticipantStatusException;
 import com.zvonok.exception.InsufficientPermissionsException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.CallParticipant;
@@ -147,6 +151,55 @@ public class CallSessionService {
 
 		publishToParticipants(session, event(CallType.CALL_PARTICIPANT_JOINED, session, username,
 				CallParticipantStatus.ACCEPTED));
+		return session;
+	}
+
+	@Transactional
+	public CallSession join(String username, JoinCallDto dto) {
+		User actor = userService.getUser(username);
+		CallSession session =
+				resolveSessionForAction(username, dto.getCallId(), dto.getChatRoomId());
+
+		if (session.getStatus() == CallSessionStatus.ENDED) {
+			throw new CallAlreadyEndException(
+					HttpResponseMessage.HTTP_CALL_SESSION_ALREADY_END_RESPONSE_MESSAGE
+							.getMessage());
+		}
+
+		if (session.getStatus() != CallSessionStatus.ACTIVE) {
+			throw new CallStateConflictException("Call is not active");	
+		}
+
+		CallParticipant participant = callParticipantRepository
+				.findByCallSessionIdAndUserId(session.getId(), actor.getId()).orElseThrow(
+						() -> new InsufficientPermissionsException("User is not call participant"));
+
+		Set<CallParticipantStatus> joinableStatuses = Set.of(
+			CallParticipantStatus.RINGING,
+			CallParticipantStatus.DECLINED,
+			CallParticipantStatus.LEFT
+		);
+
+		if (!joinableStatuses.contains(participant.getStatus())) {
+			throw new IncorrectParticipantStatusException(
+					HttpResponseMessage.HTTP_CALL_PARTICIPANT_INCORRECT_STATUS_RESPONSE_MESSAGE
+							.getMessage());
+		}
+
+		LocalDateTime now = LocalDateTime.now();
+
+		participant.setStatus(CallParticipantStatus.ACCEPTED);
+		participant.setAcceptedAt(now);
+		participant.setLeftAt(null);
+		participant.setLastSeenAt(now);
+
+		callParticipantRepository.save(participant);
+
+		publishToParticipants(session,
+				event(CallType.CALL_ACCEPTED, session, username, CallParticipantStatus.ACCEPTED));
+		publishToParticipants(session,
+				event(CallType.CALL_ACCEPT, session, username, CallParticipantStatus.ACCEPTED));
+
 		return session;
 	}
 

@@ -76,6 +76,10 @@ public enum HttpResponseMessage {
 
 	// CallSession
 	HTTP_CALL_SESSION_NOT_FOUND_RESPONSE_MESSAGE("Call session not found"),
+	HTTP_CALL_SESSION_ALREADY_END_RESPONSE_MESSAGE("Call session already end"),
+
+	// CallParticipant
+	HTTP_CALL_PARTICIPANT_INCORRECT_STATUS_RESPONSE_MESSAGE("Incorrect call participant status"),
 
 	// LiveKit
 	HTTP_LIVEKIT_ROOM_RESPONSE_MESSAGE("LikeKit room error"),

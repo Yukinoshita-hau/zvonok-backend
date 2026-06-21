@@ -4,6 +4,7 @@ import com.zvonok.controller.dto.AcceptCallDto;
 import com.zvonok.controller.dto.DeclineCallDto;
 import com.zvonok.controller.dto.EndCallDto;
 import com.zvonok.controller.dto.InviteCallDto;
+import com.zvonok.controller.dto.JoinCallDto;
 import com.zvonok.controller.dto.LeaveCallDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,10 @@ public class CallService {
 
 	public void callAccept(String acceptUsername, AcceptCallDto dto) {
 		callSessionService.accept(acceptUsername, dto);
+	}
+
+	public void callJoin(String joinUsername, JoinCallDto dto) {
+		callSessionService.join(joinUsername, dto);
 	}
 
 	public void callDecline(String declineUsername, DeclineCallDto dto) {
