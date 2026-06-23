@@ -81,6 +81,11 @@ public enum HttpResponseMessage {
 	// CallParticipant
 	HTTP_CALL_PARTICIPANT_INCORRECT_STATUS_RESPONSE_MESSAGE("Incorrect call participant status"),
 
+	// Conference
+	HTTP_CONFERENCE_NOT_FOUND_RESPONSE_MESSAGE("Conference not found"),
+	HTTP_ONLY_HOST_CAN_END_CONFERENCE_RESPONSE_MESSAGE("Only host can end conference"),
+	HTTP_CONFERENCE_END_RESPONSE_MESSAGE("Conference is ended"),
+
 	// LiveKit
 	HTTP_LIVEKIT_ROOM_RESPONSE_MESSAGE("LikeKit room error"),
 	HTTP_LIVEKIT_ROOM_NOT_FOUND_RESPONSE_MESSAGE("LiveKit room was not found"),

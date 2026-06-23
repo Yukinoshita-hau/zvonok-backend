@@ -7,6 +7,7 @@ spring.datasource.password=your_password
 spring.jpa.show-sql=true
 
 server.servlet.context-path=/api
+app.public-url=http://localhost:5173
 
 #app.jwt.secret = myVeryLongAndSecureSecretKeyThatHasAtLeast32CharactersForHS512Algorithm123456789
 app.jwt.secret = your_jwt_secret_key_here
@@ -16,4 +17,3 @@ app.jwt.refreshExpirationMs = 1209600000
 
 logging.level.com.zvonok = DEBUG
 logging.level.org.springframework.security=DEBUG
-
