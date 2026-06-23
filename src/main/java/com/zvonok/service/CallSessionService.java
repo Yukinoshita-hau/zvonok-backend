@@ -11,7 +11,6 @@ import com.zvonok.controller.dto.LeaveCallDto;
 import com.zvonok.exception.CallAlreadyEndException;
 import com.zvonok.exception.CallSessionNotFoundException;
 import com.zvonok.exception.CallStateConflictException;
-import com.zvonok.exception.IncorrectParticipantStatus;
 import com.zvonok.exception.IncorrectParticipantStatusException;
 import com.zvonok.exception.InsufficientPermissionsException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
@@ -179,6 +178,8 @@ public class CallSessionService {
 			CallParticipantStatus.DECLINED,
 			CallParticipantStatus.LEFT
 		);
+
+		System.out.println(participant.getStatus().toString());
 
 		if (!joinableStatuses.contains(participant.getStatus())) {
 			throw new IncorrectParticipantStatusException(

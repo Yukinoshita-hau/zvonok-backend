@@ -8,5 +8,4 @@ import lombok.Setter;
 public class JoinCallDto {
 	Long callId;
 	Long chatRoomId;
-	String callerUsername;
 }
