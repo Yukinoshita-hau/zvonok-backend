@@ -83,7 +83,9 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
 				.existsByCallSessionIdAndUserUsernameAndStatusIn(callId, username,
 						CANVAS_SUBSCRIBE_ALLOWED_STATUSES);
 		if (!allowed) {
-			throw new InsufficientPermissionsException("User is not active call participant");
+			throw new InsufficientPermissionsException(
+					HttpResponseMessage.HTTP_CANVAS_USER_NOT_ACTIVE_CALL_PARTICIPANT_RESPONSE_MESSAGE
+							.getMessage());
 		}
 	}
 

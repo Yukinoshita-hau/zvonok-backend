@@ -96,7 +96,32 @@ public enum HttpResponseMessage {
 	HTTP_FILE_NOT_FOUND_RESPONSE_MESSAGE("file was not found"),
 
 	// MessageReadStatus
-	HTTP_MESSAGE_READ_STATUS_RESPONSE_MESSAGE("MessageReadStatus was not found");
+	HTTP_MESSAGE_READ_STATUS_RESPONSE_MESSAGE("MessageReadStatus was not found"),
+
+	// Canvas
+	HTTP_CANVAS_USER_NOT_ACTIVE_CALL_PARTICIPANT_RESPONSE_MESSAGE("User is not active call participant"),
+	HTTP_CANVAS_BOARD_NOT_FOUND_RESPONSE_MESSAGE("Canvas board not found"),
+	HTTP_CANVAS_BOARD_CLOSED_RESPONSE_MESSAGE("Canvas board is closed"),
+	HTTP_CANVAS_BOARD_MODE_AND_BACKGROUND_REQUIRED_RESPONSE_MESSAGE("Canvas board mode and background are required"),
+	HTTP_CANVAS_SCREEN_OVERLAY_TRANSPARENT_BACKGROUND_REQUIRED_RESPONSE_MESSAGE("SCREEN_OVERLAY board must use TRANSPARENT background"),
+	HTTP_CANVAS_WHITEBOARD_TRANSPARENT_BACKGROUND_NOT_ALLOWED_RESPONSE_MESSAGE("WHITEBOARD board must use WHITE or BLACK background"),
+	HTTP_CANVAS_DRAW_EVENT_TYPE_REQUIRED_RESPONSE_MESSAGE("Canvas draw event type is required"),
+	HTTP_CANVAS_STROKE_ID_REQUIRED_RESPONSE_MESSAGE("Canvas strokeId is required"),
+	HTTP_CANVAS_POINT_COORDINATES_REQUIRED_RESPONSE_MESSAGE("Canvas point coordinates are required"),
+	HTTP_CANVAS_COORDINATES_NOT_NORMALIZED_RESPONSE_MESSAGE("Canvas coordinates must be normalized between 0.0 and 1.0"),
+	HTTP_CANVAS_STROKE_COLOR_REQUIRED_RESPONSE_MESSAGE("Canvas stroke color is required"),
+	HTTP_CANVAS_STROKE_WIDTH_INVALID_RESPONSE_MESSAGE("Canvas stroke width must be between 1 and 64"),
+	HTTP_CANVAS_TOOL_REQUIRED_RESPONSE_MESSAGE("Canvas tool is required"),
+	HTTP_CANVAS_CREATE_FOR_ENDED_CALL_RESPONSE_MESSAGE("Cannot create canvas board for ended call"),
+	HTTP_CANVAS_MUTATE_FOR_ENDED_CALL_RESPONSE_MESSAGE("Cannot mutate canvas board for ended call"),
+	HTTP_CANVAS_UNSUPPORTED_TRANSIENT_EVENT_RESPONSE_MESSAGE("Unsupported transient canvas event"),
+	HTTP_CANVAS_UNSUPPORTED_PERSISTENT_EVENT_RESPONSE_MESSAGE("Unsupported persistent canvas event"),
+	HTTP_CANVAS_STROKE_ALREADY_EXISTS_RESPONSE_MESSAGE("Canvas stroke already exists"),
+	HTTP_CANVAS_BOARD_STROKE_LIMIT_EXCEEDED_RESPONSE_MESSAGE("Canvas board stroke limit exceeded"),
+	HTTP_CANVAS_STROKE_NOT_FOUND_RESPONSE_MESSAGE("Canvas stroke not found"),
+	HTTP_CANVAS_STROKE_ALREADY_ENDED_RESPONSE_MESSAGE("Cannot add points to ended canvas stroke"),
+	HTTP_CANVAS_STROKE_POINT_LIMIT_EXCEEDED_RESPONSE_MESSAGE("Canvas stroke point limit exceeded"),
+	HTTP_CANVAS_BOARD_MANAGE_DENIED_RESPONSE_MESSAGE("Only board creator or call host can manage board");
 
 	private final String message;
 

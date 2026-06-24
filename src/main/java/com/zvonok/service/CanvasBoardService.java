@@ -11,6 +11,7 @@ import com.zvonok.exception.CanvasBoardAccessDeniedException;
 import com.zvonok.exception.CanvasBoardNotFoundException;
 import com.zvonok.exception.InvalidCanvasDrawEventException;
 import com.zvonok.exception.InsufficientPermissionsException;
+import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.CallParticipant;
 import com.zvonok.model.CallSession;
 import com.zvonok.model.CanvasBoard;
@@ -169,7 +170,8 @@ public class CanvasBoardService {
 			case CURSOR_LEAVE, LASER_END -> sanitizedEvent(event.type(), board.getId(), null,
 					username, null, null, null, null, null);
 			default -> throw new InvalidCanvasDrawEventException(
-					"Unsupported transient canvas event");
+					HttpResponseMessage.HTTP_CANVAS_UNSUPPORTED_TRANSIENT_EVENT_RESPONSE_MESSAGE
+							.getMessage());
 		};
 	}
 
@@ -187,7 +189,8 @@ public class CanvasBoardService {
 						null, null, null, null, null);
 			}
 			default -> throw new InvalidCanvasDrawEventException(
-					"Unsupported persistent canvas event");
+					HttpResponseMessage.HTTP_CANVAS_UNSUPPORTED_PERSISTENT_EVENT_RESPONSE_MESSAGE
+							.getMessage());
 		};
 	}
 
@@ -198,10 +201,14 @@ public class CanvasBoardService {
 		validateStrokeStyle(event);
 
 		if (canvasStrokeRepository.existsByBoardIdAndStrokeKey(board.getId(), event.strokeId())) {
-			throw new InvalidCanvasDrawEventException("Canvas stroke already exists");
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_STROKE_ALREADY_EXISTS_RESPONSE_MESSAGE
+							.getMessage());
 		}
 		if (canvasStrokeRepository.countByBoardId(board.getId()) >= MAX_STROKES_PER_BOARD) {
-			throw new InvalidCanvasDrawEventException("Canvas board stroke limit exceeded");
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_BOARD_STROKE_LIMIT_EXCEEDED_RESPONSE_MESSAGE
+							.getMessage());
 		}
 
 		CanvasStroke stroke = new CanvasStroke();
@@ -227,11 +234,15 @@ public class CanvasBoardService {
 
 		CanvasStroke stroke = getStroke(board.getId(), event.strokeId());
 		if (stroke.getEndedAt() != null) {
-			throw new InvalidCanvasDrawEventException("Cannot add points to ended canvas stroke");
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_STROKE_ALREADY_ENDED_RESPONSE_MESSAGE
+							.getMessage());
 		}
 		long pointCount = canvasPointRepository.countByStrokeId(stroke.getId());
 		if (pointCount >= MAX_POINTS_PER_STROKE) {
-			throw new InvalidCanvasDrawEventException("Canvas stroke point limit exceeded");
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_STROKE_POINT_LIMIT_EXCEEDED_RESPONSE_MESSAGE
+							.getMessage());
 		}
 
 		CanvasPoint point = createPoint(stroke, event.x(), event.y(), (int) pointCount);
@@ -263,7 +274,9 @@ public class CanvasBoardService {
 
 	private CanvasStroke getStroke(Long boardId, String strokeId) {
 		return canvasStrokeRepository.findByBoardIdAndStrokeKey(boardId, strokeId)
-				.orElseThrow(() -> new InvalidCanvasDrawEventException("Canvas stroke not found"));
+				.orElseThrow(() -> new InvalidCanvasDrawEventException(
+						HttpResponseMessage.HTTP_CANVAS_STROKE_NOT_FOUND_RESPONSE_MESSAGE
+								.getMessage()));
 	}
 
 	private CanvasDrawEventDto sanitizedEvent(CanvasDrawEventType type, Long boardId,
@@ -288,95 +301,122 @@ public class CanvasBoardService {
 	private void validateCallParticipantStatus(Long callId, String username) {
 		CallParticipant participant = callSessionService.getParticipant(callId, username);
 		if (participant == null || !DRAW_ALLOWED_STATUSES.contains(participant.getStatus())) {
-			throw new InsufficientPermissionsException("User is not active call participant");
+			throw new InsufficientPermissionsException(
+					HttpResponseMessage.HTTP_CANVAS_USER_NOT_ACTIVE_CALL_PARTICIPANT_RESPONSE_MESSAGE
+							.getMessage());
 		}
 	}
 
 	private void validateCallCanCreateBoard(CallSession call) {
 		if (call.getStatus() == CallSessionStatus.ENDED) {
-			throw new InvalidCanvasDrawEventException("Cannot create canvas board for ended call");
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_CREATE_FOR_ENDED_CALL_RESPONSE_MESSAGE
+							.getMessage());
 		}
 	}
 
 	private void validateCallCanMutateBoard(CallSession call) {
 		if (call.getStatus() == CallSessionStatus.ENDED) {
-			throw new InvalidCanvasDrawEventException("Cannot mutate canvas board for ended call");
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_MUTATE_FOR_ENDED_CALL_RESPONSE_MESSAGE
+							.getMessage());
 		}
 	}
 
 	private CanvasBoard getBoardForCall(Long callId, Long boardId) {
 		if (boardId == null) {
-			throw new CanvasBoardNotFoundException("Canvas board not found");
+			throw new CanvasBoardNotFoundException(
+					HttpResponseMessage.HTTP_CANVAS_BOARD_NOT_FOUND_RESPONSE_MESSAGE.getMessage());
 		}
 		return canvasBoardRepository.findByIdAndCallSessionId(boardId, callId)
-				.orElseThrow(() -> new CanvasBoardNotFoundException("Canvas board not found"));
+				.orElseThrow(() -> new CanvasBoardNotFoundException(
+						HttpResponseMessage.HTTP_CANVAS_BOARD_NOT_FOUND_RESPONSE_MESSAGE
+								.getMessage()));
 	}
 
 	private CanvasBoard getBoardForCallForUpdate(Long callId, Long boardId) {
 		if (boardId == null) {
-			throw new CanvasBoardNotFoundException("Canvas board not found");
+			throw new CanvasBoardNotFoundException(
+					HttpResponseMessage.HTTP_CANVAS_BOARD_NOT_FOUND_RESPONSE_MESSAGE.getMessage());
 		}
 		return canvasBoardRepository.findByIdAndCallSessionIdForUpdate(boardId, callId)
-				.orElseThrow(() -> new CanvasBoardNotFoundException("Canvas board not found"));
+				.orElseThrow(() -> new CanvasBoardNotFoundException(
+						HttpResponseMessage.HTTP_CANVAS_BOARD_NOT_FOUND_RESPONSE_MESSAGE
+								.getMessage()));
 	}
 
 	private void validateCreateRequest(CreateCanvasBoardRequest request) {
 		if (request == null || request.mode() == null || request.background() == null) {
 			throw new InvalidCanvasDrawEventException(
-					"Canvas board mode and background are required");
+					HttpResponseMessage.HTTP_CANVAS_BOARD_MODE_AND_BACKGROUND_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
 		}
 
 		if (request.mode() == CanvasBoardMode.SCREEN_OVERLAY
 				&& request.background() != CanvasBackground.TRANSPARENT) {
 			throw new InvalidCanvasDrawEventException(
-					"SCREEN_OVERLAY board must use TRANSPARENT background");
+					HttpResponseMessage.HTTP_CANVAS_SCREEN_OVERLAY_TRANSPARENT_BACKGROUND_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
 		}
 
 		if (request.mode() == CanvasBoardMode.WHITEBOARD
 				&& request.background() == CanvasBackground.TRANSPARENT) {
 			throw new InvalidCanvasDrawEventException(
-					"WHITEBOARD board must use WHITE or BLACK background");
+					HttpResponseMessage.HTTP_CANVAS_WHITEBOARD_TRANSPARENT_BACKGROUND_NOT_ALLOWED_RESPONSE_MESSAGE
+							.getMessage());
 		}
 	}
 
 	private void validateEventNotNull(CanvasDrawEventDto event) {
 		if (event == null || event.type() == null) {
-			throw new InvalidCanvasDrawEventException("Canvas draw event type is required");
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_DRAW_EVENT_TYPE_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
 		}
 	}
 
 	private void validateStrokeId(String strokeId) {
 		if (strokeId == null || strokeId.isBlank()) {
-			throw new InvalidCanvasDrawEventException("Canvas strokeId is required");
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_STROKE_ID_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
 		}
 	}
 
 	private void validatePoint(Double x, Double y) {
 		if (x == null || y == null) {
-			throw new InvalidCanvasDrawEventException("Canvas point coordinates are required");
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_POINT_COORDINATES_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
 		}
 		if (x < 0.0 || x > 1.0 || y < 0.0 || y > 1.0) {
 			throw new InvalidCanvasDrawEventException(
-					"Canvas coordinates must be normalized between 0.0 and 1.0");
+					HttpResponseMessage.HTTP_CANVAS_COORDINATES_NOT_NORMALIZED_RESPONSE_MESSAGE
+							.getMessage());
 		}
 	}
 
 	private void validateStrokeStyle(CanvasDrawEventDto event) {
 		if (event.color() == null || event.color().isBlank()) {
-			throw new InvalidCanvasDrawEventException("Canvas stroke color is required");
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_STROKE_COLOR_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
 		}
 		if (event.width() == null || event.width() < MIN_WIDTH || event.width() > MAX_WIDTH) {
 			throw new InvalidCanvasDrawEventException(
-					"Canvas stroke width must be between 1 and 64");
+					HttpResponseMessage.HTTP_CANVAS_STROKE_WIDTH_INVALID_RESPONSE_MESSAGE
+							.getMessage());
 		}
 		if (event.tool() == null) {
-			throw new InvalidCanvasDrawEventException("Canvas tool is required");
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_TOOL_REQUIRED_RESPONSE_MESSAGE.getMessage());
 		}
 	}
 
 	private void ensureBoardActive(CanvasBoard board) {
 		if (!board.isActive()) {
-			throw new CanvasBoardAccessDeniedException("Canvas board is closed");
+			throw new CanvasBoardAccessDeniedException(
+					HttpResponseMessage.HTTP_CANVAS_BOARD_CLOSED_RESPONSE_MESSAGE.getMessage());
 		}
 	}
 
@@ -392,7 +432,7 @@ public class CanvasBoardService {
 		}
 
 		throw new CanvasBoardAccessDeniedException(
-				"Only board creator or call host can manage board");
+				HttpResponseMessage.HTTP_CANVAS_BOARD_MANAGE_DENIED_RESPONSE_MESSAGE.getMessage());
 	}
 
 	private CanvasBoardSessionDto toSessionDto(CanvasBoard board) {
