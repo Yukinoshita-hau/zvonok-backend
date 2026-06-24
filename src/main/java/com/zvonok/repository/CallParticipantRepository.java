@@ -55,4 +55,7 @@ public interface CallParticipantRepository extends JpaRepository<CallParticipant
 
 	long countByCallSessionIdAndStatusIn(Long callSessionId,
 			Collection<CallParticipantStatus> statuses);
+
+	boolean existsByCallSessionIdAndUserUsernameAndStatusIn(Long callSessionId, String username,
+			Collection<CallParticipantStatus> statuses);
 }
