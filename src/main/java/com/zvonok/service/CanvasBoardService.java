@@ -1,12 +1,21 @@
 package com.zvonok.service;
 
 import com.zvonok.controller.dto.CanvasBoardEventDto;
+import com.zvonok.controller.dto.CanvasBoardObjectEventDto;
 import com.zvonok.controller.dto.CanvasBoardSessionDto;
 import com.zvonok.controller.dto.CanvasDrawEventDto;
+import com.zvonok.controller.dto.CanvasNoteVoteDto;
 import com.zvonok.controller.dto.CanvasPointDto;
 import com.zvonok.controller.dto.CanvasSnapshotDto;
+import com.zvonok.controller.dto.CanvasStickyNoteDto;
 import com.zvonok.controller.dto.CanvasStrokeDto;
+import com.zvonok.controller.dto.CreateCanvasStickyNoteRequest;
 import com.zvonok.controller.dto.CreateCanvasBoardRequest;
+import com.zvonok.controller.dto.StartCanvasTimerRequest;
+import com.zvonok.controller.dto.UpdateCanvasBoardPermissionsRequest;
+import com.zvonok.controller.dto.UpdateCanvasBoardTemplateRequest;
+import com.zvonok.controller.dto.UpdateCanvasPresenterRequest;
+import com.zvonok.controller.dto.UpdateCanvasStickyNoteRequest;
 import com.zvonok.exception.CanvasBoardAccessDeniedException;
 import com.zvonok.exception.CanvasBoardNotFoundException;
 import com.zvonok.exception.InvalidCanvasDrawEventException;
@@ -15,28 +24,39 @@ import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.CallParticipant;
 import com.zvonok.model.CallSession;
 import com.zvonok.model.CanvasBoard;
+import com.zvonok.model.CanvasNoteVote;
 import com.zvonok.model.CanvasPoint;
+import com.zvonok.model.CanvasStickyNote;
 import com.zvonok.model.CanvasStroke;
 import com.zvonok.model.enumeration.CallParticipantRole;
 import com.zvonok.model.enumeration.CallParticipantStatus;
 import com.zvonok.model.enumeration.CallSessionStatus;
 import com.zvonok.model.enumeration.CanvasBackground;
+import com.zvonok.model.enumeration.CanvasBoardObjectEventType;
 import com.zvonok.model.enumeration.CanvasBoardMode;
+import com.zvonok.model.enumeration.CanvasDrawingAccess;
 import com.zvonok.model.enumeration.CanvasDrawEventType;
+import com.zvonok.model.enumeration.CanvasTimerStatus;
 import com.zvonok.model.enumeration.CanvasTool;
 import com.zvonok.repository.CanvasBoardRepository;
+import com.zvonok.repository.CanvasNoteVoteRepository;
 import com.zvonok.repository.CanvasPointRepository;
+import com.zvonok.repository.CanvasStickyNoteRepository;
 import com.zvonok.repository.CanvasStrokeRepository;
 import com.zvonok.utils.TransactionUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -46,6 +66,12 @@ public class CanvasBoardService {
 	private static final int MAX_WIDTH = 64;
 	private static final int MAX_POINTS_PER_STROKE = 5000;
 	private static final int MAX_STROKES_PER_BOARD = 2000;
+	private static final int MIN_TIMER_DURATION_SECONDS = 10;
+	private static final int MAX_TIMER_DURATION_SECONDS = 7200;
+	private static final int MAX_STICKY_NOTE_TEXT_LENGTH = 1000;
+	private static final long MAX_BACKGROUND_IMAGE_SIZE_BYTES = 5L * 1024L * 1024L;
+	private static final double MIN_VIEWPORT_ZOOM = 0.25;
+	private static final double MAX_VIEWPORT_ZOOM = 4.0;
 	private static final Set<CallParticipantStatus> DRAW_ALLOWED_STATUSES =
 			Set.of(CallParticipantStatus.ACCEPTED, CallParticipantStatus.JOINED);
 
@@ -53,7 +79,13 @@ public class CanvasBoardService {
 	private final CanvasBoardRepository canvasBoardRepository;
 	private final CanvasStrokeRepository canvasStrokeRepository;
 	private final CanvasPointRepository canvasPointRepository;
+	private final CanvasStickyNoteRepository canvasStickyNoteRepository;
+	private final CanvasNoteVoteRepository canvasNoteVoteRepository;
+	private final S3Service s3Service;
 	private final SimpMessagingTemplate messagingTemplate;
+
+	@Value("${s3.localEndpoint}")
+	private String s3LocalEndpoint;
 
 	@Transactional
 	public CanvasBoardSessionDto createBoard(Long callId, CreateCanvasBoardRequest request,
@@ -138,6 +170,321 @@ public class CanvasBoardService {
 	}
 
 	@Transactional
+	public void undoLastStroke(Long callId, Long boardId, String username) {
+		CallSession call = validateCallParticipant(callId, username);
+		validateCallCanMutateBoard(call);
+		CanvasBoard board = getBoardForCallForUpdate(callId, boardId);
+		ensureBoardActive(board);
+
+		CanvasStroke stroke = canvasStrokeRepository
+				.findFirstByBoardIdAndUserIdOrderByCreatedAtDescIdDesc(boardId, username)
+				.orElse(null);
+		if (stroke == null) {
+			return;
+		}
+
+		String strokeKey = stroke.getStrokeKey();
+		canvasPointRepository.deleteAllByStrokeId(stroke.getId());
+		canvasStrokeRepository.delete(stroke);
+
+		CanvasDrawEventDto removedEvent = sanitizedEvent(CanvasDrawEventType.STROKE_REMOVED,
+				boardId, strokeKey, username, null, null, null, null, null);
+		TransactionUtils.runAfterCommit(() -> publishDrawEvent(callId, boardId, removedEvent));
+	}
+
+	@Transactional
+	public CanvasBoardSessionDto updateBoardPermissions(Long callId, Long boardId,
+			UpdateCanvasBoardPermissionsRequest request, String username) {
+		CallSession call = validateCallParticipant(callId, username);
+		validateCallCanMutateBoard(call);
+		CanvasBoard board = getBoardForCallForUpdate(callId, boardId);
+		ensureBoardActive(board);
+		ensureCanManageBoard(callId, board, username);
+		validatePermissionsRequest(callId, request);
+
+		board.setDrawingAccess(request.drawingAccess());
+		board.setSelectedDrawerUsername(normalizeSelectedDrawerUsername(request));
+
+		CanvasBoardSessionDto dto = toSessionDto(board);
+		TransactionUtils.runAfterCommit(() -> publishBoardEvent(callId,
+				new CanvasBoardEventDto("BOARD_PERMISSIONS_UPDATED", dto)));
+		return dto;
+	}
+
+	@Transactional
+	public CanvasBoardSessionDto updateBoardTemplate(Long callId, Long boardId,
+			UpdateCanvasBoardTemplateRequest request, String username) {
+		CallSession call = validateCallParticipant(callId, username);
+		validateCallCanMutateBoard(call);
+		CanvasBoard board = getBoardForCallForUpdate(callId, boardId);
+		ensureBoardActive(board);
+		ensureCanManageBoard(callId, board, username);
+		if (request == null || request.templateType() == null) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_TEMPLATE_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
+		}
+
+		board.setTemplateType(request.templateType());
+		CanvasBoardSessionDto dto = toSessionDto(board);
+		TransactionUtils.runAfterCommit(() -> publishBoardEvent(callId,
+				new CanvasBoardEventDto("BOARD_TEMPLATE_UPDATED", dto)));
+		return dto;
+	}
+
+	@Transactional
+	public CanvasBoardSessionDto startTimer(Long callId, Long boardId,
+			StartCanvasTimerRequest request, String username) {
+		CallSession call = validateCallParticipant(callId, username);
+		validateCallCanMutateBoard(call);
+		CanvasBoard board = getBoardForCallForUpdate(callId, boardId);
+		ensureBoardActive(board);
+		ensureCanManageBoard(callId, board, username);
+		validateTimerRequest(request);
+
+		board.setTimerStatus(CanvasTimerStatus.RUNNING);
+		board.setTimerStartedAt(Instant.now());
+		board.setTimerDurationSeconds(request.durationSeconds());
+		CanvasBoardSessionDto dto = toSessionDto(board);
+		TransactionUtils.runAfterCommit(() -> publishBoardEvent(callId,
+				new CanvasBoardEventDto("BOARD_TIMER_STARTED", dto)));
+		return dto;
+	}
+
+	@Transactional
+	public CanvasBoardSessionDto stopTimer(Long callId, Long boardId, String username) {
+		CallSession call = validateCallParticipant(callId, username);
+		validateCallCanMutateBoard(call);
+		CanvasBoard board = getBoardForCallForUpdate(callId, boardId);
+		ensureBoardActive(board);
+		ensureCanManageBoard(callId, board, username);
+
+		board.setTimerStatus(CanvasTimerStatus.STOPPED);
+		CanvasBoardSessionDto dto = toSessionDto(board);
+		TransactionUtils.runAfterCommit(() -> publishBoardEvent(callId,
+				new CanvasBoardEventDto("BOARD_TIMER_STOPPED", dto)));
+		return dto;
+	}
+
+	@Transactional
+	public CanvasBoardSessionDto resetTimer(Long callId, Long boardId, String username) {
+		CallSession call = validateCallParticipant(callId, username);
+		validateCallCanMutateBoard(call);
+		CanvasBoard board = getBoardForCallForUpdate(callId, boardId);
+		ensureBoardActive(board);
+		ensureCanManageBoard(callId, board, username);
+
+		board.setTimerStatus(CanvasTimerStatus.STOPPED);
+		board.setTimerStartedAt(null);
+		board.setTimerDurationSeconds(null);
+		CanvasBoardSessionDto dto = toSessionDto(board);
+		TransactionUtils.runAfterCommit(() -> publishBoardEvent(callId,
+				new CanvasBoardEventDto("BOARD_TIMER_RESET", dto)));
+		return dto;
+	}
+
+	@Transactional(readOnly = true)
+	public List<CanvasStickyNoteDto> getNotes(Long callId, Long boardId, String username) {
+		validateCallParticipant(callId, username);
+		CanvasBoard board = getBoardForCall(callId, boardId);
+		ensureBoardActive(board);
+		return canvasStickyNoteRepository.findAllByBoardIdOrderByZIndexAscCreatedAtAscIdAsc(boardId)
+				.stream().map(this::toStickyNoteDto).toList();
+	}
+
+	@Transactional
+	public CanvasStickyNoteDto createNote(Long callId, Long boardId,
+			CreateCanvasStickyNoteRequest request, String username) {
+		CallSession call = validateCallParticipant(callId, username);
+		validateCallCanMutateBoard(call);
+		CanvasBoard board = getBoardForCallForUpdate(callId, boardId);
+		ensureBoardActive(board);
+		ensureCanDraw(board, username);
+		validateCreateNoteRequest(request);
+
+		String noteKey = normalizeOrCreateNoteKey(request.noteKey());
+		if (canvasStickyNoteRepository.existsByBoardIdAndNoteKey(boardId, noteKey)) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_STICKY_NOTE_KEY_ALREADY_EXISTS_RESPONSE_MESSAGE
+							.getMessage());
+		}
+
+		CanvasStickyNote note = new CanvasStickyNote();
+		note.setBoard(board);
+		note.setNoteKey(noteKey);
+		note.setCreatedBy(username);
+		note.setText(request.text().trim());
+		note.setColor(request.color().trim());
+		note.setX(request.x());
+		note.setY(request.y());
+		note.setWidth(request.width());
+		note.setHeight(request.height());
+		note = canvasStickyNoteRepository.save(note);
+
+		CanvasStickyNoteDto dto = toStickyNoteDto(note);
+		Long noteId = note.getId();
+		TransactionUtils.runAfterCommit(() -> publishObjectEvent(callId, boardId,
+				new CanvasBoardObjectEventDto(CanvasBoardObjectEventType.NOTE_CREATED, boardId,
+						dto, noteId, username, Instant.now())));
+		return dto;
+	}
+
+	@Transactional
+	public CanvasStickyNoteDto updateNote(Long callId, Long boardId, Long noteId,
+			UpdateCanvasStickyNoteRequest request, String username) {
+		CallSession call = validateCallParticipant(callId, username);
+		validateCallCanMutateBoard(call);
+		CanvasBoard board = getBoardForCallForUpdate(callId, boardId);
+		ensureBoardActive(board);
+		ensureCanDraw(board, username);
+		validateUpdateNoteRequest(request);
+
+		CanvasStickyNote note = getNoteForUpdate(boardId, noteId);
+		if (request.text() != null) {
+			note.setText(request.text().trim());
+		}
+		if (request.color() != null) {
+			note.setColor(request.color().trim());
+		}
+		if (request.x() != null) {
+			note.setX(request.x());
+		}
+		if (request.y() != null) {
+			note.setY(request.y());
+		}
+		if (request.width() != null) {
+			note.setWidth(request.width());
+		}
+		if (request.height() != null) {
+			note.setHeight(request.height());
+		}
+		if (request.zIndex() != null) {
+			note.setZIndex(request.zIndex());
+		}
+
+		CanvasStickyNoteDto dto = toStickyNoteDto(note);
+		TransactionUtils.runAfterCommit(() -> publishObjectEvent(callId, boardId,
+				new CanvasBoardObjectEventDto(CanvasBoardObjectEventType.NOTE_UPDATED, boardId,
+						dto, noteId, username, Instant.now())));
+		return dto;
+	}
+
+	@Transactional
+	public void deleteNote(Long callId, Long boardId, Long noteId, String username) {
+		CallSession call = validateCallParticipant(callId, username);
+		validateCallCanMutateBoard(call);
+		CanvasBoard board = getBoardForCallForUpdate(callId, boardId);
+		ensureBoardActive(board);
+		CanvasStickyNote note = getNoteForUpdate(boardId, noteId);
+		ensureCanDeleteNote(callId, board, note, username);
+
+		canvasNoteVoteRepository.deleteAllByNoteId(noteId);
+		canvasStickyNoteRepository.delete(note);
+		TransactionUtils.runAfterCommit(() -> publishObjectEvent(callId, boardId,
+				new CanvasBoardObjectEventDto(CanvasBoardObjectEventType.NOTE_DELETED, boardId,
+						null, noteId, username, Instant.now())));
+	}
+
+	@Transactional
+	public void voteNote(Long callId, Long boardId, Long noteId, String username) {
+		CallSession call = validateCallParticipant(callId, username);
+		validateCallCanMutateBoard(call);
+		CanvasBoard board = getBoardForCallForUpdate(callId, boardId);
+		ensureBoardActive(board);
+		CanvasStickyNote note = getNote(boardId, noteId);
+		if (canvasNoteVoteRepository.existsByNoteIdAndUserId(noteId, username)) {
+			return;
+		}
+
+		CanvasNoteVote vote = new CanvasNoteVote();
+		vote.setBoard(board);
+		vote.setNote(note);
+		vote.setUserId(username);
+		canvasNoteVoteRepository.save(vote);
+		TransactionUtils.runAfterCommit(() -> publishObjectEvent(callId, boardId,
+				new CanvasBoardObjectEventDto(CanvasBoardObjectEventType.NOTE_VOTED, boardId,
+						null, noteId, username, Instant.now())));
+	}
+
+	@Transactional
+	public void unvoteNote(Long callId, Long boardId, Long noteId, String username) {
+		CallSession call = validateCallParticipant(callId, username);
+		validateCallCanMutateBoard(call);
+		CanvasBoard board = getBoardForCallForUpdate(callId, boardId);
+		ensureBoardActive(board);
+		getNote(boardId, noteId);
+
+		CanvasNoteVote vote = canvasNoteVoteRepository.findByNoteIdAndUserId(noteId, username)
+				.orElse(null);
+		if (vote == null) {
+			return;
+		}
+
+		canvasNoteVoteRepository.delete(vote);
+		TransactionUtils.runAfterCommit(() -> publishObjectEvent(callId, boardId,
+				new CanvasBoardObjectEventDto(CanvasBoardObjectEventType.NOTE_UNVOTED, boardId,
+						null, noteId, username, Instant.now())));
+	}
+
+	@Transactional(readOnly = true)
+	public List<CanvasNoteVoteDto> getVotes(Long callId, Long boardId, String username) {
+		validateCallParticipant(callId, username);
+		CanvasBoard board = getBoardForCall(callId, boardId);
+		ensureBoardActive(board);
+		return canvasNoteVoteRepository.findAllByBoardIdOrderByCreatedAtAscIdAsc(boardId).stream()
+				.map(this::toVoteDto).toList();
+	}
+
+	@Transactional
+	public CanvasBoardSessionDto uploadBackgroundImage(Long callId, Long boardId,
+			MultipartFile file, String username) {
+		CallSession call = validateCallParticipant(callId, username);
+		validateCallCanMutateBoard(call);
+		CanvasBoard board = getBoardForCallForUpdate(callId, boardId);
+		ensureBoardActive(board);
+		ensureCanDrawOrManageBoard(callId, board, username);
+		validateBackgroundImage(file);
+
+		String extension = "image/png".equals(file.getContentType()) ? ".png" : ".jpg";
+		String key = "canvas_board_" + boardId + "_background_" + UUID.randomUUID() + extension;
+		try {
+			s3Service.uploadFile(key, file.getInputStream(), file.getSize(),
+					file.getContentType());
+		} catch (IOException e) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_BACKGROUND_UPLOAD_FAILED_RESPONSE_MESSAGE
+							.getMessage());
+		}
+
+		board.setBackgroundImageUrl(s3LocalEndpoint + "/" + key);
+		board.setBackgroundImageCreatedBy(username);
+		board.setBackgroundImageCreatedAt(Instant.now());
+		CanvasBoardSessionDto dto = toSessionDto(board);
+		TransactionUtils.runAfterCommit(() -> publishBoardEvent(callId,
+				new CanvasBoardEventDto("BOARD_BACKGROUND_UPDATED", dto)));
+		return dto;
+	}
+
+	@Transactional
+	public CanvasBoardSessionDto updatePresenter(Long callId, Long boardId,
+			UpdateCanvasPresenterRequest request, String username) {
+		CallSession call = validateCallParticipant(callId, username);
+		validateCallCanMutateBoard(call);
+		CanvasBoard board = getBoardForCallForUpdate(callId, boardId);
+		ensureBoardActive(board);
+		ensureCanManageBoard(callId, board, username);
+		validatePresenterRequest(callId, request);
+
+		boolean enabled = Boolean.TRUE.equals(request.presenterModeEnabled());
+		board.setPresenterModeEnabled(enabled);
+		board.setPresenterUsername(enabled ? request.presenterUsername().trim() : null);
+		CanvasBoardSessionDto dto = toSessionDto(board);
+		TransactionUtils.runAfterCommit(() -> publishBoardEvent(callId,
+				new CanvasBoardEventDto("BOARD_PRESENTER_UPDATED", dto)));
+		return dto;
+	}
+
+	@Transactional
 	public void handleDrawEvent(Long callId, Long boardId, CanvasDrawEventDto event,
 			String username) {
 		CallSession call = validateCallParticipant(callId, username);
@@ -154,7 +501,8 @@ public class CanvasBoardService {
 
 	private boolean isTransientEvent(CanvasDrawEventType type) {
 		return switch (type) {
-			case CURSOR_MOVE, CURSOR_LEAVE, LASER_POINT, LASER_END -> true;
+			case CURSOR_MOVE, CURSOR_LEAVE, LASER_POINT, LASER_END, REACTION,
+					VIEWPORT_CHANGED -> true;
 			default -> false;
 		};
 	}
@@ -163,9 +511,29 @@ public class CanvasBoardService {
 			String username) {
 		return switch (event.type()) {
 			case CURSOR_MOVE, LASER_POINT -> {
+				if (event.type() == CanvasDrawEventType.LASER_POINT) {
+					ensureCanDraw(board, username);
+				}
 				validatePoint(event.x(), event.y());
 				yield sanitizedEvent(event.type(), board.getId(), null, username, event.x(),
 						event.y(), null, null, null);
+			}
+			case REACTION -> {
+				validatePoint(event.x(), event.y());
+				if (event.reaction() == null) {
+					throw new InvalidCanvasDrawEventException(
+							HttpResponseMessage.HTTP_CANVAS_REACTION_REQUIRED_RESPONSE_MESSAGE
+									.getMessage());
+				}
+				yield sanitizedEvent(event.type(), board.getId(), null, username, event.x(),
+						event.y(), null, null, null, event.reaction(), null);
+			}
+			case VIEWPORT_CHANGED -> {
+				ensureCurrentPresenter(board, username);
+				validatePoint(event.x(), event.y());
+				validateViewportZoom(event.zoom());
+				yield sanitizedEvent(event.type(), board.getId(), null, username, event.x(),
+						event.y(), null, null, null, null, event.zoom());
 			}
 			case CURSOR_LEAVE, LASER_END -> sanitizedEvent(event.type(), board.getId(), null,
 					username, null, null, null, null, null);
@@ -196,6 +564,7 @@ public class CanvasBoardService {
 
 	private CanvasDrawEventDto applyStrokeStart(CanvasBoard board, CanvasDrawEventDto event,
 			String username) {
+		ensureCanDraw(board, username);
 		validateStrokeId(event.strokeId());
 		validatePoint(event.x(), event.y());
 		validateStrokeStyle(event);
@@ -229,10 +598,12 @@ public class CanvasBoardService {
 
 	private CanvasDrawEventDto applyStrokePoint(CanvasBoard board, CanvasDrawEventDto event,
 			String username) {
+		ensureCanDraw(board, username);
 		validateStrokeId(event.strokeId());
 		validatePoint(event.x(), event.y());
 
 		CanvasStroke stroke = getStroke(board.getId(), event.strokeId());
+		ensureStrokeOwner(stroke, username);
 		if (stroke.getEndedAt() != null) {
 			throw new InvalidCanvasDrawEventException(
 					HttpResponseMessage.HTTP_CANVAS_STROKE_ALREADY_ENDED_RESPONSE_MESSAGE
@@ -256,6 +627,7 @@ public class CanvasBoardService {
 			String username) {
 		validateStrokeId(event.strokeId());
 		CanvasStroke stroke = getStroke(board.getId(), event.strokeId());
+		ensureStrokeOwner(stroke, username);
 		if (stroke.getEndedAt() == null) {
 			stroke.setEndedAt(Instant.now());
 		}
@@ -282,8 +654,16 @@ public class CanvasBoardService {
 	private CanvasDrawEventDto sanitizedEvent(CanvasDrawEventType type, Long boardId,
 			String strokeId, String username, Double x, Double y, String color, Integer width,
 			CanvasTool tool) {
+		return sanitizedEvent(type, boardId, strokeId, username, x, y, color, width, tool, null,
+				null);
+	}
+
+	private CanvasDrawEventDto sanitizedEvent(CanvasDrawEventType type, Long boardId,
+			String strokeId, String username, Double x, Double y, String color, Integer width,
+			CanvasTool tool, com.zvonok.model.enumeration.CanvasReactionType reaction,
+			Double zoom) {
 		return new CanvasDrawEventDto(type, boardId, strokeId, username, x, y, color, width, tool,
-				Instant.now());
+				reaction, zoom, Instant.now());
 	}
 
 	private CallSession validateCallParticipant(Long callId, String username) {
@@ -367,6 +747,164 @@ public class CanvasBoardService {
 		}
 	}
 
+	private void validatePermissionsRequest(Long callId, UpdateCanvasBoardPermissionsRequest request) {
+		if (request == null || request.drawingAccess() == null) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_DRAWING_ACCESS_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
+		}
+
+		if (request.drawingAccess() == CanvasDrawingAccess.SELECTED_PARTICIPANT) {
+			if (request.selectedDrawerUsername() == null
+					|| request.selectedDrawerUsername().isBlank()) {
+				throw new InvalidCanvasDrawEventException(
+						HttpResponseMessage.HTTP_CANVAS_SELECTED_DRAWER_REQUIRED_RESPONSE_MESSAGE
+								.getMessage());
+			}
+
+			CallParticipant selectedParticipant =
+					callSessionService.getParticipant(callId, request.selectedDrawerUsername());
+			if (selectedParticipant == null
+					|| !DRAW_ALLOWED_STATUSES.contains(selectedParticipant.getStatus())) {
+				throw new InvalidCanvasDrawEventException(
+						HttpResponseMessage.HTTP_CANVAS_SELECTED_DRAWER_NOT_ACTIVE_PARTICIPANT_RESPONSE_MESSAGE
+								.getMessage());
+			}
+		}
+	}
+
+	private String normalizeSelectedDrawerUsername(UpdateCanvasBoardPermissionsRequest request) {
+		if (request.drawingAccess() == CanvasDrawingAccess.SELECTED_PARTICIPANT) {
+			return request.selectedDrawerUsername().trim();
+		}
+		return null;
+	}
+
+	private void validateTimerRequest(StartCanvasTimerRequest request) {
+		if (request == null || request.durationSeconds() == null
+				|| request.durationSeconds() < MIN_TIMER_DURATION_SECONDS
+				|| request.durationSeconds() > MAX_TIMER_DURATION_SECONDS) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_TIMER_DURATION_INVALID_RESPONSE_MESSAGE
+							.getMessage());
+		}
+	}
+
+	private void validateCreateNoteRequest(CreateCanvasStickyNoteRequest request) {
+		if (request == null) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_STICKY_NOTE_TEXT_INVALID_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		validateNoteText(request.text());
+		validateNoteColor(request.color());
+		validatePoint(request.x(), request.y());
+		validateNoteSize(request.width(), request.height());
+	}
+
+	private void validateUpdateNoteRequest(UpdateCanvasStickyNoteRequest request) {
+		if (request == null) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_STICKY_NOTE_TEXT_INVALID_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		if (request.text() != null) {
+			validateNoteText(request.text());
+		}
+		if (request.color() != null) {
+			validateNoteColor(request.color());
+		}
+		if (request.x() != null || request.y() != null) {
+			validatePoint(request.x(), request.y());
+		}
+		if (request.width() != null || request.height() != null) {
+			validateNoteSize(request.width(), request.height());
+		}
+	}
+
+	private void validateNoteText(String text) {
+		if (text == null || text.isBlank()
+				|| text.trim().length() > MAX_STICKY_NOTE_TEXT_LENGTH) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_STICKY_NOTE_TEXT_INVALID_RESPONSE_MESSAGE
+							.getMessage());
+		}
+	}
+
+	private void validateNoteColor(String color) {
+		if (color == null || color.isBlank()) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_STICKY_NOTE_COLOR_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
+		}
+	}
+
+	private void validateNoteSize(Double width, Double height) {
+		if (width == null || height == null || width <= 0.0 || width > 1.0 || height <= 0.0
+				|| height > 1.0) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_STICKY_NOTE_SIZE_INVALID_RESPONSE_MESSAGE
+							.getMessage());
+		}
+	}
+
+	private String normalizeOrCreateNoteKey(String noteKey) {
+		if (noteKey == null || noteKey.isBlank()) {
+			return UUID.randomUUID().toString();
+		}
+		return noteKey.trim();
+	}
+
+	private void validateBackgroundImage(MultipartFile file) {
+		if (file == null || file.isEmpty()) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_BACKGROUND_FILE_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		if (file.getSize() > MAX_BACKGROUND_IMAGE_SIZE_BYTES) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_BACKGROUND_FILE_SIZE_INVALID_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		if (!"image/png".equals(file.getContentType())
+				&& !"image/jpeg".equals(file.getContentType())) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_BACKGROUND_FILE_TYPE_INVALID_RESPONSE_MESSAGE
+							.getMessage());
+		}
+	}
+
+	private void validatePresenterRequest(Long callId, UpdateCanvasPresenterRequest request) {
+		if (request == null || request.presenterModeEnabled() == null) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_PRESENTER_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		if (!request.presenterModeEnabled()) {
+			return;
+		}
+		if (request.presenterUsername() == null || request.presenterUsername().isBlank()) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_PRESENTER_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		CallParticipant presenter =
+				callSessionService.getParticipant(callId, request.presenterUsername().trim());
+		if (presenter == null || !DRAW_ALLOWED_STATUSES.contains(presenter.getStatus())) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_PRESENTER_NOT_ACTIVE_PARTICIPANT_RESPONSE_MESSAGE
+							.getMessage());
+		}
+	}
+
+	private void validateViewportZoom(Double zoom) {
+		if (zoom == null || zoom < MIN_VIEWPORT_ZOOM || zoom > MAX_VIEWPORT_ZOOM) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_VIEWPORT_ZOOM_INVALID_RESPONSE_MESSAGE
+							.getMessage());
+		}
+	}
+
 	private void validateEventNotNull(CanvasDrawEventDto event) {
 		if (event == null || event.type() == null) {
 			throw new InvalidCanvasDrawEventException(
@@ -435,10 +973,104 @@ public class CanvasBoardService {
 				HttpResponseMessage.HTTP_CANVAS_BOARD_MANAGE_DENIED_RESPONSE_MESSAGE.getMessage());
 	}
 
+	private void ensureCanDeleteNote(Long callId, CanvasBoard board, CanvasStickyNote note,
+			String username) {
+		if (note.getCreatedBy().equals(username) || board.getCreatedBy().equals(username)) {
+			return;
+		}
+		CallParticipant participant = callSessionService.getParticipant(callId, username);
+		if (isHost(participant)) {
+			return;
+		}
+		throw new CanvasBoardAccessDeniedException(
+				HttpResponseMessage.HTTP_CANVAS_STICKY_NOTE_DELETE_DENIED_RESPONSE_MESSAGE
+						.getMessage());
+	}
+
+	private void ensureCanDrawOrManageBoard(Long callId, CanvasBoard board, String username) {
+		CallParticipant participant = callSessionService.getParticipant(callId, username);
+		if (participant != null && DRAW_ALLOWED_STATUSES.contains(participant.getStatus())
+				&& canDraw(board, participant, username)) {
+			return;
+		}
+		ensureCanManageBoard(callId, board, username);
+	}
+
+	private void ensureCanDraw(CanvasBoard board, String username) {
+		CallParticipant participant =
+				callSessionService.getParticipant(board.getCallSession().getId(), username);
+		if (participant == null || !DRAW_ALLOWED_STATUSES.contains(participant.getStatus())
+				|| !canDraw(board, participant, username)) {
+			throw new CanvasBoardAccessDeniedException(
+					HttpResponseMessage.HTTP_CANVAS_DRAW_DENIED_RESPONSE_MESSAGE.getMessage());
+		}
+	}
+
+	private boolean canDraw(CanvasBoard board, CallParticipant participant, String username) {
+		return switch (board.getDrawingAccess()) {
+			case EVERYONE -> true;
+			case HOSTS_ONLY -> isHost(participant) || board.getCreatedBy().equals(username);
+			case SELECTED_PARTICIPANT -> username.equals(board.getSelectedDrawerUsername())
+					|| isHost(participant) || board.getCreatedBy().equals(username);
+			case VIEW_ONLY -> false;
+		};
+	}
+
+	private boolean isHost(CallParticipant participant) {
+		return participant != null && participant.getRole() == CallParticipantRole.HOST;
+	}
+
+	private void ensureCurrentPresenter(CanvasBoard board, String username) {
+		if (!board.isPresenterModeEnabled()
+				|| board.getPresenterUsername() == null
+				|| !board.getPresenterUsername().equals(username)) {
+			throw new CanvasBoardAccessDeniedException(
+					HttpResponseMessage.HTTP_CANVAS_VIEWPORT_PRESENTER_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
+		}
+	}
+
+	private void ensureStrokeOwner(CanvasStroke stroke, String username) {
+		if (!stroke.getUserId().equals(username)) {
+			throw new CanvasBoardAccessDeniedException(
+					HttpResponseMessage.HTTP_CANVAS_STROKE_OWNER_REQUIRED_RESPONSE_MESSAGE
+							.getMessage());
+		}
+	}
+
+	private CanvasStickyNote getNote(Long boardId, Long noteId) {
+		if (noteId == null) {
+			throw new CanvasBoardNotFoundException(
+					HttpResponseMessage.HTTP_CANVAS_STICKY_NOTE_NOT_FOUND_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		return canvasStickyNoteRepository.findByIdAndBoardId(noteId, boardId)
+				.orElseThrow(() -> new CanvasBoardNotFoundException(
+						HttpResponseMessage.HTTP_CANVAS_STICKY_NOTE_NOT_FOUND_RESPONSE_MESSAGE
+								.getMessage()));
+	}
+
+	private CanvasStickyNote getNoteForUpdate(Long boardId, Long noteId) {
+		if (noteId == null) {
+			throw new CanvasBoardNotFoundException(
+					HttpResponseMessage.HTTP_CANVAS_STICKY_NOTE_NOT_FOUND_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		return canvasStickyNoteRepository.findByIdAndBoardIdForUpdate(noteId, boardId)
+				.orElseThrow(() -> new CanvasBoardNotFoundException(
+						HttpResponseMessage.HTTP_CANVAS_STICKY_NOTE_NOT_FOUND_RESPONSE_MESSAGE
+								.getMessage()));
+	}
+
 	private CanvasBoardSessionDto toSessionDto(CanvasBoard board) {
 		return new CanvasBoardSessionDto(board.getId(), board.getCallSession().getId(),
 				board.getRoomId(), board.getMode(), board.getBackground(), board.getCreatedBy(),
-				board.getCreatedAt(), board.isActive());
+				board.getCreatedAt(), board.isActive(), board.getDrawingAccess(),
+				board.getSelectedDrawerUsername(), board.getTemplateType(),
+				board.getTimerStartedAt(), board.getTimerDurationSeconds(),
+				board.getTimerStatus(), board.getBackgroundImageUrl(),
+				board.getBackgroundImageCreatedBy(), board.getBackgroundImageCreatedAt(),
+				board.getPresenterUsername(), board.isPresenterModeEnabled());
 	}
 
 	private CanvasSnapshotDto toSnapshotDto(CanvasBoard board) {
@@ -446,7 +1078,13 @@ public class CanvasBoardService {
 				canvasStrokeRepository.findAllByBoardIdOrderByCreatedAtAsc(board.getId()).stream()
 						.sorted(Comparator.comparing(CanvasStroke::getCreatedAt))
 						.map(this::toStrokeDto).toList();
-		return new CanvasSnapshotDto(board.getId(), strokes);
+		List<CanvasStickyNoteDto> notes = canvasStickyNoteRepository
+				.findAllByBoardIdOrderByZIndexAscCreatedAtAscIdAsc(board.getId()).stream()
+				.map(this::toStickyNoteDto).toList();
+		List<CanvasNoteVoteDto> votes =
+				canvasNoteVoteRepository.findAllByBoardIdOrderByCreatedAtAscIdAsc(board.getId())
+						.stream().map(this::toVoteDto).toList();
+		return new CanvasSnapshotDto(board.getId(), strokes, notes, votes);
 	}
 
 	private CanvasStrokeDto toStrokeDto(CanvasStroke stroke) {
@@ -457,11 +1095,27 @@ public class CanvasBoardService {
 				stroke.getWidth(), stroke.getTool(), points);
 	}
 
+	private CanvasStickyNoteDto toStickyNoteDto(CanvasStickyNote note) {
+		return new CanvasStickyNoteDto(note.getId(), note.getBoard().getId(), note.getNoteKey(),
+				note.getCreatedBy(), note.getText(), note.getColor(), note.getX(), note.getY(),
+				note.getWidth(), note.getHeight(), note.getZIndex(), note.getCreatedAt(),
+				note.getUpdatedAt());
+	}
+
+	private CanvasNoteVoteDto toVoteDto(CanvasNoteVote vote) {
+		return new CanvasNoteVoteDto(vote.getNote().getId(), vote.getUserId(),
+				vote.getCreatedAt());
+	}
+
 	private void publishDrawEvent(Long callId, Long boardId, CanvasDrawEventDto event) {
 		messagingTemplate.convertAndSend("/topic/calls/" + callId + "/boards/" + boardId, event);
 	}
 
 	private void publishBoardEvent(Long callId, CanvasBoardEventDto event) {
 		messagingTemplate.convertAndSend("/topic/calls/" + callId + "/boards", event);
+	}
+
+	private void publishObjectEvent(Long callId, Long boardId, CanvasBoardObjectEventDto event) {
+		messagingTemplate.convertAndSend("/topic/calls/" + callId + "/boards/" + boardId, event);
 	}
 }

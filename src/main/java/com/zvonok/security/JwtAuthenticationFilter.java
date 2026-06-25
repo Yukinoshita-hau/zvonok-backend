@@ -44,29 +44,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 		StringBuilder safeQuery = new StringBuilder();
 
-		for (Map.Entry<String, String[]> parameter : request.getParameterMap().entrySet()) {
-			String name = parameter.getKey();
-			String[] values = parameter.getValue();
-			boolean first = true;
+		if (!isMultipartRequest(request)) {
+			for (Map.Entry<String, String[]> parameter : request.getParameterMap().entrySet()) {
+				String name = parameter.getKey();
+				String[] values = parameter.getValue();
+				boolean first = true;
 
-			safeQuery.append(name).append("=");
+				safeQuery.append(name).append("=");
 
-			if (banWords.contains(name.toLowerCase())) {
-				safeQuery.append("[***]");
-				continue;
-			}
-
-			safeQuery.append("[");
-
-			for (String value : values) {
-				if (first) {
-					safeQuery.append(value);
-					first = false;
-				} else {
-					safeQuery.append(",").append(" ").append(value);
+				if (banWords.contains(name.toLowerCase())) {
+					safeQuery.append("[***]");
+					continue;
 				}
+
+				safeQuery.append("[");
+
+				for (String value : values) {
+					if (first) {
+						safeQuery.append(value);
+						first = false;
+					} else {
+						safeQuery.append(",").append(" ").append(value);
+					}
+				}
+				safeQuery.append("]");
 			}
-			safeQuery.append("]");
 		}
 
 		String jwt = getJwtFromRequest(request);
@@ -93,5 +95,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			return bearerToken.substring(7);
 		}
 		return null;
+	}
+
+	private boolean isMultipartRequest(HttpServletRequest request) {
+		String contentType = request.getContentType();
+		return contentType != null && contentType.toLowerCase().startsWith("multipart/");
 	}
 }

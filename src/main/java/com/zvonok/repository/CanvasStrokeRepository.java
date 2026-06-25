@@ -24,6 +24,9 @@ public interface CanvasStrokeRepository extends JpaRepository<CanvasStroke, Long
 	@EntityGraph(attributePaths = "points")
 	List<CanvasStroke> findAllByBoardIdOrderByCreatedAtAsc(Long boardId);
 
+	Optional<CanvasStroke> findFirstByBoardIdAndUserIdOrderByCreatedAtDescIdDesc(Long boardId,
+			String userId);
+
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query("delete from CanvasStroke s where s.board.id = :boardId")
 	void deleteAllByBoardId(@Param("boardId") Long boardId);

@@ -41,13 +41,19 @@ public class WSCanvasBoardController {
 	public void exceptionMessage(Exception ex, Principal principal, Message<?> message) {
 		String username = principal != null ? principal.getName() : null;
 		String destination = (String) message.getHeaders().get("simpDestination");
-		log.error("Canvas WS error: user='{}', destination='{}', message='{}'", username,
-				destination, ex.getMessage(), ex);
+		HttpStatus status = getStatusFromException(ex);
+		if (status.is4xxClientError()) {
+			log.warn("Canvas WS rejected message: user='{}', destination='{}', status={}, message='{}'",
+					username, destination, status.value(), ex.getMessage());
+		} else {
+			log.error("Canvas WS error: user='{}', destination='{}', status={}, message='{}'",
+					username, destination, status.value(), ex.getMessage(), ex);
+		}
 
 		if (username != null) {
 			ChatErrorMessageResponse response = new ChatErrorMessageResponse();
 			response.setMessage(ex.getMessage());
-			response.setStatus(getStatusFromException(ex).value());
+			response.setStatus(status.value());
 			messagingTemplate.convertAndSendToUser(username, BrokerPath.ERRORS_QUEUE_PATH.getPath(),
 					response);
 		}

@@ -13,4 +13,7 @@ public interface CanvasPointRepository extends JpaRepository<CanvasPoint, Long> 
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query("delete from CanvasPoint p where p.stroke.board.id = :boardId")
 	void deleteAllByBoardId(@Param("boardId") Long boardId);
+
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	void deleteAllByStrokeId(Long strokeId);
 }

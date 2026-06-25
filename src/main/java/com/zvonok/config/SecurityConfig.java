@@ -3,10 +3,12 @@ package com.zvonok.config;
 import com.zvonok.security.CustomAuthenticationEntryPoint;
 import com.zvonok.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import java.util.Arrays;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -32,8 +34,12 @@ public class SecurityConfig {
 		return http
 				.cors(cors -> cors.configurationSource(request -> {
 					CorsConfiguration config = new CorsConfiguration();
-					config.setAllowedOrigins(List.of(allowedOrigins));
-					config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+					config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+							.map(String::trim)
+							.filter(origin -> !origin.isBlank())
+							.toList());
+					config.setAllowedMethods(
+							List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
 					config.setAllowedHeaders(List.of("*"));
 					config.setAllowCredentials(true);
 					config.setMaxAge(3600L);
@@ -47,6 +53,7 @@ public class SecurityConfig {
 				.addFilterBefore(jwtAuthenticationFilter,
 						UsernamePasswordAuthenticationFilter.class)
 				.authorizeHttpRequests(auth -> auth
+						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 						.requestMatchers("/auth/login", "/auth/register", "/s3/download/**",
 								"/auth/refresh", "/health", "/swagger-ui.html", "/swagger-ui/**",
 								"/v3/api-docs/**", "/ws/**", "/ws-raw/**", "/ws-raw")

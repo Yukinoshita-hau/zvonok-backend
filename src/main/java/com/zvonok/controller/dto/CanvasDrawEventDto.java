@@ -1,6 +1,7 @@
 package com.zvonok.controller.dto;
 
 import com.zvonok.model.enumeration.CanvasDrawEventType;
+import com.zvonok.model.enumeration.CanvasReactionType;
 import com.zvonok.model.enumeration.CanvasTool;
 
 import java.time.Instant;
@@ -15,6 +16,8 @@ public record CanvasDrawEventDto(
 		String color,
 		Integer width,
 		CanvasTool tool,
+		CanvasReactionType reaction,
+		Double zoom,
 		Instant timestamp
 ) {
 }

@@ -121,7 +121,30 @@ public enum HttpResponseMessage {
 	HTTP_CANVAS_STROKE_NOT_FOUND_RESPONSE_MESSAGE("Canvas stroke not found"),
 	HTTP_CANVAS_STROKE_ALREADY_ENDED_RESPONSE_MESSAGE("Cannot add points to ended canvas stroke"),
 	HTTP_CANVAS_STROKE_POINT_LIMIT_EXCEEDED_RESPONSE_MESSAGE("Canvas stroke point limit exceeded"),
-	HTTP_CANVAS_BOARD_MANAGE_DENIED_RESPONSE_MESSAGE("Only board creator or call host can manage board");
+	HTTP_CANVAS_BOARD_MANAGE_DENIED_RESPONSE_MESSAGE("Only board creator or call host can manage board"),
+	HTTP_CANVAS_DRAWING_ACCESS_REQUIRED_RESPONSE_MESSAGE("Canvas drawing access is required"),
+	HTTP_CANVAS_SELECTED_DRAWER_REQUIRED_RESPONSE_MESSAGE("Selected drawer username is required"),
+	HTTP_CANVAS_SELECTED_DRAWER_NOT_ACTIVE_PARTICIPANT_RESPONSE_MESSAGE("Selected drawer must be active call participant"),
+	HTTP_CANVAS_DRAW_DENIED_RESPONSE_MESSAGE("User is not allowed to draw on this canvas board"),
+	HTTP_CANVAS_STROKE_OWNER_REQUIRED_RESPONSE_MESSAGE("Only stroke owner can modify this canvas stroke"),
+	HTTP_CANVAS_TEMPLATE_REQUIRED_RESPONSE_MESSAGE("Canvas template type is required"),
+	HTTP_CANVAS_REACTION_REQUIRED_RESPONSE_MESSAGE("Canvas reaction is required"),
+	HTTP_CANVAS_TIMER_DURATION_INVALID_RESPONSE_MESSAGE("Canvas timer duration must be between 10 and 7200 seconds"),
+	HTTP_CANVAS_STICKY_NOTE_NOT_FOUND_RESPONSE_MESSAGE("Canvas sticky note not found"),
+	HTTP_CANVAS_STICKY_NOTE_KEY_REQUIRED_RESPONSE_MESSAGE("Canvas sticky note key is required"),
+	HTTP_CANVAS_STICKY_NOTE_KEY_ALREADY_EXISTS_RESPONSE_MESSAGE("Canvas sticky note key already exists"),
+	HTTP_CANVAS_STICKY_NOTE_TEXT_INVALID_RESPONSE_MESSAGE("Canvas sticky note text must be between 1 and 1000 characters"),
+	HTTP_CANVAS_STICKY_NOTE_COLOR_REQUIRED_RESPONSE_MESSAGE("Canvas sticky note color is required"),
+	HTTP_CANVAS_STICKY_NOTE_SIZE_INVALID_RESPONSE_MESSAGE("Canvas sticky note width and height must be normalized between 0.0 and 1.0"),
+	HTTP_CANVAS_STICKY_NOTE_DELETE_DENIED_RESPONSE_MESSAGE("Only note creator, board creator or call host can delete sticky note"),
+	HTTP_CANVAS_BACKGROUND_FILE_REQUIRED_RESPONSE_MESSAGE("Canvas background image file is required"),
+	HTTP_CANVAS_BACKGROUND_FILE_TYPE_INVALID_RESPONSE_MESSAGE("Canvas background image must be PNG or JPEG"),
+	HTTP_CANVAS_BACKGROUND_FILE_SIZE_INVALID_RESPONSE_MESSAGE("Canvas background image size must not exceed 5 MB"),
+	HTTP_CANVAS_BACKGROUND_UPLOAD_FAILED_RESPONSE_MESSAGE("Failed to upload canvas background image"),
+	HTTP_CANVAS_PRESENTER_REQUIRED_RESPONSE_MESSAGE("Canvas presenter username is required"),
+	HTTP_CANVAS_PRESENTER_NOT_ACTIVE_PARTICIPANT_RESPONSE_MESSAGE("Canvas presenter must be active call participant"),
+	HTTP_CANVAS_VIEWPORT_PRESENTER_REQUIRED_RESPONSE_MESSAGE("Only current canvas presenter can broadcast viewport changes"),
+	HTTP_CANVAS_VIEWPORT_ZOOM_INVALID_RESPONSE_MESSAGE("Canvas viewport zoom must be between 0.25 and 4.0");
 
 	private final String message;
 

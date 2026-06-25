@@ -2,6 +2,9 @@ package com.zvonok.model;
 
 import com.zvonok.model.enumeration.CanvasBackground;
 import com.zvonok.model.enumeration.CanvasBoardMode;
+import com.zvonok.model.enumeration.CanvasDrawingAccess;
+import com.zvonok.model.enumeration.CanvasTemplateType;
+import com.zvonok.model.enumeration.CanvasTimerStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -57,6 +60,42 @@ public class CanvasBoard {
 	@Column(name = "active", nullable = false)
 	private boolean active;
 
+	@Enumerated(EnumType.STRING)
+	@Column(name = "drawing_access", nullable = false, length = 32)
+	private CanvasDrawingAccess drawingAccess = CanvasDrawingAccess.EVERYONE;
+
+	@Column(name = "selected_drawer_username", length = 255)
+	private String selectedDrawerUsername;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "template_type", nullable = false, length = 64)
+	private CanvasTemplateType templateType = CanvasTemplateType.CLEAN;
+
+	@Column(name = "timer_started_at")
+	private Instant timerStartedAt;
+
+	@Column(name = "timer_duration_seconds")
+	private Integer timerDurationSeconds;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "timer_status", nullable = false, length = 32)
+	private CanvasTimerStatus timerStatus = CanvasTimerStatus.STOPPED;
+
+	@Column(name = "background_image_url", length = 1024)
+	private String backgroundImageUrl;
+
+	@Column(name = "background_image_created_by", length = 255)
+	private String backgroundImageCreatedBy;
+
+	@Column(name = "background_image_created_at")
+	private Instant backgroundImageCreatedAt;
+
+	@Column(name = "presenter_username", length = 255)
+	private String presenterUsername;
+
+	@Column(name = "presenter_mode_enabled", nullable = false)
+	private boolean presenterModeEnabled = false;
+
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
 
@@ -68,6 +107,15 @@ public class CanvasBoard {
 		Instant now = Instant.now();
 		if (createdAt == null) {
 			createdAt = now;
+		}
+		if (drawingAccess == null) {
+			drawingAccess = CanvasDrawingAccess.EVERYONE;
+		}
+		if (templateType == null) {
+			templateType = CanvasTemplateType.CLEAN;
+		}
+		if (timerStatus == null) {
+			timerStatus = CanvasTimerStatus.STOPPED;
 		}
 		updatedAt = now;
 	}

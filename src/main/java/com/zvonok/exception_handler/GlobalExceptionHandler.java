@@ -15,6 +15,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestCookieException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import java.util.HashMap;
 import java.util.Map;
@@ -120,6 +121,16 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<JsonErrorResponse> handleAmazonS3Exception(AmazonS3Exception e) {
 		JsonErrorResponse errorResponse = new JsonErrorResponse(e.getMessage(), e.getStatusCode());
 		return ResponseEntity.status(e.getStatusCode()).body(errorResponse);
+	}
+
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ResponseEntity<JsonErrorResponse> handleMaxUploadSizeExceededException(
+			MaxUploadSizeExceededException e) {
+		JsonErrorResponse errorResponse = new JsonErrorResponse(
+				HttpResponseMessage.HTTP_CANVAS_BACKGROUND_FILE_SIZE_INVALID_RESPONSE_MESSAGE
+						.getMessage(),
+				HttpStatus.BAD_REQUEST.value());
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
 	}
 
 	private String toHumanExpectedType(Class<?> requiredType) {
