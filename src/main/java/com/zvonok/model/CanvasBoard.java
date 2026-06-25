@@ -54,6 +54,9 @@ public class CanvasBoard {
 	@Column(name = "background", nullable = false, length = 32)
 	private CanvasBackground background;
 
+	@Column(name = "overlay_owner_username", length = 255)
+	private String overlayOwnerUsername;
+
 	@Column(name = "created_by", nullable = false, length = 128)
 	private String createdBy;
 

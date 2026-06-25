@@ -16,6 +16,9 @@ public interface CanvasBoardRepository extends JpaRepository<CanvasBoard, Long> 
 	Optional<CanvasBoard> findFirstByCallSessionIdAndModeAndActiveTrue(Long callId,
 			CanvasBoardMode mode);
 
+	Optional<CanvasBoard> findFirstByCallSessionIdAndModeAndOverlayOwnerUsernameAndActiveTrue(
+			Long callId, CanvasBoardMode mode, String overlayOwnerUsername);
+
 	List<CanvasBoard> findAllByCallSessionIdAndActiveTrueOrderByCreatedAtAsc(Long callId);
 
 	Optional<CanvasBoard> findByIdAndCallSessionId(Long id, Long callId);

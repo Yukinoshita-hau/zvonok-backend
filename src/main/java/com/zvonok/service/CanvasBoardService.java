@@ -93,9 +93,9 @@ public class CanvasBoardService {
 		CallSession call = validateCallParticipantForUpdate(callId, username);
 		validateCallCanCreateBoard(call);
 		validateCreateRequest(request);
+		String overlayOwnerUsername = resolveOverlayOwnerUsername(callId, request, username);
 
-		CanvasBoard existing = canvasBoardRepository
-				.findFirstByCallSessionIdAndModeAndActiveTrue(callId, request.mode()).orElse(null);
+		CanvasBoard existing = findActiveBoardForCreate(callId, request, overlayOwnerUsername);
 		if (existing != null) {
 			return toSessionDto(existing);
 		}
@@ -105,6 +105,7 @@ public class CanvasBoardService {
 		board.setRoomId(call.getRoom().getId());
 		board.setMode(request.mode());
 		board.setBackground(request.background());
+		board.setOverlayOwnerUsername(overlayOwnerUsername);
 		board.setCreatedBy(username);
 		board.setActive(true);
 		board = canvasBoardRepository.save(board);
@@ -747,6 +748,39 @@ public class CanvasBoardService {
 		}
 	}
 
+	private CanvasBoard findActiveBoardForCreate(Long callId, CreateCanvasBoardRequest request,
+			String overlayOwnerUsername) {
+		if (request.mode() == CanvasBoardMode.SCREEN_OVERLAY) {
+			return canvasBoardRepository
+					.findFirstByCallSessionIdAndModeAndOverlayOwnerUsernameAndActiveTrue(callId,
+							CanvasBoardMode.SCREEN_OVERLAY, overlayOwnerUsername)
+					.orElse(null);
+		}
+		return canvasBoardRepository
+				.findFirstByCallSessionIdAndModeAndActiveTrue(callId, request.mode()).orElse(null);
+	}
+
+	private String resolveOverlayOwnerUsername(Long callId, CreateCanvasBoardRequest request,
+			String username) {
+		if (request.mode() != CanvasBoardMode.SCREEN_OVERLAY) {
+			return null;
+		}
+		String overlayOwnerUsername = request.overlayOwnerUsername();
+		if (overlayOwnerUsername == null || overlayOwnerUsername.isBlank()) {
+			overlayOwnerUsername = username;
+		}
+		overlayOwnerUsername = overlayOwnerUsername.trim();
+
+		CallParticipant overlayOwner = callSessionService.getParticipant(callId,
+				overlayOwnerUsername);
+		if (overlayOwner == null || !DRAW_ALLOWED_STATUSES.contains(overlayOwner.getStatus())) {
+			throw new InvalidCanvasDrawEventException(
+					HttpResponseMessage.HTTP_CANVAS_OVERLAY_OWNER_NOT_ACTIVE_PARTICIPANT_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		return overlayOwnerUsername;
+	}
+
 	private void validatePermissionsRequest(Long callId, UpdateCanvasBoardPermissionsRequest request) {
 		if (request == null || request.drawingAccess() == null) {
 			throw new InvalidCanvasDrawEventException(
@@ -1064,9 +1098,10 @@ public class CanvasBoardService {
 
 	private CanvasBoardSessionDto toSessionDto(CanvasBoard board) {
 		return new CanvasBoardSessionDto(board.getId(), board.getCallSession().getId(),
-				board.getRoomId(), board.getMode(), board.getBackground(), board.getCreatedBy(),
-				board.getCreatedAt(), board.isActive(), board.getDrawingAccess(),
-				board.getSelectedDrawerUsername(), board.getTemplateType(),
+				board.getRoomId(), board.getMode(), board.getBackground(),
+				board.getOverlayOwnerUsername(), board.getCreatedBy(), board.getCreatedAt(),
+				board.isActive(),
+				board.getDrawingAccess(), board.getSelectedDrawerUsername(), board.getTemplateType(),
 				board.getTimerStartedAt(), board.getTimerDurationSeconds(),
 				board.getTimerStatus(), board.getBackgroundImageUrl(),
 				board.getBackgroundImageCreatedBy(), board.getBackgroundImageCreatedAt(),

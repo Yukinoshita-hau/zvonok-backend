@@ -14,6 +14,7 @@ public record CanvasBoardSessionDto(
 		Long roomId,
 		CanvasBoardMode mode,
 		CanvasBackground background,
+		String overlayOwnerUsername,
 		String createdBy,
 		Instant createdAt,
 		boolean active,
