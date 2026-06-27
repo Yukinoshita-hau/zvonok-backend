@@ -92,6 +92,28 @@ public enum HttpResponseMessage {
 	HTTP_LIVEKIT_TOKEN_GENERATE_ERROR_RESPONSE_MESSAGE("Failed to generate LiveKit token"),
 	HTTP_LIVEKIT_CALL_STATE_CONFLICT_RESPONSE_MESSAGE("Call room no longer exist"),
 
+	// Code runner
+	HTTP_UNSUPPORTED_EXECUTION_LANGUAGE_RESPONSE_MESSAGE("Unsupported execution language"),
+	HTTP_CODE_RUNNER_UNAVAILABLE_RESPONSE_MESSAGE("Code runner is unavailable"),
+
+	// Code session
+	HTTP_CODE_SESSION_NOT_FOUND_RESPONSE_MESSAGE("Code session not found"),
+	HTTP_CODE_SESSION_CLOSED_RESPONSE_MESSAGE("Code session is closed"),
+	HTTP_CODE_SESSION_CREATE_FOR_ENDED_CALL_RESPONSE_MESSAGE("Cannot create code session for ended call"),
+	HTTP_CODE_SESSION_MUTATE_FOR_ENDED_CALL_RESPONSE_MESSAGE("Cannot mutate code session for ended call"),
+	HTTP_CODE_SESSION_USER_NOT_ACTIVE_CALL_PARTICIPANT_RESPONSE_MESSAGE("User is not active call participant"),
+	HTTP_CODE_SESSION_EDIT_DENIED_RESPONSE_MESSAGE("Only call host or active code editor can edit code session"),
+	HTTP_CODE_SESSION_MANAGE_DENIED_RESPONSE_MESSAGE("Only code session creator or call host can manage code session"),
+	HTTP_CODE_SESSION_RUN_DENIED_RESPONSE_MESSAGE("Only call host or active code editor can run code session"),
+	HTTP_CODE_SESSION_EDITOR_REQUIRED_RESPONSE_MESSAGE("Code session editor username is required"),
+	HTTP_CODE_SESSION_EDITOR_NOT_ACTIVE_PARTICIPANT_RESPONSE_MESSAGE("Code session editor must be active call participant"),
+	HTTP_CODE_SESSION_LANGUAGE_REQUIRED_RESPONSE_MESSAGE("Code session language is required"),
+	HTTP_CODE_SESSION_CODE_REQUIRED_RESPONSE_MESSAGE("Code session code is required"),
+	HTTP_CODE_SESSION_STDIN_REQUIRED_RESPONSE_MESSAGE("Code session stdin is required"),
+	HTTP_CODE_SESSION_CODE_TOO_LARGE_RESPONSE_MESSAGE("Code session code must not exceed 50000 characters"),
+	HTTP_CODE_SESSION_STDIN_TOO_LARGE_RESPONSE_MESSAGE("Code session stdin must not exceed 20000 characters"),
+	HTTP_CODE_SESSION_CURSOR_INVALID_RESPONSE_MESSAGE("Code session cursor position is invalid"),
+
 	// S3
 	HTTP_FILE_NOT_FOUND_RESPONSE_MESSAGE("file was not found"),
 

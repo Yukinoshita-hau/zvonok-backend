@@ -17,3 +17,7 @@ app.jwt.refreshExpirationMs = 1209600000
 
 logging.level.com.zvonok = DEBUG
 logging.level.org.springframework.security=DEBUG
+
+# Code runner
+code-runner.url=${CODE_RUNNER_URL:http://localhost:8081}
+code-runner.api-key=${CODE_RUNNER_API_KEY:someUltraKeyTest}

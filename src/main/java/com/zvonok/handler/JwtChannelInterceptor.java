@@ -27,6 +27,8 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
 
 	private static final Pattern CANVAS_TOPIC_PATTERN =
 			Pattern.compile("^/topic/calls/(\\d+)/boards(?:/\\d+)?$");
+	private static final Pattern CODE_SESSION_TOPIC_PATTERN =
+			Pattern.compile("^/topic/calls/(\\d+)/code-sessions$");
 	private static final Set<CallParticipantStatus> CANVAS_SUBSCRIBE_ALLOWED_STATUSES =
 			Set.of(CallParticipantStatus.ACCEPTED, CallParticipantStatus.JOINED);
 
@@ -61,19 +63,22 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
 		}
 
 		if (accessor.getCommand() == StompCommand.SUBSCRIBE && principal != null) {
-			validateCanvasSubscription(accessor, principal.getName());
+			validateCallInteractiveSubscription(accessor, principal.getName());
 		}
 
 		return message;
 	}
 
-	private void validateCanvasSubscription(StompHeaderAccessor accessor, String username) {
+	private void validateCallInteractiveSubscription(StompHeaderAccessor accessor, String username) {
 		String destination = accessor.getDestination();
 		if (destination == null) {
 			return;
 		}
 
 		Matcher matcher = CANVAS_TOPIC_PATTERN.matcher(destination);
+		if (!matcher.matches()) {
+			matcher = CODE_SESSION_TOPIC_PATTERN.matcher(destination);
+		}
 		if (!matcher.matches()) {
 			return;
 		}

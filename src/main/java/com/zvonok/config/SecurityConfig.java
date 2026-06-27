@@ -54,6 +54,8 @@ public class SecurityConfig {
 						UsernamePasswordAuthenticationFilter.class)
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+						.requestMatchers("/code-runs/**").authenticated()
+						.requestMatchers("/code-sessions/**").authenticated()
 						.requestMatchers("/auth/login", "/auth/register", "/s3/download/**",
 								"/auth/refresh", "/health", "/swagger-ui.html", "/swagger-ui/**",
 								"/v3/api-docs/**", "/ws/**", "/ws-raw/**", "/ws-raw")
