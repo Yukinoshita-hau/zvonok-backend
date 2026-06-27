@@ -6,6 +6,7 @@ import com.zvonok.controller.dto.CodeCursorSyncRequestDto;
 import com.zvonok.controller.dto.CodeLanguageChangeRequestDto;
 import com.zvonok.controller.dto.CodeSessionDto;
 import com.zvonok.controller.dto.CodeSessionEventDto;
+import com.zvonok.controller.dto.CodeSessionSenderDto;
 import com.zvonok.controller.dto.CodeStdinSyncRequestDto;
 import com.zvonok.controller.dto.CreateCodeSessionRequestDto;
 import com.zvonok.exception.CodeSessionAccessDeniedException;
@@ -234,9 +235,10 @@ public class CodeSessionService {
 		validateCallCanMutateSession(session.getCallSession());
 		ensureSessionActive(session);
 		validateCursor(request);
+		CodeCursorSyncRequestDto normalizedRequest = normalizeCursor(request);
 
 		CodeSessionEventDto event = buildEvent(CodeSessionEventType.CODE_CURSOR_SYNC, session,
-				username, request);
+				username, normalizedRequest);
 		publishEvent(session.getCallSession().getId(), event);
 	}
 
@@ -441,6 +443,24 @@ public class CodeSessionService {
 		return value != null && value < 1;
 	}
 
+	private CodeCursorSyncRequestDto normalizeCursor(CodeCursorSyncRequestDto request) {
+		Integer selectionStartLineNumber = request.selectionStartLineNumber() == null
+				? request.lineNumber()
+				: request.selectionStartLineNumber();
+		Integer selectionStartColumn = request.selectionStartColumn() == null
+				? request.column()
+				: request.selectionStartColumn();
+		Integer selectionEndLineNumber = request.selectionEndLineNumber() == null
+				? request.lineNumber()
+				: request.selectionEndLineNumber();
+		Integer selectionEndColumn = request.selectionEndColumn() == null
+				? request.column()
+				: request.selectionEndColumn();
+		return new CodeCursorSyncRequestDto(request.lineNumber(), request.column(),
+				selectionStartLineNumber, selectionStartColumn, selectionEndLineNumber,
+				selectionEndColumn);
+	}
+
 	private CodeSessionDto toDto(CodeSession session) {
 		String activeEditor = session.getActiveEditor() == null
 				? null
@@ -458,8 +478,12 @@ public class CodeSessionService {
 		CallParticipant sender = callSessionService.getParticipant(session.getCallSession().getId(),
 				senderUsername);
 		Long senderId = sender == null ? null : sender.getUser().getId();
+		CodeSessionSenderDto senderDto = sender == null
+				? null
+				: new CodeSessionSenderDto(sender.getUser().getId(),
+						sender.getUser().getUsername(), sender.getUser().getDisplayName());
 		return new CodeSessionEventDto(type, session.getId(), session.getCallSession().getId(),
-				session.getRoomId(), senderId, senderUsername, payload, Instant.now());
+				session.getRoomId(), senderId, senderUsername, senderDto, payload, Instant.now());
 	}
 
 	private void publishEvent(Long callSessionId, CodeSessionEventDto event) {

@@ -11,6 +11,7 @@ public record CodeSessionEventDto(
 		Long roomId,
 		Long senderId,
 		String senderUsername,
+		CodeSessionSenderDto sender,
 		Object payload,
 		Instant createdAt
 ) {
