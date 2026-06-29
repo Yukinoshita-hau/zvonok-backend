@@ -175,7 +175,7 @@ public enum HttpResponseMessage {
 	HTTP_CANVAS_STICKY_NOTE_DELETE_DENIED_RESPONSE_MESSAGE("Only note creator, board creator or call host can delete sticky note"),
 	HTTP_CANVAS_BACKGROUND_FILE_REQUIRED_RESPONSE_MESSAGE("Canvas background image file is required"),
 	HTTP_CANVAS_BACKGROUND_FILE_TYPE_INVALID_RESPONSE_MESSAGE("Canvas background image must be PNG or JPEG"),
-	HTTP_CANVAS_BACKGROUND_FILE_SIZE_INVALID_RESPONSE_MESSAGE("Canvas background image size must not exceed 5 MB"),
+	HTTP_CANVAS_BACKGROUND_FILE_SIZE_INVALID_RESPONSE_MESSAGE("Canvas background image size must not exceed 50 MB"),
 	HTTP_CANVAS_BACKGROUND_UPLOAD_FAILED_RESPONSE_MESSAGE("Failed to upload canvas background image"),
 	HTTP_CANVAS_PRESENTER_REQUIRED_RESPONSE_MESSAGE("Canvas presenter username is required"),
 	HTTP_CANVAS_PRESENTER_NOT_ACTIVE_PARTICIPANT_RESPONSE_MESSAGE("Canvas presenter must be active call participant"),
