@@ -10,6 +10,7 @@ import com.zvonok.documentation.annotation.ApiResponse400;
 import com.zvonok.documentation.annotation.ApiResponse403;
 import com.zvonok.documentation.annotation.ApiResponse404;
 import com.zvonok.documentation.annotation.SecuredApiResponses;
+import com.zvonok.model.enumeration.AttachmentType;
 import com.zvonok.service.dto.CreateGroupDto;
 import com.zvonok.service.dto.UpdateRoomDto;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,6 +32,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -135,6 +137,22 @@ public class RoomController {
 				roomId, beforeMessageId, limit);
 
 		return ResponseEntity.ok(messages);
+	}
+
+	@PostMapping("/{roomId}/messages/attachments")
+	public ResponseEntity<ShortMessageWrapped> sendMessageWithAttachments(
+			@PathVariable Long roomId,
+			@RequestParam(value = "content", required = false) String content,
+			@RequestParam(value = "files", required = false) List<MultipartFile> files,
+			@RequestParam(value = "attachmentType", required = false) AttachmentType attachmentType,
+			@RequestParam(value = "durationMs", required = false) Long durationMs,
+			@RequestParam(value = "waveform", required = false) String waveform,
+			@RequestParam(value = "replyToMessageId", required = false) Long replyToMessageId,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		ShortMessageWrapped response = messageService.sendMessageWithAttachments(
+				principal.getUsername(), roomId, content, files, attachmentType, durationMs,
+				waveform, replyToMessageId);
+		return ResponseEntity.ok(response);
 	}
 
 	@PostMapping("/{roomId}/read")

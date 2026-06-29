@@ -1,6 +1,7 @@
 package com.zvonok.service;
 
 import com.zvonok.controller.dto.ChannelMessageResponse;
+import com.zvonok.controller.dto.MessageAttachmentDto;
 import com.zvonok.controller.dto.ReplyPreviewDto;
 import com.zvonok.controller.dto.SenderDto;
 import com.zvonok.exception.ChannelNotFoundException;
@@ -9,6 +10,7 @@ import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.Channel;
 import com.zvonok.model.ChannelFolder;
 import com.zvonok.model.Message;
+import com.zvonok.model.MessageAttachment;
 import com.zvonok.model.User;
 import com.zvonok.repository.ChannelRepository;
 import com.zvonok.repository.MessageRepository;
@@ -175,7 +177,25 @@ public class ChannelService {
 		response.setReplyToMessageId(message.getReplyToMessageId());
 		response.setReplyPreview(replyPreview);
 		response.setEditedAt(message.getEditedAt());
+		response.setAttachments(mapAttachments(message));
 		return response;
+	}
+
+	private List<MessageAttachmentDto> mapAttachments(Message message) {
+		if (message.getAttachments() == null || message.getAttachments().isEmpty()) {
+			return List.of();
+		}
+		return message.getAttachments().stream()
+				.map(this::toAttachmentDto)
+				.toList();
+	}
+
+	private MessageAttachmentDto toAttachmentDto(MessageAttachment attachment) {
+		String downloadUrl = "/api/message-attachments/" + attachment.getId() + "/download";
+		return new MessageAttachmentDto(attachment.getId(), attachment.getType(), downloadUrl,
+				downloadUrl, attachment.getOriginalFileName(), attachment.getContentType(),
+				attachment.getSizeBytes(), attachment.getWidth(), attachment.getHeight(),
+				attachment.getDurationMs(), attachment.getWaveformJson());
 	}
 
 	private Map<Long, ReplyPreviewDto> buildReplyPreviewByParentId(List<Message> messages) {

@@ -72,6 +72,18 @@ public enum HttpResponseMessage {
 	HTTP_REFRESH_TOKEN_NOT_TRANSFERRED("Refresh token not transferred"),
 	HTTP_REDEFINITION_RESPONSE_MESSAGE("Override can be either for the role or for the user"),
 	HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE("Message was not found"),
+	HTTP_MESSAGE_EMPTY_RESPONSE_MESSAGE("Message content or attachments are required"),
+	HTTP_MESSAGE_ATTACHMENT_NOT_FOUND_RESPONSE_MESSAGE("Message attachment was not found"),
+	HTTP_MESSAGE_ATTACHMENT_TOO_MANY_RESPONSE_MESSAGE("Maximum 10 attachments are allowed per message"),
+	HTTP_MESSAGE_ATTACHMENT_TYPE_INVALID_RESPONSE_MESSAGE("Only JPEG, PNG, WebP, GIF images and MP4, WebM, QuickTime videos are allowed"),
+	HTTP_MESSAGE_ATTACHMENT_IMAGE_TOO_LARGE_RESPONSE_MESSAGE("Image attachment size must not exceed 10 MB"),
+	HTTP_MESSAGE_ATTACHMENT_VIDEO_TOO_LARGE_RESPONSE_MESSAGE("Video attachment size must not exceed 100 MB"),
+	HTTP_MESSAGE_ATTACHMENT_AUDIO_TOO_LARGE_RESPONSE_MESSAGE("Audio attachment size must not exceed 25 MB"),
+	HTTP_MESSAGE_ATTACHMENT_VIDEO_NOTE_TOO_LARGE_RESPONSE_MESSAGE("Video note attachment size must not exceed 50 MB"),
+	HTTP_MESSAGE_ATTACHMENT_DURATION_INVALID_RESPONSE_MESSAGE("Attachment duration must not be negative"),
+	HTTP_MESSAGE_ATTACHMENT_AUDIO_DURATION_TOO_LONG_RESPONSE_MESSAGE("Audio attachment duration must not exceed 5 minutes"),
+	HTTP_MESSAGE_ATTACHMENT_VIDEO_NOTE_DURATION_TOO_LONG_RESPONSE_MESSAGE("Video note attachment duration must not exceed 1 minute"),
+	HTTP_MESSAGE_ATTACHMENT_UPLOAD_FAILED_RESPONSE_MESSAGE("Failed to upload message attachment"),
 	HTTP_AUTH_PRINCEPAL_REQUIRED_RESPONSE_MESSAGE("Authenticated principal required for this WebSocket operation"),
 
 	// CallSession

@@ -5,6 +5,7 @@ import com.zvonok.service.dto.EventType;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class ChannelMessageResponse {
@@ -18,4 +19,5 @@ public class ChannelMessageResponse {
     private Long replyToMessageId;
 	private ReplyPreviewDto replyPreview;
 	private LocalDateTime editedAt;
+	private List<MessageAttachmentDto> attachments;
 }

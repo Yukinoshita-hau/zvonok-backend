@@ -2,10 +2,13 @@ package com.zvonok.service;
 
 import com.zvonok.controller.dto.ChannelMessageResponse;
 import com.zvonok.controller.dto.ChatErrorMessageResponse;
+import com.zvonok.controller.dto.MessageAttachmentDto;
 import com.zvonok.controller.dto.ReplyPreviewDto;
 import com.zvonok.exception.CannotEditDeletedMessageException;
 import com.zvonok.exception.ChannelNotFoundException;
 import com.zvonok.exception.InsufficientPermissionsException;
+import com.zvonok.exception.InvalidMessageAttachmentException;
+import com.zvonok.exception.MessageAttachmentNotFoundException;
 import com.zvonok.exception.MessageNotFoundException;
 import com.zvonok.exception.MessageTargetValidationException;
 import com.zvonok.exception.RoomNotFoundException;
@@ -17,6 +20,7 @@ import com.zvonok.logging.LogEvent;
 import com.zvonok.logging.LogEventConstants;
 import com.zvonok.logging.LogTimingUtils;
 import com.zvonok.model.Channel;
+import com.zvonok.model.MessageAttachment;
 import com.zvonok.service.dto.EventType;
 import com.zvonok.service.dto.Permission;
 import com.zvonok.controller.dto.MessageResponse;
@@ -27,6 +31,8 @@ import com.zvonok.model.Message;
 import com.zvonok.model.Room;
 import com.zvonok.model.User;
 import com.zvonok.model.enumeration.MessageType;
+import com.zvonok.model.enumeration.AttachmentType;
+import com.zvonok.repository.MessageAttachmentRepository;
 import com.zvonok.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +41,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,6 +53,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Service for managing messages in private rooms, group rooms, and channels. Сервис для управления
@@ -58,6 +70,24 @@ public class MessageService {
 	private final UserService userService;
 	private final ChannelService channelService;
 	private final PermissionService permissionService;
+	private final MessageAttachmentRepository messageAttachmentRepository;
+	private final S3Service s3Service;
+
+	private static final int MAX_ATTACHMENTS_PER_MESSAGE = 10;
+	private static final long MAX_IMAGE_SIZE_BYTES = 10L * 1024L * 1024L;
+	private static final long MAX_VIDEO_SIZE_BYTES = 100L * 1024L * 1024L;
+	private static final long MAX_AUDIO_SIZE_BYTES = 25L * 1024L * 1024L;
+	private static final long MAX_VIDEO_NOTE_SIZE_BYTES = 50L * 1024L * 1024L;
+	private static final long MAX_AUDIO_DURATION_MS = 5L * 60L * 1000L;
+	private static final long MAX_VIDEO_NOTE_DURATION_MS = 60L * 1000L;
+	private static final Set<String> ALLOWED_IMAGE_CONTENT_TYPES =
+			Set.of("image/jpeg", "image/png", "image/webp", "image/gif");
+	private static final Set<String> ALLOWED_VIDEO_CONTENT_TYPES =
+			Set.of("video/mp4", "video/webm", "video/quicktime");
+	private static final Set<String> ALLOWED_AUDIO_CONTENT_TYPES =
+			Set.of("audio/webm", "audio/ogg", "audio/mpeg", "audio/mp4", "audio/wav");
+	private static final Set<String> ALLOWED_VIDEO_NOTE_CONTENT_TYPES =
+			Set.of("video/webm", "video/mp4", "video/quicktime");
 
 
 	public ShortMessageWrapped sendMessage(String senderUsername, long roomId, String content,
@@ -111,6 +141,69 @@ public class MessageService {
 			throw e;
 		}
 
+	}
+
+	public ShortMessageWrapped sendMessageWithAttachments(String senderUsername, long roomId,
+			String content, List<MultipartFile> files, AttachmentType attachmentType,
+			Long durationMs, String waveform, Long replyToMessageId) {
+		long durationStart = System.currentTimeMillis();
+		Message message = null;
+
+		try {
+			Room room = roomService.getRoom(roomId, senderUsername);
+			User sender = userService.getUser(senderUsername);
+			boolean isMember = room.getMembers().stream()
+					.anyMatch(member -> member.getId().equals(sender.getId()));
+			if (!isMember) {
+				throw new InsufficientPermissionsException(
+						BusinessRuleMessage.BUSINESS_USER_NOT_MEMBER_GROUP_ROOM_MESSAGE
+								.getMessage());
+			}
+
+			List<MultipartFile> normalizedFiles = normalizeFiles(files);
+			if ((content == null || content.trim().isEmpty()) && normalizedFiles.isEmpty()) {
+				throw new InvalidMessageAttachmentException(
+						HttpResponseMessage.HTTP_MESSAGE_EMPTY_RESPONSE_MESSAGE.getMessage());
+			}
+			validateReplyTarget(replyToMessageId, room, null);
+
+			message = createMessage(sender, content == null ? "" : content, room, null,
+					replyToMessageId);
+			Message savedMessage = messageRepository.save(message);
+			for (MultipartFile file : normalizedFiles) {
+				MessageAttachment attachment = createAttachment(savedMessage, file, attachmentType,
+						durationMs, waveform);
+				savedMessage.getAttachments().add(attachment);
+			}
+			savedMessage = messageRepository.save(savedMessage);
+
+			ShortMessageWrapped response = toWrappedShortMessage(savedMessage, EventType.MESSAGE);
+			for (User member : room.getMembers()) {
+				messagingTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages",
+						response);
+			}
+
+			String lastContent = content == null || content.trim().isEmpty()
+					? buildAttachmentLastMessageText(savedMessage)
+					: content;
+			roomService.updateRoom(room.getId(), senderUsername, room.getName(),
+					savedMessage.getId(), lastContent, savedMessage.getSentAt());
+
+			log.info("{}",
+					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION,
+							LogTimingUtils.calculateDurationDifference(durationStart))
+							.roomId(roomId).messageId(savedMessage.getId()).build());
+			return response;
+		} catch (RoomNotFoundException | UserNotMemberRoomException
+				| InsufficientPermissionsException | InvalidMessageAttachmentException e) {
+			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart,
+					roomId, message, false);
+			throw e;
+		} catch (Exception e) {
+			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart,
+					roomId, message, true);
+			throw e;
+		}
 	}
 
 	public ChannelMessageResponse sendChannelMessage(String senderUsername, Long channelId,
@@ -382,6 +475,22 @@ public class MessageService {
 		return toWrappedShortMessage(message, EventType.MESSAGE);
 	}
 
+	@Transactional(readOnly = true)
+	public MessageAttachment getAttachmentForDownload(Long attachmentId, String username) {
+		MessageAttachment attachment = messageAttachmentRepository.findById(attachmentId)
+				.orElseThrow(() -> new MessageAttachmentNotFoundException(
+						HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_NOT_FOUND_RESPONSE_MESSAGE
+								.getMessage()));
+		Message message = attachment.getMessage();
+		if (message.getRoom() == null) {
+			throw new MessageAttachmentNotFoundException(
+					HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_NOT_FOUND_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		roomService.getRoom(message.getRoom().getId(), username);
+		return attachment;
+	}
+
 	// ===== PRIVATE HELPER METHODS =====
 
 	private Message createMessage(User sender, String content, Room room, Channel channel,
@@ -399,6 +508,203 @@ public class MessageService {
 		return message;
 	}
 
+	private List<MultipartFile> normalizeFiles(List<MultipartFile> files) {
+		if (files == null) {
+			return List.of();
+		}
+		List<MultipartFile> normalized = files.stream()
+				.filter(file -> file != null && !file.isEmpty())
+				.toList();
+		if (normalized.size() > MAX_ATTACHMENTS_PER_MESSAGE) {
+			throw new InvalidMessageAttachmentException(
+					HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_TOO_MANY_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		return normalized;
+	}
+
+	private MessageAttachment createAttachment(Message message, MultipartFile file,
+			AttachmentType requestedType, Long durationMs, String waveform) {
+		AttachmentType type = resolveAttachmentType(file, requestedType);
+		validateAttachmentSize(file, type);
+		validateAttachmentDuration(file, type, durationMs);
+		String storageKey = buildAttachmentStorageKey(message.getId(), file.getOriginalFilename());
+		try {
+			s3Service.uploadFile(storageKey, file.getInputStream(), file.getSize(),
+					file.getContentType());
+		} catch (IOException e) {
+			throw new InvalidMessageAttachmentException(
+					HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_UPLOAD_FAILED_RESPONSE_MESSAGE
+							.getMessage());
+		}
+
+		MessageAttachment attachment = new MessageAttachment();
+		attachment.setMessage(message);
+		attachment.setType(type);
+		attachment.setStorageKey(storageKey);
+		attachment.setOriginalFileName(resolveOriginalFileName(file));
+		attachment.setContentType(file.getContentType());
+		attachment.setSizeBytes(file.getSize());
+		attachment.setDurationMs(durationMs);
+		attachment.setWaveformJson(waveform);
+		if (type == AttachmentType.IMAGE) {
+			applyImageDimensions(attachment, file);
+		}
+		return attachment;
+	}
+
+	private AttachmentType resolveAttachmentType(MultipartFile file, AttachmentType requestedType) {
+		String contentType = file.getContentType();
+		if (contentType == null || contentType.isBlank()) {
+			logAttachmentValidationFailure("missing_content_type", file, requestedType, null);
+			throw new InvalidMessageAttachmentException(
+					HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_TYPE_INVALID_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		String normalized = normalizeContentType(contentType);
+		if (requestedType != null) {
+			validateRequestedAttachmentType(file, requestedType, normalized);
+			return requestedType;
+		}
+		if (ALLOWED_IMAGE_CONTENT_TYPES.contains(normalized)) {
+			return AttachmentType.IMAGE;
+		}
+		if (ALLOWED_VIDEO_CONTENT_TYPES.contains(normalized)) {
+			return AttachmentType.VIDEO;
+		}
+		logAttachmentValidationFailure("unsupported_content_type", file, requestedType, null);
+		throw new InvalidMessageAttachmentException(
+				HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_TYPE_INVALID_RESPONSE_MESSAGE
+						.getMessage());
+	}
+
+	private String normalizeContentType(String contentType) {
+		return contentType.toLowerCase().split(";", 2)[0].trim();
+	}
+
+	private void validateRequestedAttachmentType(MultipartFile file, AttachmentType requestedType,
+			String contentType) {
+		boolean valid = switch (requestedType) {
+			case IMAGE -> ALLOWED_IMAGE_CONTENT_TYPES.contains(contentType);
+			case VIDEO -> ALLOWED_VIDEO_CONTENT_TYPES.contains(contentType);
+			case AUDIO -> ALLOWED_AUDIO_CONTENT_TYPES.contains(contentType);
+			case VIDEO_NOTE -> ALLOWED_VIDEO_NOTE_CONTENT_TYPES.contains(contentType);
+		};
+		if (!valid) {
+			logAttachmentValidationFailure("requested_type_content_type_mismatch", file,
+					requestedType, null);
+			throw new InvalidMessageAttachmentException(
+					HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_TYPE_INVALID_RESPONSE_MESSAGE
+							.getMessage());
+		}
+	}
+
+	private void validateAttachmentSize(MultipartFile file, AttachmentType type) {
+		long maxSize = switch (type) {
+			case IMAGE -> MAX_IMAGE_SIZE_BYTES;
+			case VIDEO -> MAX_VIDEO_SIZE_BYTES;
+			case AUDIO -> MAX_AUDIO_SIZE_BYTES;
+			case VIDEO_NOTE -> MAX_VIDEO_NOTE_SIZE_BYTES;
+		};
+		if (file.getSize() > maxSize) {
+			logAttachmentValidationFailure("file_too_large", file, type, null);
+			throw new InvalidMessageAttachmentException(attachmentSizeErrorMessage(type));
+		}
+	}
+
+	private String attachmentSizeErrorMessage(AttachmentType type) {
+		return switch (type) {
+			case IMAGE -> HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_IMAGE_TOO_LARGE_RESPONSE_MESSAGE
+					.getMessage();
+			case VIDEO -> HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_VIDEO_TOO_LARGE_RESPONSE_MESSAGE
+					.getMessage();
+			case AUDIO -> HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_AUDIO_TOO_LARGE_RESPONSE_MESSAGE
+					.getMessage();
+			case VIDEO_NOTE -> HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_VIDEO_NOTE_TOO_LARGE_RESPONSE_MESSAGE
+					.getMessage();
+		};
+	}
+
+	private void validateAttachmentDuration(MultipartFile file, AttachmentType type,
+			Long durationMs) {
+		if (durationMs == null) {
+			return;
+		}
+		if (durationMs < 0) {
+			logAttachmentValidationFailure("negative_duration", file, type, durationMs);
+			throw new InvalidMessageAttachmentException(
+					HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_DURATION_INVALID_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		if (type == AttachmentType.AUDIO && durationMs > MAX_AUDIO_DURATION_MS) {
+			logAttachmentValidationFailure("audio_duration_too_long", file, type, durationMs);
+			throw new InvalidMessageAttachmentException(
+					HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_AUDIO_DURATION_TOO_LONG_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		if (type == AttachmentType.VIDEO_NOTE && durationMs > MAX_VIDEO_NOTE_DURATION_MS) {
+			logAttachmentValidationFailure("video_note_duration_too_long", file, type, durationMs);
+			throw new InvalidMessageAttachmentException(
+					HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_VIDEO_NOTE_DURATION_TOO_LONG_RESPONSE_MESSAGE
+							.getMessage());
+		}
+	}
+
+	private void logAttachmentValidationFailure(String reason, MultipartFile file,
+			AttachmentType attachmentType, Long durationMs) {
+		log.warn(
+				"Message attachment validation failed: reason={}, originalFileName={}, contentType={}, attachmentType={}, durationMs={}, sizeBytes={}",
+				reason,
+				file == null ? null : file.getOriginalFilename(),
+				file == null ? null : file.getContentType(),
+				attachmentType,
+				durationMs,
+				file == null ? null : file.getSize());
+	}
+
+	private void applyImageDimensions(MessageAttachment attachment, MultipartFile file) {
+		try {
+			BufferedImage image = ImageIO.read(file.getInputStream());
+			if (image != null) {
+				attachment.setWidth(image.getWidth());
+				attachment.setHeight(image.getHeight());
+			}
+		} catch (IOException ignored) {
+			// Image dimensions are optional metadata; upload should not fail if unavailable.
+		}
+	}
+
+	private String buildAttachmentStorageKey(Long messageId, String originalFileName) {
+		String extension = "";
+		if (originalFileName != null && originalFileName.contains(".")) {
+			extension = originalFileName.substring(originalFileName.lastIndexOf('.'));
+		}
+		return "message-attachments/" + messageId + "/" + UUID.randomUUID() + extension;
+	}
+
+	private String resolveOriginalFileName(MultipartFile file) {
+		String originalFileName = file.getOriginalFilename();
+		return originalFileName == null || originalFileName.isBlank()
+				? "attachment"
+				: originalFileName;
+	}
+
+	private String buildAttachmentLastMessageText(Message message) {
+		if (message.getAttachments().stream()
+				.anyMatch(attachment -> attachment.getType() == AttachmentType.AUDIO)) {
+			return "[voice]";
+		}
+		if (message.getAttachments().stream()
+				.anyMatch(attachment -> attachment.getType() == AttachmentType.VIDEO_NOTE)) {
+			return "[video note]";
+		}
+		if (message.getAttachments().stream()
+				.anyMatch(attachment -> attachment.getType() == AttachmentType.VIDEO)) {
+			return "[video]";
+		}
+		return "[image]";
+	}
+
 	private ShortMessageWrapped toWrappedShortMessage(Message message, EventType eventType) {
 		ReplyPreviewDto replyPreview = resolveReplyPreview(message.getReplyToMessageId());
 		return toWrappedShortMessage(message, eventType, replyPreview);
@@ -413,7 +719,7 @@ public class MessageService {
 				new RoomShortDto(message.getRoom().getId(), message.getRoom().getType());
 		return new ShortMessageWrapped(message.getId(), message.getContent(), message.getType(),
 				eventType, message.getSentAt(), sender, room, message.getEditedAt(),
-				message.getReplyToMessageId(), replyPreview);
+				message.getReplyToMessageId(), replyPreview, mapAttachments(message));
 	}
 
 	private MessageResponse mapToMessageResponse(Message message, Long roomId,
@@ -427,6 +733,7 @@ public class MessageService {
 		response.setRoomId(roomId);
 		response.setReplyToMessageId(message.getReplyToMessageId());
 		response.setReplyPreview(replyPreview);
+		response.setAttachments(mapAttachments(message));
 		return response;
 	}
 
@@ -447,7 +754,25 @@ public class MessageService {
 		response.setReplyToMessageId(message.getReplyToMessageId());
 		response.setReplyPreview(resolveReplyPreview(message.getReplyToMessageId()));
 		response.setEditedAt(message.getEditedAt());
+		response.setAttachments(mapAttachments(message));
 		return response;
+	}
+
+	private List<MessageAttachmentDto> mapAttachments(Message message) {
+		if (message.getAttachments() == null || message.getAttachments().isEmpty()) {
+			return List.of();
+		}
+		return message.getAttachments().stream()
+				.map(this::toAttachmentDto)
+				.toList();
+	}
+
+	private MessageAttachmentDto toAttachmentDto(MessageAttachment attachment) {
+		String downloadUrl = "/api/message-attachments/" + attachment.getId() + "/download";
+		return new MessageAttachmentDto(attachment.getId(), attachment.getType(), downloadUrl,
+				downloadUrl, attachment.getOriginalFileName(), attachment.getContentType(),
+				attachment.getSizeBytes(), attachment.getWidth(), attachment.getHeight(),
+				attachment.getDurationMs(), attachment.getWaveformJson());
 	}
 
 	private void validateReplyTarget(Long replyToMessageId, Room room, Channel channel) {

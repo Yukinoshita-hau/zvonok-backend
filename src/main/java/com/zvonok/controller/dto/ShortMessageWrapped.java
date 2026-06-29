@@ -1,6 +1,7 @@
 package com.zvonok.controller.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import com.zvonok.model.enumeration.MessageType;
 import com.zvonok.service.dto.EventType;
 import lombok.AllArgsConstructor;
@@ -19,4 +20,5 @@ public class ShortMessageWrapped {
 	private final LocalDateTime editedAt;
 	private final Long replyToMessageId;
 	private final ReplyPreviewDto replyPreview;
+	private final List<MessageAttachmentDto> attachments;
 }

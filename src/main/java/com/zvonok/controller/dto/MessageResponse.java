@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Schema(name = "MessageResponse", description = "Ответ с сообщением.")
 @Data
@@ -46,4 +47,6 @@ public class MessageResponse {
 	@Schema(description = "Компактный preview родительского сообщения для reply.",
 			accessMode = Schema.AccessMode.READ_ONLY)
 	private ReplyPreviewDto replyPreview;
+
+	private List<MessageAttachmentDto> attachments;
 }

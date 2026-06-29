@@ -11,6 +11,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @NoArgsConstructor
 @AllArgsConstructor
@@ -47,6 +49,10 @@ public class Message {
 
     @Column(nullable = false)
     private LocalDateTime sentAt;
+
+    @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true,
+            fetch = FetchType.LAZY)
+    private List<MessageAttachment> attachments = new ArrayList<>();
     
     public boolean isEdited() {
         return editedAt != null;
