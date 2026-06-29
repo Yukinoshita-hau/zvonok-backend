@@ -77,7 +77,7 @@ public class MessageService {
 	private static final long MAX_IMAGE_SIZE_BYTES = 10L * 1024L * 1024L;
 	private static final long MAX_VIDEO_SIZE_BYTES = 100L * 1024L * 1024L;
 	private static final long MAX_AUDIO_SIZE_BYTES = 25L * 1024L * 1024L;
-	private static final long MAX_VIDEO_NOTE_SIZE_BYTES = 50L * 1024L * 1024L;
+	private static final long MAX_VIDEO_NOTE_SIZE_BYTES = 100L * 1024L * 1024L;
 	private static final long MAX_AUDIO_DURATION_MS = 5L * 60L * 1000L;
 	private static final long MAX_VIDEO_NOTE_DURATION_MS = 60L * 1000L;
 	private static final Set<String> ALLOWED_IMAGE_CONTENT_TYPES =

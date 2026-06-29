@@ -79,7 +79,7 @@ public enum HttpResponseMessage {
 	HTTP_MESSAGE_ATTACHMENT_IMAGE_TOO_LARGE_RESPONSE_MESSAGE("Image attachment size must not exceed 10 MB"),
 	HTTP_MESSAGE_ATTACHMENT_VIDEO_TOO_LARGE_RESPONSE_MESSAGE("Video attachment size must not exceed 100 MB"),
 	HTTP_MESSAGE_ATTACHMENT_AUDIO_TOO_LARGE_RESPONSE_MESSAGE("Audio attachment size must not exceed 25 MB"),
-	HTTP_MESSAGE_ATTACHMENT_VIDEO_NOTE_TOO_LARGE_RESPONSE_MESSAGE("Video note attachment size must not exceed 50 MB"),
+	HTTP_MESSAGE_ATTACHMENT_VIDEO_NOTE_TOO_LARGE_RESPONSE_MESSAGE("Video note attachment size must not exceed 100 MB"),
 	HTTP_MESSAGE_ATTACHMENT_DURATION_INVALID_RESPONSE_MESSAGE("Attachment duration must not be negative"),
 	HTTP_MESSAGE_ATTACHMENT_AUDIO_DURATION_TOO_LONG_RESPONSE_MESSAGE("Audio attachment duration must not exceed 5 minutes"),
 	HTTP_MESSAGE_ATTACHMENT_VIDEO_NOTE_DURATION_TOO_LONG_RESPONSE_MESSAGE("Video note attachment duration must not exceed 1 minute"),
