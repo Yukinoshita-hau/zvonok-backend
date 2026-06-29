@@ -84,6 +84,7 @@ public enum HttpResponseMessage {
 	HTTP_MESSAGE_ATTACHMENT_AUDIO_DURATION_TOO_LONG_RESPONSE_MESSAGE("Audio attachment duration must not exceed 5 minutes"),
 	HTTP_MESSAGE_ATTACHMENT_VIDEO_NOTE_DURATION_TOO_LONG_RESPONSE_MESSAGE("Video note attachment duration must not exceed 1 minute"),
 	HTTP_MESSAGE_ATTACHMENT_UPLOAD_FAILED_RESPONSE_MESSAGE("Failed to upload message attachment"),
+	HTTP_UPLOAD_FILE_TOO_LARGE_RESPONSE_MESSAGE("Uploaded file is too large. Max file size is 100 MB"),
 	HTTP_AUTH_PRINCEPAL_REQUIRED_RESPONSE_MESSAGE("Authenticated principal required for this WebSocket operation"),
 
 	// CallSession

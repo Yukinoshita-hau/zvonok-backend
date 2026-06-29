@@ -69,7 +69,7 @@ public class CanvasBoardService {
 	private static final int MIN_TIMER_DURATION_SECONDS = 10;
 	private static final int MAX_TIMER_DURATION_SECONDS = 7200;
 	private static final int MAX_STICKY_NOTE_TEXT_LENGTH = 1000;
-	private static final long MAX_BACKGROUND_IMAGE_SIZE_BYTES = 5L * 1024L * 1024L;
+	private static final long MAX_BACKGROUND_IMAGE_SIZE_BYTES = 50L * 1024L * 1024L;
 	private static final double MIN_VIEWPORT_ZOOM = 0.25;
 	private static final double MAX_VIEWPORT_ZOOM = 4.0;
 	private static final Set<CallParticipantStatus> DRAW_ALLOWED_STATUSES =

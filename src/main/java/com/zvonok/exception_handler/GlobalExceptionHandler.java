@@ -126,9 +126,9 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(MaxUploadSizeExceededException.class)
 	public ResponseEntity<JsonErrorResponse> handleMaxUploadSizeExceededException(
 			MaxUploadSizeExceededException e) {
+		log.warn("Multipart upload size limit exceeded: {}", e.getMessage());
 		JsonErrorResponse errorResponse = new JsonErrorResponse(
-				HttpResponseMessage.HTTP_CANVAS_BACKGROUND_FILE_SIZE_INVALID_RESPONSE_MESSAGE
-						.getMessage(),
+				HttpResponseMessage.HTTP_UPLOAD_FILE_TOO_LARGE_RESPONSE_MESSAGE.getMessage(),
 				HttpStatus.BAD_REQUEST.value());
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
 	}
