@@ -9,5 +9,6 @@ import lombok.Setter;
 @Setter
 @Builder
 public class RoomEvents {
-	RoomEventsType type;		
+	RoomEventsType type;
+	Object payload;
 }

@@ -8,6 +8,10 @@ public enum HttpResponseMessage {
 	HTTP_ROOM_NOT_FOUND_RESPONSE_MESSAGE("Room was not found"),
 	HTTP_INVALID_ROOM_SIZE_RESPONSE_MESSAGE("Invalid room size"),
 	HTTP_ROOM_SIZE_MAX_FIFTEEN_MEMBERS_RESPONSE_MESSAGE("Maximum of 15 members in group chat"),
+	HTTP_ROOM_GROUP_ONLY_RESPONSE_MESSAGE("This operation is available only for group rooms"),
+	HTTP_ROOM_MESSAGES_CLEAR_PRIVATE_DENIED_RESPONSE_MESSAGE("Clearing all messages is not allowed for private rooms"),
+	HTTP_ROOM_INVITE_NOT_FOUND_RESPONSE_MESSAGE("Room invite was not found"),
+	HTTP_ROOM_INVITE_INVALID_RESPONSE_MESSAGE("Room invite is invalid or expired"),
 
 	// RoomReadState
 	HTTP_ROOM_READ_STATE_NOT_FOUND_RESPONSE_MESSAGE("RoomReedState was not found"),
@@ -33,6 +37,7 @@ public enum HttpResponseMessage {
 	HTTP_INCORRECT_USER_EMAIL_TYPE_RESPONSE_MESSAGE("Email can not be null"),
 	HTTP_INCORRECT_USER_PASSWORD_TYPE_RESPONSE_MESSAGE("Password can not be null"),
 	HTTP_USER_NOT_YOUR_FRIEND_RESPONSE_MESSAGE(" is not your friend"),
+	HTTP_USER_THEME_INVALID_RESPONSE_MESSAGE("User custom theme contains invalid color values"),
 
 	// Channel
 	HTTP_CHANNEL_NOT_FOUND_RESPONSE_MESSAGE("Channel was not found"),

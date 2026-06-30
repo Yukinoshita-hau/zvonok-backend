@@ -141,4 +141,9 @@ public class RoomReadStateService {
 		}).orElse(null);
 
 	}
+
+	@Transactional
+	public void resetRoomReadStates(Long roomId) {
+		roomReadStateRepository.resetByRoomId(roomId);
+	}
 }

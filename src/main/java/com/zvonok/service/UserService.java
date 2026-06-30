@@ -1,12 +1,18 @@
 package com.zvonok.service;
 
 import com.zvonok.controller.dto.MyUser;
+import com.zvonok.controller.dto.UserMiniProfileDto;
 import com.zvonok.exception.UserNotFoundException;
 import com.zvonok.exception.UserWIthThisUsernameAlreadyExistException;
 import com.zvonok.exception.UserWithThisEmailAlreadyExistException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.User;
+import com.zvonok.model.Room;
+import com.zvonok.model.enumeration.FriendRequestStatus;
 import com.zvonok.model.enumeration.UserStatus;
+import com.zvonok.repository.FriendRequestRepository;
+import com.zvonok.repository.FriendshipRepository;
+import com.zvonok.repository.RoomRepository;
 import com.zvonok.repository.UserRepository;
 import com.zvonok.service.dto.CreateUserDto;
 import com.zvonok.service.dto.UpdateUserDto;
@@ -16,6 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.io.InputStream;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -29,6 +37,9 @@ public class UserService {
 	private final UserRepository userRepository;
 	private final UserEventPublisherService publisherService;
 	private final S3Service s3Service;
+	private final FriendshipRepository friendshipRepository;
+	private final FriendRequestRepository friendRequestRepository;
+	private final RoomRepository roomRepository;
 
 	@Value("${s3.localEndpoint}")
 	private String endpoint;
@@ -51,9 +62,50 @@ public class UserService {
 		return myUserWrapper(user);
 	}
 
+	public UserMiniProfileDto getMiniProfile(Long userId, String currentUsername) {
+		User currentUser = getUser(currentUsername);
+		User targetUser = getUser(userId);
+		String friendshipStatus = resolveFriendshipStatus(currentUser.getId(), targetUser.getId());
+		Long privateRoomId = roomRepository
+				.findPrivateRoomBetweenUsers(currentUser.getId(), targetUser.getId())
+				.map(Room::getId)
+				.orElse(null);
+		return new UserMiniProfileDto(targetUser.getId(), targetUser.getUsername(),
+				targetUser.getDisplayName(), targetUser.getAvatarUrl(), targetUser.getStatus(),
+				targetUser.getLastSeenAt(), targetUser.getAboutMe(), friendshipStatus,
+				privateRoomId);
+	}
+
 	public Optional<User> getUserByUsernameOrEmail(String usernameOrEmail) {
 		return userRepository.findByEmail(usernameOrEmail)
 				.or(() -> userRepository.findByUsername(usernameOrEmail));
+	}
+
+	public List<User> getUsersByIds(Collection<Long> ids) {
+		return userRepository.findAllByIdIn(ids.stream().toList());
+	}
+
+	private String resolveFriendshipStatus(Long currentUserId, Long targetUserId) {
+		if (currentUserId.equals(targetUserId)) {
+			return "SELF";
+		}
+		Long[] pair = normalizePair(currentUserId, targetUserId);
+		if (friendshipRepository.existsByUserOneIdAndUserTwoId(pair[0], pair[1])) {
+			return "FRIENDS";
+		}
+		if (friendRequestRepository.existsBySenderIdAndReceiverIdAndStatusIn(currentUserId,
+				targetUserId, java.util.List.of(FriendRequestStatus.PENDING))) {
+			return "REQUEST_SENT";
+		}
+		if (friendRequestRepository.existsBySenderIdAndReceiverIdAndStatusIn(targetUserId,
+				currentUserId, java.util.List.of(FriendRequestStatus.PENDING))) {
+			return "REQUEST_RECEIVED";
+		}
+		return "NOT_FRIENDS";
+	}
+
+	private Long[] normalizePair(Long first, Long second) {
+		return first <= second ? new Long[] {first, second} : new Long[] {second, first};
 	}
 
 	@Transactional

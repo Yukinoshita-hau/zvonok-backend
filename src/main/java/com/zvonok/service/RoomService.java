@@ -2,6 +2,9 @@ package com.zvonok.service;
 
 import com.zvonok.controller.dto.RoomMemberShortDto;
 import com.zvonok.controller.dto.RoomResponse;
+import com.zvonok.controller.dto.AddRoomMembersResponse;
+import com.zvonok.controller.dto.AddedRoomMemberDto;
+import com.zvonok.controller.dto.SkippedRoomMemberDto;
 import com.zvonok.exception.InsufficientPermissionsException;
 import com.zvonok.exception.InvalidRoomSizeException;
 import com.zvonok.exception.RoomSizeMaxTenMembersException;
@@ -21,9 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Service for managing private and group chat rooms. Сервис для управления приватными и групповыми
@@ -158,6 +163,65 @@ public class RoomService {
 		return savedRoom;
 	}
 
+	@Transactional
+	public AddRoomMembersResponse addMembers(Long roomId, String username, List<Long> userIds) {
+		User currentUser = userService.getUser(username);
+		Room room = getRoomForUpdate(roomId, username);
+		if (room.getType() != RoomType.GROUP) {
+			throw new InsufficientPermissionsException(
+					HttpResponseMessage.HTTP_ROOM_GROUP_ONLY_RESPONSE_MESSAGE.getMessage());
+		}
+		if (userIds == null || userIds.isEmpty()) {
+			return new AddRoomMembersResponse(roomId, List.of(), List.of());
+		}
+
+		Set<Long> existingMemberIds = room.getMembers().stream().map(User::getId)
+				.collect(java.util.stream.Collectors.toSet());
+		Set<Long> requestedIds = new HashSet<>(userIds);
+		Map<Long, User> usersById = userService.getUsersByIds(requestedIds).stream()
+				.collect(java.util.stream.Collectors.toMap(User::getId, user -> user));
+
+		List<AddedRoomMemberDto> added = new ArrayList<>();
+		List<SkippedRoomMemberDto> skipped = new ArrayList<>();
+		LocalDateTime joinedAt = LocalDateTime.now();
+
+		for (Long userId : requestedIds) {
+			User user = usersById.get(userId);
+			if (user == null) {
+				skipped.add(new SkippedRoomMemberDto(userId, "USER_NOT_FOUND"));
+				continue;
+			}
+			if (existingMemberIds.contains(userId)) {
+				skipped.add(new SkippedRoomMemberDto(userId, "ALREADY_MEMBER"));
+				continue;
+			}
+			if (!friendAccessService.areFriends(currentUser.getId(), userId)) {
+				skipped.add(new SkippedRoomMemberDto(userId, "NOT_FRIEND"));
+				continue;
+			}
+			room.getMembers().add(user);
+			existingMemberIds.add(userId);
+			added.add(new AddedRoomMemberDto(user.getId(), user.getUsername(),
+					user.getAvatarUrl(), joinedAt));
+		}
+
+		roomRepository.save(room);
+		AddRoomMembersResponse response = new AddRoomMembersResponse(roomId, added, skipped);
+		if (!added.isEmpty()) {
+			Map<String, Object> payload = new java.util.LinkedHashMap<>();
+			payload.put("roomId", roomId);
+			payload.put("addedMembers", added);
+			payload.put("addedByUserId", currentUser.getId());
+			RoomEvents event = RoomEvents.builder().type(RoomEventsType.ROOM_MEMBERS_ADDED)
+					.payload(payload).build();
+			for (User member : room.getMembers()) {
+				messagingTemplate.convertAndSendToUser(member.getUsername(),
+						BrokerPath.ROOM_EVENTS_QUEUE_PATH.getPath(), event);
+			}
+		}
+		return response;
+	}
+
 	private Optional<Room> findPrivateRoomBetweenUsers(Long user1, Long user2) {
 		return roomRepository.findPrivateRoomBetweenUsers(user1, user2);
 	}
@@ -213,17 +277,38 @@ public class RoomService {
 		return roomRepository.findAllByMembersContainingAndIsActiveTrue(user);
 	}
 
+	@Transactional
 	public void leaveRoom(String username, long roomId) {
 		User user = userService.getUser(username);
 		Room room = getRoom(roomId, username);
+		if (room.getType() != RoomType.GROUP) {
+			throw new InsufficientPermissionsException(
+					HttpResponseMessage.HTTP_ROOM_GROUP_ONLY_RESPONSE_MESSAGE.getMessage());
+		}
 
-		room.getMembers().remove(user);
+		room.getMembers().removeIf(member -> member.getId().equals(user.getId()));
 
 		if (room.getMembers().isEmpty()) {
 			room.setIsActive(false);
 		}
 
 		roomRepository.save(room);
+
+		Map<String, Object> payload = new java.util.LinkedHashMap<>();
+		payload.put("roomId", roomId);
+		payload.put("userId", user.getId());
+		payload.put("username", user.getUsername());
+		payload.put("avatarUrl", user.getAvatarUrl());
+		payload.put("leftAt", LocalDateTime.now());
+		RoomEvents event = RoomEvents.builder().type(RoomEventsType.ROOM_MEMBER_LEFT)
+				.payload(payload).build();
+
+		messagingTemplate.convertAndSendToUser(user.getUsername(),
+				BrokerPath.ROOM_EVENTS_QUEUE_PATH.getPath(), event);
+		for (User member : room.getMembers()) {
+			messagingTemplate.convertAndSendToUser(member.getUsername(),
+					BrokerPath.ROOM_EVENTS_QUEUE_PATH.getPath(), event);
+		}
 	}
 
 	@Transactional

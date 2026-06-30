@@ -1,6 +1,10 @@
 package com.zvonok.controller;
 
 import com.zvonok.controller.dto.ActiveCallResponse;
+import com.zvonok.controller.dto.AddRoomMembersRequest;
+import com.zvonok.controller.dto.AddRoomMembersResponse;
+import com.zvonok.controller.dto.CreateRoomInviteRequest;
+import com.zvonok.controller.dto.CreateRoomInviteResponse;
 import com.zvonok.controller.dto.MessageResponse;
 import com.zvonok.controller.dto.RoomResponse;
 import com.zvonok.controller.dto.ShortMessageWrapped;
@@ -21,8 +25,8 @@ import com.zvonok.model.Room;
 import com.zvonok.security.dto.UserPrincipal;
 import com.zvonok.service.RoomService;
 import com.zvonok.service.CallQueryService;
-import com.zvonok.service.CallSessionService;
 import com.zvonok.service.MessageService;
+import com.zvonok.service.RoomInviteService;
 import com.zvonok.service.RoomReadStateService;
 
 import jakarta.validation.Valid;
@@ -49,6 +53,7 @@ public class RoomController {
 	private final MessageService messageService;
 	private final RoomReadStateService roomReadStateService;
 	private final CallQueryService callQueryService;
+	private final RoomInviteService roomInviteService;
 
 	@Operation(summary = "Получить все комнаты пользователя",
 			description = "Возвращает все комнаты пользователя")
@@ -137,6 +142,36 @@ public class RoomController {
 				roomId, beforeMessageId, limit);
 
 		return ResponseEntity.ok(messages);
+	}
+
+	@DeleteMapping("/{roomId}/messages")
+	public ResponseEntity<Void> clearRoomMessages(@PathVariable Long roomId,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		messageService.clearRoomMessages(roomId, principal.getUsername());
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/{roomId}/members")
+	public ResponseEntity<AddRoomMembersResponse> addMembers(@PathVariable Long roomId,
+			@RequestBody AddRoomMembersRequest request,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		return ResponseEntity.ok(roomService.addMembers(roomId, principal.getUsername(),
+				request == null ? null : request.userIds()));
+	}
+
+	@PostMapping("/{roomId}/leave")
+	public ResponseEntity<Void> leaveRoom(@PathVariable Long roomId,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		roomService.leaveRoom(principal.getUsername(), roomId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/{roomId}/invites")
+	public ResponseEntity<CreateRoomInviteResponse> createInvite(@PathVariable Long roomId,
+			@RequestBody(required = false) CreateRoomInviteRequest request,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		return ResponseEntity.ok(roomInviteService.createInvite(roomId, principal.getUsername(),
+				request));
 	}
 
 	@PostMapping("/{roomId}/messages/attachments")

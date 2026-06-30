@@ -34,6 +34,9 @@ import com.zvonok.model.enumeration.MessageType;
 import com.zvonok.model.enumeration.AttachmentType;
 import com.zvonok.repository.MessageAttachmentRepository;
 import com.zvonok.repository.MessageRepository;
+import com.zvonok.service.dto.RoomEvents;
+import com.zvonok.service.enums.BrokerPath;
+import com.zvonok.service.enums.RoomEventsType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -72,6 +75,7 @@ public class MessageService {
 	private final PermissionService permissionService;
 	private final MessageAttachmentRepository messageAttachmentRepository;
 	private final S3Service s3Service;
+	private final RoomReadStateService roomReadStateService;
 
 	private static final int MAX_ATTACHMENTS_PER_MESSAGE = 10;
 	private static final long MAX_IMAGE_SIZE_BYTES = 10L * 1024L * 1024L;
@@ -410,6 +414,35 @@ public class MessageService {
 	public Message getMessage(Long messageId) {
 		return messageRepository.findById(messageId).orElseThrow(() -> new MessageNotFoundException(
 				HttpResponseMessage.HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE.getMessage()));
+	}
+
+	@Transactional
+	public void clearRoomMessages(Long roomId, String username) {
+		User user = userService.getUser(username);
+		Room room = roomService.getRoom(roomId, username);
+		if (room.getType() == com.zvonok.model.enumeration.RoomType.PRIVATE) {
+			throw new InsufficientPermissionsException(
+					HttpResponseMessage.HTTP_ROOM_MESSAGES_CLEAR_PRIVATE_DENIED_RESPONSE_MESSAGE
+							.getMessage());
+		}
+		LocalDateTime clearedAt = LocalDateTime.now();
+		messageRepository.softDeleteAllByRoomId(roomId, clearedAt);
+		roomReadStateService.resetRoomReadStates(roomId);
+		roomService.updateRoom(roomId, username, null, null, null);
+
+		Map<String, Object> payload = new HashMap<>();
+		payload.put("type", "ROOM_MESSAGES_CLEARED");
+		payload.put("roomId", roomId);
+		payload.put("clearedByUserId", user.getId());
+		payload.put("clearedAt", clearedAt);
+		RoomEvents event = RoomEvents.builder()
+				.type(RoomEventsType.ROOM_MESSAGES_CLEARED)
+				.payload(payload)
+				.build();
+		for (User member : room.getMembers()) {
+			messagingTemplate.convertAndSendToUser(member.getUsername(),
+					BrokerPath.ROOM_EVENTS_QUEUE_PATH.getPath(), event);
+		}
 	}
 
 	public List<ShortMessageWrapped> getRoomMessages(String currentUsername, Long roomId,

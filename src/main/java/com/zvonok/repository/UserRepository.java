@@ -19,6 +19,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
 	List<User> findAllByUsernameIn(List<String> members);
 
+	List<User> findAllByIdIn(List<Long> ids);
+
 	@Query("""
 			    select u.username
 			    from User u
