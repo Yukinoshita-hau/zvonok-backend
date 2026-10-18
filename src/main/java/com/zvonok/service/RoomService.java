@@ -1,5 +1,6 @@
 package com.zvonok.service;
 
+import com.zvonok.utils.TransactionUtils;
 import com.zvonok.controller.dto.RoomMemberShortDto;
 import com.zvonok.controller.dto.RoomResponse;
 import com.zvonok.controller.dto.AddRoomMembersResponse;
@@ -14,6 +15,7 @@ import com.zvonok.model.Room;
 import com.zvonok.model.User;
 import com.zvonok.model.enumeration.RoomType;
 import com.zvonok.repository.RoomRepository;
+import com.zvonok.repository.RoomUnreadSummary;
 import com.zvonok.service.dto.RoomEvents;
 import com.zvonok.service.enums.BrokerPath;
 import com.zvonok.service.enums.RoomEventsType;
@@ -45,6 +47,10 @@ public class RoomService {
 	private final FriendShipAccessService friendAccessService;
 	private final SimpMessagingTemplate messagingTemplate;
 
+    private void publishToUser(String username, String destination, Object payload) {
+        TransactionUtils.runAfterCommit(() -> messagingTemplate.convertAndSendToUser(username, destination, payload));
+    }
+
 	public Room getRoom(Long id, String username) {
 		return roomAccessService.getRoomForUser(id, username);
 	}
@@ -53,22 +59,22 @@ public class RoomService {
 		return roomAccessService.getRoomForUserForRoomUpdate(id, username);
 	}
 
+	@Transactional(readOnly = true)
 	public List<RoomResponse> getUserRoomsWithUnread(String username) {
 		User user = userService.getUser(username);
 
-		List<Room> rooms = roomRepository.findAllByMembersContainingAndIsActiveTrue(user);
+		List<Room> rooms = roomRepository.findActiveRoomsWithMembers(user);
 
 		List<Long> roomIds = rooms.stream().map(Room::getId).toList();
 
-		Map<Long, Integer> unreadCounts =
-				roomReadStateService.getUnreadCountsForRooms(user.getId(), roomIds);
+		Map<Long, RoomUnreadSummary> unreadCounts =
+				roomReadStateService.getUnreadSummaries(user.getId(), roomIds);
 
 
 		return rooms.stream().map(room -> {
-			int unread = unreadCounts.getOrDefault(room.getId(), 0);
-			Long firstUnreadId = unread > 0
-					? roomReadStateService.getFirstUnreadMessageId(user.getId(), room.getId())
-					: null;
+			RoomUnreadSummary summary = unreadCounts.get(room.getId());
+			int unread = summary == null ? 0 : Math.toIntExact(summary.getUnreadCount());
+			Long firstUnreadId = summary == null ? null : summary.getFirstUnreadMessageId();
 			return mapToRoomResponse(room, unread, firstUnreadId);
 		}).toList();
 	}
@@ -103,6 +109,7 @@ public class RoomService {
 		return roomRepository.save(room);
 	}
 
+	@Transactional
 	public Room createGroupRoom(String creatorUsername, String roomName,
 			List<String> roomMemberUsernames) {
 		User creator = userService.getUser(creatorUsername);
@@ -157,7 +164,7 @@ public class RoomService {
 		RoomEvents response	= RoomEvents.builder().type(RoomEventsType.ROOM_CREATED).build();
 
 		room.getMembers().stream().forEach(m -> {
-			messagingTemplate.convertAndSendToUser(m.getUsername(), BrokerPath.ROOM_EVENTS_QUEUE_PATH.getPath(), response);
+			publishToUser(m.getUsername(), BrokerPath.ROOM_EVENTS_QUEUE_PATH.getPath(), response);
 		});
 
 		return savedRoom;
@@ -215,7 +222,7 @@ public class RoomService {
 			RoomEvents event = RoomEvents.builder().type(RoomEventsType.ROOM_MEMBERS_ADDED)
 					.payload(payload).build();
 			for (User member : room.getMembers()) {
-				messagingTemplate.convertAndSendToUser(member.getUsername(),
+				publishToUser(member.getUsername(),
 						BrokerPath.ROOM_EVENTS_QUEUE_PATH.getPath(), event);
 			}
 		}
@@ -280,7 +287,7 @@ public class RoomService {
 	@Transactional
 	public void leaveRoom(String username, long roomId) {
 		User user = userService.getUser(username);
-		Room room = getRoom(roomId, username);
+		Room room = getRoomForUpdate(roomId, username);
 		if (room.getType() != RoomType.GROUP) {
 			throw new InsufficientPermissionsException(
 					HttpResponseMessage.HTTP_ROOM_GROUP_ONLY_RESPONSE_MESSAGE.getMessage());
@@ -303,10 +310,10 @@ public class RoomService {
 		RoomEvents event = RoomEvents.builder().type(RoomEventsType.ROOM_MEMBER_LEFT)
 				.payload(payload).build();
 
-		messagingTemplate.convertAndSendToUser(user.getUsername(),
+		publishToUser(user.getUsername(),
 				BrokerPath.ROOM_EVENTS_QUEUE_PATH.getPath(), event);
 		for (User member : room.getMembers()) {
-			messagingTemplate.convertAndSendToUser(member.getUsername(),
+			publishToUser(member.getUsername(),
 					BrokerPath.ROOM_EVENTS_QUEUE_PATH.getPath(), event);
 		}
 	}
@@ -315,7 +322,7 @@ public class RoomService {
 	public Room updateRoom(Long roomId, String username, String newName, Long lastMessageId,
 			String lastMessageContent, LocalDateTime lastActivityAt) {
 		User user = userService.getUser(username);
-		Room room = getRoom(roomId, username);
+		Room room = getRoomForUpdate(roomId, username);
 
 		// Проверяем, что пользователь является участником комнаты
 		boolean isMember =
@@ -345,7 +352,7 @@ public class RoomService {
 	public Room updateRoom(Long roomId, String username, Long lastMessageId,
 			String lastMessageContent, LocalDateTime lastActivityAt) {
 		User user = userService.getUser(username);
-		Room room = getRoom(roomId, username);
+		Room room = getRoomForUpdate(roomId, username);
 
 		// Проверяем, что пользователь является участником комнаты
 		boolean isMember =
@@ -365,7 +372,7 @@ public class RoomService {
 	@Transactional
 	public void deleteRoom(Long roomId, String username) {
 		User user = userService.getUser(username);
-		Room room = getRoom(roomId, username);
+		Room room = getRoomForUpdate(roomId, username);
 
 		// Проверяем, что пользователь является участником комнаты
 		boolean isMember =

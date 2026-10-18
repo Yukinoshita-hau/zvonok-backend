@@ -18,6 +18,8 @@ app.jwt.refreshExpirationMs = 1209600000
 logging.level.com.zvonok = DEBUG
 logging.level.org.springframework.security=DEBUG
 
-# Code runner
-code-runner.url=${CODE_RUNNER_URL:http://localhost:8081}
-code-runner.api-key=${CODE_RUNNER_API_KEY:someUltraKeyTest}
+# Call lifecycle (seconds unless specified); STOMP/JWT are not media liveness.
+call.lifecycle.invitation-seconds=60
+call.lifecycle.media-grace-seconds=90
+call.lifecycle.initial-connect-seconds=120
+call.lifecycle.reconcile-delay-ms=30000

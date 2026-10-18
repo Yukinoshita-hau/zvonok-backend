@@ -2,6 +2,7 @@ package com.zvonok.repository;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -11,6 +12,7 @@ import com.zvonok.model.MessageReadStatus;
 public interface MessageReadStatusRepository extends JpaRepository<MessageReadStatus, Long> {
 	Optional<MessageReadStatus> findByMessageIdAndUserId(Long messageId, Long userId);
 	Optional<MessageReadStatus> findByMessageId(Long messageId);
+	List<MessageReadStatus> findAllByMessageId(Long messageId);
 
 	@Modifying
 	@Query(value = """

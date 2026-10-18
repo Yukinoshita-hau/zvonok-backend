@@ -16,6 +16,7 @@ import com.zvonok.model.RoomReadState;
 import com.zvonok.model.User;
 import com.zvonok.repository.MessageRepository;
 import com.zvonok.repository.RoomReadStateRepository;
+import com.zvonok.repository.RoomUnreadSummary;
 
 import lombok.RequiredArgsConstructor;
 
@@ -98,30 +99,20 @@ public class RoomReadStateService {
 		});
 	}
 
-	public Map<Long, Integer> getUnreadCountsForRooms(Long username, List<Long> roomIds) {
-		User user = userService.getUser(username);
+	@Transactional(readOnly = true)
+	public Map<Long, RoomUnreadSummary> getUnreadSummaries(Long userId, List<Long> roomIds) {
+		if (roomIds.isEmpty()) return Map.of();
+		return roomReadStateRepository.summarizeUnread(userId, roomIds).stream()
+				.collect(Collectors.toMap(RoomUnreadSummary::getRoomId, summary -> summary));
+	}
 
-		List<RoomReadState> states =
-				roomReadStateRepository.findAllByUserIdAndRoomIdIn(user.getId(), roomIds);
-
-		Map<Long, Long> lastReadByRoom =
-				states.stream().collect(Collectors.toMap(s -> s.getRoom().getId(),
-						s -> s.getLastReadMessageId() != null ? s.getLastReadMessageId() : 0L));
-
+	public Map<Long, Integer> getUnreadCountsForRooms(Long userId, List<Long> roomIds) {
+		Map<Long, RoomUnreadSummary> summaries = getUnreadSummaries(userId, roomIds);
 		Map<Long, Integer> result = new HashMap<>();
 		for (Long roomId : roomIds) {
-			Long lastRead = lastReadByRoom.getOrDefault(roomId, 0L);
-			if (lastRead == 0L) {
-				result.put(roomId, messageRepository
-						.countByRoomIdAndSenderIdNotAndDeletedAtIsNull(roomId, user.getId()));
-			} else {
-				result.put(roomId,
-						messageRepository
-								.countByRoomIdAndIdGreaterThanAndSenderIdNotAndDeletedAtIsNull(
-										roomId, lastRead, user.getId()));
-			}
+			RoomUnreadSummary summary = summaries.get(roomId);
+			result.put(roomId, summary == null ? 0 : Math.toIntExact(summary.getUnreadCount()));
 		}
-
 		return result;
 	}
 

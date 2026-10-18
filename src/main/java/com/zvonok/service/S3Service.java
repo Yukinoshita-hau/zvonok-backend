@@ -8,6 +8,8 @@ import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.zvonok.exception.FileStorageNotFoundException;
 import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import lombok.RequiredArgsConstructor;
@@ -22,11 +24,12 @@ public class S3Service {
 
 	public void uploadFile(String key, InputStream inputStream, long contentLength,
 			String contentType) {
-		System.out.println(key);
+		InputStream validated = StorageUploadValidation.validate(inputStream, contentLength, contentType);
 		ObjectMetadata metadata = new ObjectMetadata();
 		metadata.setContentLength(contentLength);
-		metadata.setContentType(contentType);
-		s3Client.putObject(bucketName, key, inputStream, metadata);
+		metadata.setContentType(StorageUploadValidation.contentType(contentType));
+		s3Client.putObject(new PutObjectRequest(bucketName, key, validated, metadata)
+				.withCannedAcl(CannedAccessControlList.Private));
 	}
 
 	public S3Object downloadFile(String key) {

@@ -7,12 +7,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-import com.zvonok.controller.dto.ChannelMessageResponse;
 import com.zvonok.exception.*;
-import com.zvonok.model.Channel;
-import com.zvonok.model.ChannelFolder;
-import com.zvonok.model.Server;
-import com.zvonok.service.dto.Permission;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,9 +23,7 @@ import com.zvonok.model.Room;
 import com.zvonok.model.User;
 import com.zvonok.model.enumeration.RoomType;
 import com.zvonok.repository.MessageRepository;
-import com.zvonok.service.ChannelService;
 import com.zvonok.service.MessageService;
-import com.zvonok.service.PermissionService;
 import com.zvonok.service.RoomService;
 import com.zvonok.service.UserService;
 
@@ -49,12 +42,6 @@ public class MessageServiceTest {
     @Mock
     private UserService userService;
 
-    @Mock
-    private ChannelService channelService;
-
-    @Mock
-    private PermissionService permissionService;
-
     @InjectMocks 
     private MessageService messageService;
 
@@ -62,36 +49,14 @@ public class MessageServiceTest {
     private String testReceiverUsername = "testReceiverUsername";
     private Room testRoom;
     private Long ROOM_ID = 1L;
-    private Long CHANNEL_ID = 2L;
     private Long MESSAGE_ID = 3L;
-    private Long SERVER_ID = 4L;
 
     private String testContent = "testContent";
     private User sender;
     private User receiver;
-    private Channel testChannel;
-    private ChannelFolder testFolder;
-    private Server testServer;
 
     @BeforeEach
     void setUp() {
-        // Инициализация сервера
-        testServer = new Server();
-        testServer.setId(SERVER_ID);
-        testServer.setName("testServer");
-
-        // Инициализация папки канала
-        testFolder = new ChannelFolder();
-        testFolder.setId(1L);
-        testFolder.setName("testFolder");
-        testFolder.setServer(testServer);
-
-        // Инициализация канала
-        testChannel = new Channel();
-        testChannel.setId(CHANNEL_ID);
-        testChannel.setName("testChannel");
-        testChannel.setFolder(testFolder);
-
         // Инициализация комнаты
         testRoom = new Room();
         testRoom.setId(ROOM_ID);
@@ -110,6 +75,7 @@ public class MessageServiceTest {
         receiver.setUsername(testReceiverUsername);
     
         testRoom.setMembers(List.of(sender, receiver));
+        when(messageRepository.findRoomIdByMessageId(MESSAGE_ID)).thenReturn(ROOM_ID);
     }
 
     @Test
@@ -137,6 +103,17 @@ public class MessageServiceTest {
         assertNotNull(response);
         assertEquals("newContent", response.getContent());
         verify(messageRepository).save(any(Message.class));
+    }
+
+    @Test
+    void archivedMessageCannotBeEditedOrDeleted() {
+        when(messageRepository.findRoomIdByMessageId(MESSAGE_ID)).thenReturn(null);
+        assertThrows(MessageNotFoundException.class,
+                () -> messageService.editMessage(MESSAGE_ID, testSenderUsername, "changed"));
+        assertThrows(MessageNotFoundException.class,
+                () -> messageService.deleteMessage(MESSAGE_ID, testSenderUsername));
+        verify(messageRepository, never()).save(any());
+        verifyNoInteractions(simpMessagingTemplate);
     }
 
     @Test

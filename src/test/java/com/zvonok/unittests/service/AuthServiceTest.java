@@ -7,6 +7,9 @@ import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.model.RefreshToken;
 import com.zvonok.model.User;
 import com.zvonok.security.JwtTokenProvider;
+import com.zvonok.security.WebSocketAuthorizationSessions;
+import com.zvonok.security.dto.UserPrincipal;
+import org.mockito.Spy;
 import com.zvonok.service.AuthService;
 import com.zvonok.service.RefreshTokenService;
 import com.zvonok.service.UserService;
@@ -51,6 +54,9 @@ class AuthServiceTest {
 
 	@InjectMocks
 	private AuthService authService;
+
+	@Spy
+	private WebSocketAuthorizationSessions webSocketSessions = new WebSocketAuthorizationSessions();
 
 	private User testUser;
 	private CreateUserDto existUserDto;
@@ -318,9 +324,12 @@ class AuthServiceTest {
 	void logout_RevokesRefreshToken() {
 		// Arrange
 		String refreshTokenValue = "token-to-revoke";
+		when(refreshTokenService.getRefreshTokenByToken(refreshTokenValue)).thenReturn(testRefreshToken);
+		webSocketSessions.connect("session", new UserPrincipal(testUser.getUsername(), "token"));
 
 		// Act
 		authService.logout(refreshTokenValue);
+		assertNull(webSocketSessions.get("session"));
 
 		// Assert - проверяем, что метод был вызван с правильным аргументом
 		verify(refreshTokenService).revoke(refreshTokenValue);
@@ -330,6 +339,7 @@ class AuthServiceTest {
 	@DisplayName("logout - должен выбросить исключение при невалидном токене")
 	void logout_shouldThrowException_whenInvalidRefreshToken() {
 		// Arrange
+		when(refreshTokenService.getRefreshTokenByToken(invalidRefreshToken)).thenReturn(testRefreshToken);
 		doThrow(new RuntimeException("Invalid token")).when(refreshTokenService)
 				.revoke(invalidRefreshToken);
 
@@ -347,11 +357,13 @@ class AuthServiceTest {
 	@DisplayName("logoutFromAllDevices - отзывает все токены пользователя")
 	void logoutFromAllDevices_RevokesAllUserTokens() {
 		// Arrange
-		when(refreshTokenService.getRefreshTokenByToken(anyString())).thenReturn(testRefreshToken);
 		String refreshTokenValue = "token-to-revoke";
+		when(refreshTokenService.getRefreshTokenByToken(refreshTokenValue)).thenReturn(testRefreshToken);
+		webSocketSessions.connect("session", new UserPrincipal(testUser.getUsername(), "token"));
 
 		// Act
 		authService.logoutFromAllDevices(refreshTokenValue);
+		assertNull(webSocketSessions.get("session"));
 
 		// Assert
 		verify(refreshTokenService).revokeAllForUser(refreshTokenValue,

@@ -9,9 +9,7 @@ public class LogEvent {
 	String action;
 	String result;
 	Long userId;
-	Long serverId;
 	Long roomId;
-	Long channelId;
 	Long folderId;
 	Long messageId;
 	Long permission;
@@ -25,9 +23,7 @@ public class LogEvent {
 		first = appendField(first, sb, "action", action);
 		first = appendField(first, sb, "result", result);
 		first = appendField(first, sb, "userId", userId);
-		first = appendField(first, sb, "serverId", serverId);
 		first = appendField(first, sb, "roomId", roomId);
-		first = appendField(first, sb, "channelId", channelId);
 		first = appendField(first, sb, "folderId", folderId);
 		first = appendField(first, sb, "messageId", messageId);
 		first = appendField(first, sb, "permission", permission);

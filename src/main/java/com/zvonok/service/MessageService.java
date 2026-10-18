@@ -1,11 +1,15 @@
 package com.zvonok.service;
 
-import com.zvonok.controller.dto.ChannelMessageResponse;
+import com.zvonok.utils.TransactionUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.zvonok.controller.dto.ChatErrorMessageResponse;
 import com.zvonok.controller.dto.MessageAttachmentDto;
 import com.zvonok.controller.dto.ReplyPreviewDto;
 import com.zvonok.exception.CannotEditDeletedMessageException;
-import com.zvonok.exception.ChannelNotFoundException;
 import com.zvonok.exception.InsufficientPermissionsException;
 import com.zvonok.exception.InvalidMessageAttachmentException;
 import com.zvonok.exception.MessageAttachmentNotFoundException;
@@ -19,10 +23,8 @@ import com.zvonok.exception_handler.enumeration.HttpResponseMessage;
 import com.zvonok.logging.LogEvent;
 import com.zvonok.logging.LogEventConstants;
 import com.zvonok.logging.LogTimingUtils;
-import com.zvonok.model.Channel;
 import com.zvonok.model.MessageAttachment;
 import com.zvonok.service.dto.EventType;
-import com.zvonok.service.dto.Permission;
 import com.zvonok.controller.dto.MessageResponse;
 import com.zvonok.controller.dto.ShortMessageWrapped;
 import com.zvonok.controller.dto.RoomShortDto;
@@ -49,6 +51,13 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.DataOutputStream;
+import java.io.OutputStream;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -59,7 +68,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Service for managing messages in private rooms, group rooms, and channels. Сервис для управления
+ * Service for managing messages in private and group rooms. Сервис для управления
  */
 @Service
 @Transactional
@@ -68,14 +77,14 @@ import java.util.UUID;
 public class MessageService {
 
 	private final MessageRepository messageRepository;
+	private final MessageAccessService messageAccessService;
 	private final SimpMessagingTemplate messagingTemplate;
 	private final RoomService roomService;
 	private final UserService userService;
-	private final ChannelService channelService;
-	private final PermissionService permissionService;
 	private final MessageAttachmentRepository messageAttachmentRepository;
 	private final S3Service s3Service;
 	private final RoomReadStateService roomReadStateService;
+	private final PlatformTransactionManager transactionManager;
 
 	private static final int MAX_ATTACHMENTS_PER_MESSAGE = 10;
 	private static final long MAX_IMAGE_SIZE_BYTES = 10L * 1024L * 1024L;
@@ -100,7 +109,7 @@ public class MessageService {
 		Message message = null;
 
 		try {
-			Room room = roomService.getRoom(roomId, senderUsername);
+			Room room = roomService.getRoomForUpdate(roomId, senderUsername);
 			User sender = userService.getUser(senderUsername);
 
 			// Проверяем, что отправитель является участником комнаты
@@ -112,22 +121,22 @@ public class MessageService {
 								.getMessage());
 			}
 
-			validateReplyTarget(replyToMessageId, room, null);
+			validateReplyTarget(replyToMessageId, room);
 
-			message = createMessage(sender, content, room, null, replyToMessageId);
+			message = createMessage(sender, content, room, replyToMessageId);
 			Message savedMessage = messageRepository.save(message);
 
 			// MessageResponse response = mapToMessageResponse(savedMessage, room.getId());
 			ShortMessageWrapped response = toWrappedShortMessage(savedMessage, EventType.MESSAGE);
 
-			// messagingTemplate.convertAndSend("/topic/room." + room.getId(), response);
+			// publish("/topic/room." + room.getId(), response);
 			for (User member : room.getMembers()) {
-				messagingTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages",
+				publishToUser(member.getUsername(), "/queue/messages",
 						response);
 			}
 
 			roomService.updateRoom(room.getId(), senderUsername, room.getName(), message.getId(),
-					message.getContent(), message.getSentAt());
+					previewContent(message), message.getSentAt());
 
 			log.info("{}",
 					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION,
@@ -147,113 +156,83 @@ public class MessageService {
 
 	}
 
-	public ShortMessageWrapped sendMessageWithAttachments(String senderUsername, long roomId,
-			String content, List<MultipartFile> files, AttachmentType attachmentType,
-			Long durationMs, String waveform, Long replyToMessageId) {
-		long durationStart = System.currentTimeMillis();
-		Message message = null;
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public ShortMessageWrapped sendMessageWithAttachments(String senderUsername, long roomId,
+            String content, List<MultipartFile> files, AttachmentType attachmentType,
+            Long durationMs, String waveform, Long replyToMessageId) {
+        return sendMessageWithAttachments(senderUsername, roomId, content, files, attachmentType,
+                durationMs, waveform, replyToMessageId, null);
+    }
 
-		try {
-			Room room = roomService.getRoom(roomId, senderUsername);
-			User sender = userService.getUser(senderUsername);
-			boolean isMember = room.getMembers().stream()
-					.anyMatch(member -> member.getId().equals(sender.getId()));
-			if (!isMember) {
-				throw new InsufficientPermissionsException(
-						BusinessRuleMessage.BUSINESS_USER_NOT_MEMBER_GROUP_ROOM_MESSAGE
-								.getMessage());
-			}
-
-			List<MultipartFile> normalizedFiles = normalizeFiles(files);
-			if ((content == null || content.trim().isEmpty()) && normalizedFiles.isEmpty()) {
-				throw new InvalidMessageAttachmentException(
-						HttpResponseMessage.HTTP_MESSAGE_EMPTY_RESPONSE_MESSAGE.getMessage());
-			}
-			validateReplyTarget(replyToMessageId, room, null);
-
-			message = createMessage(sender, content == null ? "" : content, room, null,
-					replyToMessageId);
-			Message savedMessage = messageRepository.save(message);
-			for (MultipartFile file : normalizedFiles) {
-				MessageAttachment attachment = createAttachment(savedMessage, file, attachmentType,
-						durationMs, waveform);
-				savedMessage.getAttachments().add(attachment);
-			}
-			savedMessage = messageRepository.save(savedMessage);
-
-			ShortMessageWrapped response = toWrappedShortMessage(savedMessage, EventType.MESSAGE);
-			for (User member : room.getMembers()) {
-				messagingTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages",
-						response);
-			}
-
-			String lastContent = content == null || content.trim().isEmpty()
-					? buildAttachmentLastMessageText(savedMessage)
-					: content;
-			roomService.updateRoom(room.getId(), senderUsername, room.getName(),
-					savedMessage.getId(), lastContent, savedMessage.getSentAt());
-
-			log.info("{}",
-					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION,
-							LogTimingUtils.calculateDurationDifference(durationStart))
-							.roomId(roomId).messageId(savedMessage.getId()).build());
-			return response;
-		} catch (RoomNotFoundException | UserNotMemberRoomException
-				| InsufficientPermissionsException | InvalidMessageAttachmentException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart,
-					roomId, message, false);
-			throw e;
-		} catch (Exception e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_GROUP_MESSAGE_ACTION, durationStart,
-					roomId, message, true);
-			throw e;
-		}
-	}
-
-	public ChannelMessageResponse sendChannelMessage(String senderUsername, Long channelId,
-			String content, Long replyToMessageId) {
-		long durationStart = System.currentTimeMillis();
-		Message message = null;
-
-		try {
-			User sender = userService.getUser(senderUsername);
-			Channel channel = channelService.getChannelByIdInternal(channelId);
-
-			if (!permissionService.canUserSendMessages(sender.getId(), channelId)) {
-				throw new InsufficientPermissionsException(
-						HttpResponseMessage.HTTP_INSUFFICIENT_PERMISSIONS_RESPONSE_MESSAGE
-								.getMessage());
-			}
-
-			validateReplyTarget(replyToMessageId, null, channel);
-
-			message = createMessage(sender, content, null, channel, replyToMessageId);
-			Message savedMessage = messageRepository.save(message);
-
-			ChannelMessageResponse response =
-					mapToChannelMessageResponse(savedMessage, channel, EventType.MESSAGE);
-
-
-			String topicDestination = "/topic/channel." + channelId;
-			messagingTemplate.convertAndSend(topicDestination, response);
-
-			log.info("{}",
-					LogEvent.buildSuccessEvent(LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION,
-							LogTimingUtils.calculateDurationDifference(durationStart))
-							.channelId(channelId).messageId(message.getId()).build());
-			return response;
-
-		} catch (UserNotFoundException | ChannelNotFoundException
-				| InsufficientPermissionsException e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION,
-					durationStart, message, channelId, false);
-			throw e;
-		} catch (Exception e) {
-			buildFailedMessage(e, LogEventConstants.EVENT_SEND_CHANNEL_MESSAGE_ACTION,
-					durationStart, message, channelId, true);
-			throw e;
-		}
-	}
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public ShortMessageWrapped sendMessageWithAttachments(String senderUsername, long roomId,
+            String content, List<MultipartFile> files, AttachmentType attachmentType,
+            Long durationMs, String waveform, Long replyToMessageId, String clientRequestId) {
+        List<MultipartFile> normalized = normalizeFiles(files);
+        if ((content == null || content.isBlank()) && normalized.isEmpty()) {
+            throw new InvalidMessageAttachmentException(HttpResponseMessage.HTTP_MESSAGE_EMPTY_RESPONSE_MESSAGE.getMessage());
+        }
+        String requestKey = normalizeUploadRequestKey(clientRequestId);
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        tx.executeWithoutResult(status -> {
+            Room room = roomService.getRoom(roomId, senderUsername);
+            validateReplyTarget(replyToMessageId, room);
+        });
+        for (MultipartFile file : normalized) {
+            AttachmentType type = resolveAttachmentType(file, attachmentType);
+            validateAttachmentSize(file, type);
+            validateAttachmentDuration(file, type, durationMs);
+        }
+        String requestHash = requestKey == null ? null : attachmentRequestHash(roomId, content, normalized,
+                attachmentType, durationMs, waveform, replyToMessageId);
+        ShortMessageWrapped previous = tx.execute(status -> findPreviousUpload(senderUsername, roomId, requestKey, requestHash));
+        if (previous != null) return previous;
+        List<String> createdKeys = new ArrayList<>();
+        boolean[] completionOwnsCleanup = {false};
+        try {
+            List<MessageAttachment> attachments = new ArrayList<>();
+            for (MultipartFile file : normalized) {
+                attachments.add(createAttachment(file, attachmentType, durationMs, waveform, createdKeys));
+            }
+            return tx.execute(status -> {
+                // Reauthorize after network I/O and serialize with send/edit/delete/clear.
+                Room room = roomService.getRoomForUpdate(roomId, senderUsername);
+                ShortMessageWrapped duplicate = findPreviousUpload(senderUsername, roomId, requestKey, requestHash);
+                if (duplicate != null) {
+                    // These newly staged keys have never been linked to a row; every outcome may clean them.
+                    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                        @Override public void afterCompletion(int result) { cleanupUploads(createdKeys); }
+                    });
+                    completionOwnsCleanup[0] = true;
+                    return duplicate;
+                }
+                validateReplyTarget(replyToMessageId, room);
+                Message message = createMessage(userService.getUser(senderUsername), content == null ? "" : content,
+                        room, replyToMessageId);
+                message.setUploadRequestKey(requestKey);
+                message.setUploadRequestHash(requestHash);
+                for (MessageAttachment attachment : attachments) {
+                    attachment.setMessage(message);
+                    message.getAttachments().add(attachment);
+                }
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override public void afterCompletion(int result) {
+                        if (result == STATUS_ROLLED_BACK) cleanupUploads(createdKeys);
+                        // UNKNOWN retains objects: commit might have succeeded.
+                    }
+                });
+                completionOwnsCleanup[0] = true;
+                Message saved = messageRepository.save(message);
+                ShortMessageWrapped response = toWrappedShortMessage(saved, EventType.MESSAGE);
+                for (User member : room.getMembers()) publishToUser(member.getUsername(), "/queue/messages", response);
+                roomService.updateRoom(roomId, senderUsername, room.getName(), saved.getId(), previewContent(saved), saved.getSentAt());
+                return response;
+            });
+        } catch (RuntimeException e) {
+            if (!completionOwnsCleanup[0]) cleanupUploads(createdKeys);
+            throw e;
+        }
+    }
 
 	@Transactional
 	public ShortMessageWrapped editMessage(Long messageId, String senderUsername,
@@ -262,6 +241,7 @@ public class MessageService {
 		User sender = null;
 
 		try {
+			lockMessageRoom(messageId, senderUsername);
 			Message message = messageRepository.findById(messageId)
 					.orElseThrow(() -> new MessageNotFoundException(String.format("%s (ID: %d)",
 							HttpResponseMessage.HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE
@@ -287,21 +267,17 @@ public class MessageService {
 			ShortMessageWrapped response =
 					toWrappedShortMessage(savedMessage, EventType.MESSAGE_EDIT);
 
-			roomService.updateRoom(message.getRoom().getId(), senderUsername, null, message.getId(),
-					message.getContent(), message.getSentAt());
+			if (message.getRoom() != null && message.getId().equals(message.getRoom().getLastMessageId())) {
+				roomService.updateRoom(message.getRoom().getId(), senderUsername, null, message.getId(),
+						previewContent(message), message.getSentAt());
+			}
 
 			// Отправляем обновление через WebSocket
 			if (savedMessage.getRoom() != null) {
 				for (User member : savedMessage.getRoom().getMembers()) {
-					messagingTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages",
+					publishToUser(member.getUsername(), "/queue/messages",
 							response);
 				}
-			} else if (savedMessage.getChannel() != null) {
-				ChannelMessageResponse channelResponse = mapToChannelMessageResponse(savedMessage,
-						savedMessage.getChannel(), EventType.MESSAGE);
-				channelResponse.setEventType(EventType.MESSAGE_EDIT);
-				messagingTemplate.convertAndSend(
-						"/topic/channel." + savedMessage.getChannel().getId(), channelResponse);
 			}
 
 			log.info("{}",
@@ -328,6 +304,7 @@ public class MessageService {
 		User user = null;
 
 		try {
+			lockMessageRoom(messageId, username);
 			Message message = messageRepository.findById(messageId)
 					.orElseThrow(() -> new MessageNotFoundException(
 							HttpResponseMessage.HTTP_MESSAGE_NOT_FOUND_RESPONSE_MESSAGE
@@ -340,17 +317,9 @@ public class MessageService {
 			user = userService.getUser(username);
 
 
-			// администратора
 			boolean isSender = message.getSender().getId().equals(user.getId());
-			boolean isAdmin = false;
 
-			if (message.getChannel() != null) {
-				isAdmin = permissionService.hasPermissionInServer(user.getId(),
-						message.getChannel().getFolder().getServer().getId(),
-						Permission.ADMINISTRATOR);
-			}
-
-			if (!isSender && !isAdmin) {
+			if (!isSender) {
 				throw new InsufficientPermissionsException(
 						HttpResponseMessage.HTTP_INSUFFICIENT_MESSAGE_PERMISSIONS_RESPONSE_MESSAGE
 								.getMessage());
@@ -360,39 +329,22 @@ public class MessageService {
 			message.setDeletedAt(LocalDateTime.now());
 			messageRepository.save(message);
 
-			if (message.getRoom() != null) {
-				List<ShortMessageWrapped> RoomMessages =
-						getRoomMessages(username, message.getRoom().getId(), null, 1);
+            if (message.getRoom() != null && message.getId().equals(message.getRoom().getLastMessageId())) {
+                Message last = messageRepository.findFirstByRoomIdAndDeletedAtIsNullOrderByIdDesc(message.getRoom().getId());
+                roomService.updateRoom(message.getRoom().getId(), username,
+                        last == null ? null : last.getId(), last == null ? null : previewContent(last),
+                        last == null ? message.getRoom().getCreatedAt() : last.getSentAt());
+            }
 
-				ShortMessageWrapped lastRoomMessage =
-						RoomMessages.size() == 1 ? RoomMessages.getFirst() : null;
-
-				if (lastRoomMessage != null) {
-					roomService.updateRoom(message.getRoom().getId(), username, null,
-							lastRoomMessage.getId(), lastRoomMessage.getContent(),
-							lastRoomMessage.getSentAt());
-				} else {
-					roomService.updateRoom(message.getRoom().getId(), username, null, null, null);
-				}
-			}
-
-			// Отправляем событие удаления через WebSocket
 			if (message.getRoom() != null) {
 				ShortMessageWrapped response =
 						toWrappedShortMessage(message, EventType.MESSAGE_DELETE);
 
 
 				for (User member : message.getRoom().getMembers()) {
-					messagingTemplate.convertAndSendToUser(member.getUsername(), "/queue/messages",
+					publishToUser(member.getUsername(), "/queue/messages",
 							response);
 				}
-			} else if (message.getChannel() != null) {
-				ChannelMessageResponse response = mapToChannelMessageResponse(message,
-						message.getChannel(), EventType.MESSAGE);
-				response.setEventType(EventType.MESSAGE_DELETE);
-
-				messagingTemplate.convertAndSend("/topic/channel." + message.getChannel().getId(),
-						response);
 			}
 
 			log.info("{}",
@@ -419,7 +371,7 @@ public class MessageService {
 	@Transactional
 	public void clearRoomMessages(Long roomId, String username) {
 		User user = userService.getUser(username);
-		Room room = roomService.getRoom(roomId, username);
+		Room room = roomService.getRoomForUpdate(roomId, username);
 		if (room.getType() == com.zvonok.model.enumeration.RoomType.PRIVATE) {
 			throw new InsufficientPermissionsException(
 					HttpResponseMessage.HTTP_ROOM_MESSAGES_CLEAR_PRIVATE_DENIED_RESPONSE_MESSAGE
@@ -428,7 +380,7 @@ public class MessageService {
 		LocalDateTime clearedAt = LocalDateTime.now();
 		messageRepository.softDeleteAllByRoomId(roomId, clearedAt);
 		roomReadStateService.resetRoomReadStates(roomId);
-		roomService.updateRoom(roomId, username, null, null, null);
+		roomService.updateRoom(roomId, username, null, null, room.getCreatedAt());
 
 		Map<String, Object> payload = new HashMap<>();
 		payload.put("type", "ROOM_MESSAGES_CLEARED");
@@ -440,7 +392,7 @@ public class MessageService {
 				.payload(payload)
 				.build();
 		for (User member : room.getMembers()) {
-			messagingTemplate.convertAndSendToUser(member.getUsername(),
+			publishToUser(member.getUsername(),
 					BrokerPath.ROOM_EVENTS_QUEUE_PATH.getPath(), event);
 		}
 	}
@@ -454,7 +406,7 @@ public class MessageService {
 		org.springframework.data.domain.Page<Message> page;
 
 		if (beforeMessageId == null) {
-			page = messageRepository.findByRoomIdAndDeletedAtIsNullOrderBySentAtDesc(roomId,
+			page = messageRepository.findByRoomIdAndDeletedAtIsNullOrderByIdDesc(roomId,
 					pageRequest);
 		} else {
 			Message beforeMessage = getMessage(beforeMessageId);
@@ -484,7 +436,7 @@ public class MessageService {
 		}
 
 		List<Message> messages = messageRepository
-				.findByRoomIdAndDeletedAtIsNullOrderBySentAtAsc(privateRoom.getId());
+				.findByRoomIdAndDeletedAtIsNullOrderByIdAsc(privateRoom.getId());
 		Map<Long, ReplyPreviewDto> replyPreviewByParentId = buildReplyPreviewByParentId(messages);
 
 		return messages.stream().map(message -> {
@@ -500,11 +452,12 @@ public class MessageService {
 		ChatErrorMessageResponse messageResponse = new ChatErrorMessageResponse();
 		messageResponse.setMessage(message);
 		messageResponse.setStatus(status.value());
-		messagingTemplate.convertAndSendToUser(username, "/queue/errors", messageResponse);
+		publishToUser(username, "/queue/errors", messageResponse);
 	}
 
-	public ShortMessageWrapped getShortMessageWrapped(Long id) {
-		Message message = getMessage(id);
+	@Transactional(readOnly = true)
+	public ShortMessageWrapped getShortMessageWrapped(Long id, String username) {
+		Message message = messageAccessService.getReadableMessage(id, username);
 		return toWrappedShortMessage(message, EventType.MESSAGE);
 	}
 
@@ -514,26 +467,98 @@ public class MessageService {
 				.orElseThrow(() -> new MessageAttachmentNotFoundException(
 						HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_NOT_FOUND_RESPONSE_MESSAGE
 								.getMessage()));
-		Message message = attachment.getMessage();
-		if (message.getRoom() == null) {
-			throw new MessageAttachmentNotFoundException(
-					HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_NOT_FOUND_RESPONSE_MESSAGE
-							.getMessage());
-		}
-		roomService.getRoom(message.getRoom().getId(), username);
+		messageAccessService.getReadableMessage(attachment.getMessage().getId(), username);
 		return attachment;
 	}
 
 	// ===== PRIVATE HELPER METHODS =====
 
-	private Message createMessage(User sender, String content, Room room, Channel channel,
+    private String normalizeUploadRequestKey(String value) {
+        if (value == null) return null;
+        try {
+            String key = UUID.fromString(value).toString();
+            if (!key.equalsIgnoreCase(value)) throw new IllegalArgumentException();
+            return key;
+        } catch (IllegalArgumentException e) {
+            throw new InvalidMessageAttachmentException("clientRequestId must be a UUID");
+        }
+    }
+
+    private ShortMessageWrapped findPreviousUpload(String username, long roomId, String key, String hash) {
+        if (key == null) return null;
+        // Check current access even on retries, including after membership revocation.
+        roomService.getRoom(roomId, username);
+        Message previous = messageRepository.findBySenderUsernameAndUploadRequestKey(username, key).orElse(null);
+        if (previous == null) return null;
+        if (previous.isDeleted() || previous.getRoom() == null || previous.getRoom().getId() != roomId
+                || !hash.equals(previous.getUploadRequestHash())) {
+            throw new InvalidMessageAttachmentException("clientRequestId already used for another or deleted message");
+        }
+        return toWrappedShortMessage(previous, EventType.MESSAGE);
+    }
+
+    private String attachmentRequestHash(long roomId, String content, List<MultipartFile> files,
+            AttachmentType type, Long durationMs, String waveform, Long replyToMessageId) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (DataOutputStream output = new DataOutputStream(new DigestOutputStream(OutputStream.nullOutputStream(), digest))) {
+                output.writeLong(roomId);
+                for (Object value : new Object[]{content == null ? "" : content, type, durationMs, waveform, replyToMessageId}) {
+                    writeHashField(output, value);
+                }
+                output.writeInt(files.size());
+                for (MultipartFile file : files) {
+                    writeHashField(output, file.getOriginalFilename()); writeHashField(output, file.getContentType());
+                    output.writeLong(file.getSize());
+                    try (var input = file.getInputStream()) { input.transferTo(output); }
+                }
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (IOException | NoSuchAlgorithmException e) {
+            throw new InvalidMessageAttachmentException("Unable to fingerprint attachments");
+        }
+    }
+
+    private void writeHashField(DataOutputStream output, Object value) throws IOException {
+        if (value == null) { output.writeInt(-1); return; }
+        byte[] bytes = value.toString().getBytes(StandardCharsets.UTF_8);
+        output.writeInt(bytes.length); output.write(bytes);
+    }
+
+    private void lockMessageRoom(Long messageId, String username) {
+        Long roomId = messageRepository.findRoomIdByMessageId(messageId);
+        if (roomId == null) throw new MessageNotFoundException("Message not found");
+        roomService.getRoomForUpdate(roomId, username);
+    }
+
+    private String previewContent(Message message) {
+        String text = message.getContent() == null || message.getContent().isBlank()
+                ? (message.getAttachments().isEmpty() ? message.getContent() : buildAttachmentLastMessageText(message))
+                : message.getContent();
+        return text == null || text.codePointCount(0, text.length()) <= 255
+                ? text : text.substring(0, text.offsetByCodePoints(0, 255));
+    }
+
+    private void cleanupUploads(List<String> keys) {
+        for (String key : List.copyOf(keys)) {
+            try { s3Service.deleteFile(key); }
+            catch (RuntimeException failure) { log.error("Attachment orphan requires cleanup: key={}", key, failure); }
+        }
+        keys.clear();
+    }
+
+    private void publishToUser(String username, String destination, Object payload) {
+        TransactionUtils.runAfterCommit(() -> messagingTemplate.convertAndSendToUser(username, destination, payload));
+    }
+
+
+	private Message createMessage(User sender, String content, Room room,
 			Long replyToMessageId) {
 		Message message = new Message();
 		message.setSender(sender);
 		message.setContent(content);
 		message.setType(MessageType.DEFAULT);
 		message.setRoom(room);
-		message.setChannel(channel);
 		message.setReplyToMessageId(replyToMessageId);
 		message.setEditedAt(null);
 		message.setDeletedAt(null);
@@ -556,14 +581,15 @@ public class MessageService {
 		return normalized;
 	}
 
-	private MessageAttachment createAttachment(Message message, MultipartFile file,
-			AttachmentType requestedType, Long durationMs, String waveform) {
+	private MessageAttachment createAttachment(MultipartFile file,
+			AttachmentType requestedType, Long durationMs, String waveform, List<String> createdKeys) {
 		AttachmentType type = resolveAttachmentType(file, requestedType);
 		validateAttachmentSize(file, type);
 		validateAttachmentDuration(file, type, durationMs);
-		String storageKey = buildAttachmentStorageKey(message.getId(), file.getOriginalFilename());
-		try {
-			s3Service.uploadFile(storageKey, file.getInputStream(), file.getSize(),
+		String storageKey = "message-attachments/" + UUID.randomUUID();
+        createdKeys.add(storageKey);
+		try (var input = file.getInputStream()) {
+			s3Service.uploadFile(storageKey, input, file.getSize(),
 					file.getContentType());
 		} catch (IOException e) {
 			throw new InvalidMessageAttachmentException(
@@ -572,7 +598,6 @@ public class MessageService {
 		}
 
 		MessageAttachment attachment = new MessageAttachment();
-		attachment.setMessage(message);
 		attachment.setType(type);
 		attachment.setStorageKey(storageKey);
 		attachment.setOriginalFileName(resolveOriginalFileName(file));
@@ -696,8 +721,8 @@ public class MessageService {
 	}
 
 	private void applyImageDimensions(MessageAttachment attachment, MultipartFile file) {
-		try {
-			BufferedImage image = ImageIO.read(file.getInputStream());
+		try (var input = file.getInputStream()) {
+			BufferedImage image = ImageIO.read(input);
 			if (image != null) {
 				attachment.setWidth(image.getWidth());
 				attachment.setHeight(image.getHeight());
@@ -707,13 +732,6 @@ public class MessageService {
 		}
 	}
 
-	private String buildAttachmentStorageKey(Long messageId, String originalFileName) {
-		String extension = "";
-		if (originalFileName != null && originalFileName.contains(".")) {
-			extension = originalFileName.substring(originalFileName.lastIndexOf('.'));
-		}
-		return "message-attachments/" + messageId + "/" + UUID.randomUUID() + extension;
-	}
 
 	private String resolveOriginalFileName(MultipartFile file) {
 		String originalFileName = file.getOriginalFilename();
@@ -748,11 +766,12 @@ public class MessageService {
 		SenderDto sender = new SenderDto(message.getSender().getId(),
 				message.getSender().getUsername(), message.getSender().getDisplayName(),
 				message.getSender().getAvatarUrl(), message.getSender().getStatus());
-		RoomShortDto room =
-				new RoomShortDto(message.getRoom().getId(), message.getRoom().getType());
-		return new ShortMessageWrapped(message.getId(), message.getContent(), message.getType(),
-				eventType, message.getSentAt(), sender, room, message.getEditedAt(),
+		RoomShortDto room = message.getRoom() == null ? null
+				: new RoomShortDto(message.getRoom().getId(), message.getRoom().getType());
+		ShortMessageWrapped response = new ShortMessageWrapped(message.getId(), message.getContent(),
+				message.getType(), eventType, message.getSentAt(), sender, room, message.getEditedAt(),
 				message.getReplyToMessageId(), replyPreview, mapAttachments(message));
+		return response;
 	}
 
 	private MessageResponse mapToMessageResponse(Message message, Long roomId,
@@ -766,27 +785,6 @@ public class MessageService {
 		response.setRoomId(roomId);
 		response.setReplyToMessageId(message.getReplyToMessageId());
 		response.setReplyPreview(replyPreview);
-		response.setAttachments(mapAttachments(message));
-		return response;
-	}
-
-	private ChannelMessageResponse mapToChannelMessageResponse(Message message, Channel channel,
-			EventType eventType) {
-		SenderDto sender = new SenderDto(message.getSender().getId(),
-				message.getSender().getUsername(), message.getSender().getDisplayName(),
-				message.getSender().getAvatarUrl(), message.getSender().getStatus());
-
-		ChannelMessageResponse response = new ChannelMessageResponse();
-		response.setId(message.getId());
-		response.setContent(message.getContent());
-		response.setSender(sender);
-		response.setSentAt(message.getSentAt());
-		response.setType(message.getType());
-		response.setChannelId(channel.getId());
-		response.setEventType(eventType);
-		response.setReplyToMessageId(message.getReplyToMessageId());
-		response.setReplyPreview(resolveReplyPreview(message.getReplyToMessageId()));
-		response.setEditedAt(message.getEditedAt());
 		response.setAttachments(mapAttachments(message));
 		return response;
 	}
@@ -808,7 +806,7 @@ public class MessageService {
 				attachment.getDurationMs(), attachment.getWaveformJson());
 	}
 
-	private void validateReplyTarget(Long replyToMessageId, Room room, Channel channel) {
+	private void validateReplyTarget(Long replyToMessageId, Room room) {
 		if (replyToMessageId == null) {
 			return;
 		}
@@ -826,11 +824,6 @@ public class MessageService {
 			return;
 		}
 
-		if (channel != null && (parent.getChannel() == null
-				|| !channel.getId().equals(parent.getChannel().getId()))) {
-			throw new MessageTargetValidationException(
-					"Reply target message must belong to the same channel");
-		}
 	}
 
 	private Map<Long, ReplyPreviewDto> buildReplyPreviewByParentId(List<Message> messages) {
@@ -923,23 +916,6 @@ public class MessageService {
 		LogEvent.LogEventBuilder logBuilder = LogEvent.buildFailedEvent(action, e.getMessage(),
 				LogTimingUtils.calculateDurationDifference(durationStart));
 		logBuilder.roomId(roomId);
-
-		if (message != null) {
-			logBuilder.messageId(message.getId());
-		}
-
-		if (isErrorLog) {
-			log.error("{}", logBuilder.build());
-		} else {
-			log.warn("{}", logBuilder.build());
-		}
-	}
-
-	private void buildFailedMessage(Exception e, String action, long durationStart, Message message,
-			Long channelId, boolean isErrorLog) {
-		LogEvent.LogEventBuilder logBuilder = LogEvent.buildFailedEvent(action, e.getMessage(),
-				LogTimingUtils.calculateDurationDifference(durationStart));
-		logBuilder.channelId(channelId);
 
 		if (message != null) {
 			logBuilder.messageId(message.getId());

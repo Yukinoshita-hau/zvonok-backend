@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 
 public interface CallSessionRepository extends JpaRepository<CallSession, Long> {
 
@@ -57,4 +58,7 @@ public interface CallSessionRepository extends JpaRepository<CallSession, Long> 
 	List<CallSession> findAllByRoomIdAndStatusInOrderByCreatedAtDesc(Long roomId, Collection<CallSessionStatus> statuses);
 
 	List<CallSession> findAllByStatusIn(Collection<CallSessionStatus> statuses);
+
+	List<CallSession> findByStatusInAndIdGreaterThanOrderByIdAsc(
+			Collection<CallSessionStatus> statuses, Long id, Pageable pageable);
 }

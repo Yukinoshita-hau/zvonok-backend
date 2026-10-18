@@ -50,6 +50,9 @@ class CallSessionServiceTest {
     private CallParticipantRepository callParticipantRepository;
     @Mock
     private CallEventPublisher callEventPublisher;
+    @Mock private com.zvonok.service.LiveKitRoomAdminService liveKitRoomAdminService;
+    @Mock private com.zvonok.service.CallSessionCleanupService cleanup;
+    @org.mockito.Spy private com.zvonok.config.CallLifecycleProperties policy = new com.zvonok.config.CallLifecycleProperties();
 
     @InjectMocks
     private CallSessionService callSessionService;
@@ -82,7 +85,7 @@ class CallSessionServiceTest {
         dto.setChatRoomId(privateRoom.getId());
         dto.setCallType(CallInviteType.audio);
 
-        when(roomService.getRoom(privateRoom.getId(), caller.getUsername())).thenReturn(privateRoom);
+        when(roomService.getRoomForUpdate(privateRoom.getId(), caller.getUsername())).thenReturn(privateRoom);
         when(userService.getUser(caller.getUsername())).thenReturn(caller);
         when(callSessionRepository.findFirstByRoomIdAndStatusInOrderByCreatedAtDesc(eq(privateRoom.getId()),
                 ArgumentMatchers.<Set<CallSessionStatus>>any())).thenReturn(Optional.empty());
@@ -121,7 +124,7 @@ class CallSessionServiceTest {
         session.setLivekitRoomName("dm-11");
 
         when(userService.getUser(receiver.getUsername())).thenReturn(receiver);
-        when(callSessionRepository.findById(200L)).thenReturn(Optional.of(session));
+        when(callSessionRepository.findByIdForUpdate(200L)).thenReturn(Optional.of(session));
         when(roomService.getRoom(privateRoom.getId(), receiver.getUsername())).thenReturn(privateRoom);
         when(callParticipantRepository.findByCallSessionIdAndUserId(200L, receiver.getId()))
                 .thenReturn(Optional.of(participant(200L, receiver, CallParticipantRole.MEMBER,
@@ -157,7 +160,7 @@ class CallSessionServiceTest {
         session.setLivekitRoomName("group-55");
 
         when(userService.getUser(receiver.getUsername())).thenReturn(receiver);
-        when(callSessionRepository.findById(300L)).thenReturn(Optional.of(session));
+        when(callSessionRepository.findByIdForUpdate(300L)).thenReturn(Optional.of(session));
         when(roomService.getRoom(groupRoom.getId(), receiver.getUsername())).thenReturn(groupRoom);
         when(callParticipantRepository.findByCallSessionIdAndUserId(300L, receiver.getId()))
                 .thenReturn(Optional.of(participant(300L, receiver, CallParticipantRole.MEMBER,
@@ -176,7 +179,7 @@ class CallSessionServiceTest {
         dto.setChatRoomId(privateRoom.getId());
         dto.setCallType(CallInviteType.audio);
 
-        when(roomService.getRoom(privateRoom.getId(), caller.getUsername())).thenReturn(privateRoom);
+        when(roomService.getRoomForUpdate(privateRoom.getId(), caller.getUsername())).thenReturn(privateRoom);
         when(userService.getUser(caller.getUsername())).thenReturn(caller);
         when(callSessionRepository.findFirstByRoomIdAndStatusInOrderByCreatedAtDesc(eq(privateRoom.getId()),
                 ArgumentMatchers.<Set<CallSessionStatus>>any())).thenReturn(Optional.empty());
@@ -201,7 +204,7 @@ class CallSessionServiceTest {
     }
 
     @Test
-    void startPrivateCall_shouldReuseExistingActiveSession() {
+    void startPrivateCall_shouldRejectExistingActiveSession() {
         InviteCallDto dto = new InviteCallDto();
         dto.setChatRoomId(privateRoom.getId());
         dto.setCallType(CallInviteType.audio);
@@ -215,18 +218,12 @@ class CallSessionServiceTest {
         existing.setCreatedBy(caller);
         existing.setLivekitRoomName("dm-11-call-500");
 
-        when(roomService.getRoom(privateRoom.getId(), caller.getUsername())).thenReturn(privateRoom);
+        when(roomService.getRoomForUpdate(privateRoom.getId(), caller.getUsername())).thenReturn(privateRoom);
         when(userService.getUser(caller.getUsername())).thenReturn(caller);
         when(callSessionRepository.findFirstByRoomIdAndStatusInOrderByCreatedAtDesc(eq(privateRoom.getId()),
                 ArgumentMatchers.<Set<CallSessionStatus>>any())).thenReturn(Optional.of(existing));
-        when(callParticipantRepository.findAllByCallSessionId(500L)).thenReturn(List.of(
-                participant(500L, caller, CallParticipantRole.HOST, CallParticipantStatus.ACCEPTED),
-                participant(500L, receiver, CallParticipantRole.MEMBER, CallParticipantStatus.RINGING)
-        ));
-
-        CallSession session = callSessionService.startCall(caller.getUsername(), dto);
-
-        assertEquals(500L, session.getId());
+        assertThrows(com.zvonok.exception.CallStateConflictException.class,
+                () -> callSessionService.startCall(caller.getUsername(), dto));
         verify(callSessionRepository, never()).save(any(CallSession.class));
     }
 
@@ -250,7 +247,7 @@ class CallSessionServiceTest {
         session.setLivekitRoomName("group-70-call-700");
 
         when(userService.getUser(receiver.getUsername())).thenReturn(receiver);
-        when(callSessionRepository.findById(700L)).thenReturn(Optional.of(session));
+        when(callSessionRepository.findByIdForUpdate(700L)).thenReturn(Optional.of(session));
         when(roomService.getRoom(groupRoom.getId(), receiver.getUsername())).thenReturn(groupRoom);
         when(callParticipantRepository.findByCallSessionIdAndUserId(700L, receiver.getId()))
                 .thenReturn(Optional.of(participant(700L, receiver, CallParticipantRole.MEMBER,
@@ -288,7 +285,7 @@ class CallSessionServiceTest {
         session.setLivekitRoomName("group-71-call-701");
 
         when(userService.getUser(caller.getUsername())).thenReturn(caller);
-        when(callSessionRepository.findById(701L)).thenReturn(Optional.of(session));
+        when(callSessionRepository.findByIdForUpdate(701L)).thenReturn(Optional.of(session));
         when(roomService.getRoom(groupRoom.getId(), caller.getUsername())).thenReturn(groupRoom);
         when(callParticipantRepository.findByCallSessionIdAndUserId(701L, caller.getId()))
                 .thenReturn(Optional.of(participant(701L, caller, CallParticipantRole.HOST,
@@ -302,7 +299,7 @@ class CallSessionServiceTest {
         CallSession updated = callSessionService.leave(caller.getUsername(), dto);
 
         assertEquals(CallSessionStatus.ENDED, updated.getStatus());
-        assertEquals("NO_ACTIVE_PARTICIPANTS", updated.getEndReason());
+        assertEquals(com.zvonok.model.enumeration.CallEndReason.NO_ACTIVE_PARTICIPANTS, updated.getEndReason());
     }
 
     @Test
@@ -320,7 +317,7 @@ class CallSessionServiceTest {
         session.setLivekitRoomName("dm-11-call-702");
 
         when(userService.getUser(receiver.getUsername())).thenReturn(receiver);
-        when(callSessionRepository.findById(702L)).thenReturn(Optional.of(session));
+        when(callSessionRepository.findByIdForUpdate(702L)).thenReturn(Optional.of(session));
         when(roomService.getRoom(privateRoom.getId(), receiver.getUsername())).thenReturn(privateRoom);
         when(callParticipantRepository.findByCallSessionIdAndUserId(702L, receiver.getId()))
                 .thenReturn(Optional.of(participant(702L, receiver, CallParticipantRole.MEMBER,
@@ -333,7 +330,7 @@ class CallSessionServiceTest {
         CallSession updated = callSessionService.leave(receiver.getUsername(), dto);
 
         assertEquals(CallSessionStatus.ENDED, updated.getStatus());
-        assertEquals("PRIVATE_PARTICIPANT_LEFT", updated.getEndReason());
+        assertEquals(com.zvonok.model.enumeration.CallEndReason.USER_LEFT, updated.getEndReason());
     }
 
     @Test
@@ -356,7 +353,7 @@ class CallSessionServiceTest {
         session.setLivekitRoomName("group-73-call-703");
 
         when(userService.getUser(receiver.getUsername())).thenReturn(receiver);
-        when(callSessionRepository.findById(703L)).thenReturn(Optional.of(session));
+        when(callSessionRepository.findByIdForUpdate(703L)).thenReturn(Optional.of(session));
         when(roomService.getRoom(groupRoom.getId(), receiver.getUsername())).thenReturn(groupRoom);
         when(callParticipantRepository.findByCallSessionIdAndUserId(703L, receiver.getId()))
                 .thenReturn(Optional.of(participant(703L, receiver, CallParticipantRole.MEMBER,
@@ -387,7 +384,7 @@ class CallSessionServiceTest {
         session.setLivekitRoomName("group-74-call-704");
 
         when(userService.getUser(caller.getUsername())).thenReturn(caller);
-        when(callSessionRepository.findById(704L)).thenReturn(Optional.of(session));
+        when(callSessionRepository.findByIdForUpdate(704L)).thenReturn(Optional.of(session));
         when(roomService.getRoom(groupRoom.getId(), caller.getUsername())).thenReturn(groupRoom);
         when(callParticipantRepository.findByCallSessionIdAndUserId(704L, caller.getId()))
                 .thenReturn(Optional.of(participant(704L, caller, CallParticipantRole.HOST,
@@ -402,7 +399,7 @@ class CallSessionServiceTest {
     }
 
     @Test
-    void duplicateStartWithExistingActiveGroup_shouldReturnExistingAndSendOnlyCallStarted() {
+    void duplicateStartWithExistingActiveGroup_shouldConflictWithoutEvents() {
         InviteCallDto dto = new InviteCallDto();
         dto.setChatRoomId(80L);
         dto.setCallType(CallInviteType.audio);
@@ -421,16 +418,15 @@ class CallSessionServiceTest {
         existing.setCreatedBy(caller);
         existing.setLivekitRoomName("group-80-call-800");
 
-        when(roomService.getRoom(80L, caller.getUsername())).thenReturn(groupRoom);
+        when(roomService.getRoomForUpdate(80L, caller.getUsername())).thenReturn(groupRoom);
         when(userService.getUser(caller.getUsername())).thenReturn(caller);
         when(callSessionRepository.findFirstByRoomIdAndStatusInOrderByCreatedAtDesc(eq(80L),
                 ArgumentMatchers.<Set<CallSessionStatus>>any())).thenReturn(Optional.of(existing));
 
-        CallSession session = callSessionService.startCall(caller.getUsername(), dto);
-
-        assertEquals(800L, session.getId());
+        assertThrows(com.zvonok.exception.CallStateConflictException.class,
+                () -> callSessionService.startCall(caller.getUsername(), dto));
         verify(callSessionRepository, never()).save(any(CallSession.class));
-        verify(callEventPublisher, times(1)).sendToUser(eq(caller.getUsername()), any());
+        verify(callEventPublisher, never()).sendToUser(eq(caller.getUsername()), any());
         verify(callEventPublisher, never()).sendToUser(eq(receiver.getUsername()), any());
     }
     private CallParticipant participant(Long callId, User user, CallParticipantRole role,

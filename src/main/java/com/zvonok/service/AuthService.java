@@ -10,6 +10,7 @@ import com.zvonok.logging.LogEventConstants;
 import com.zvonok.logging.LogTimingUtils;
 import com.zvonok.model.User;
 import com.zvonok.security.JwtTokenProvider;
+import com.zvonok.security.WebSocketAuthorizationSessions;
 import com.zvonok.service.dto.AuthResponse;
 import com.zvonok.service.dto.CreateUserDto;
 
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -33,6 +35,7 @@ public class AuthService {
 	private final PasswordEncoder passwordEncoder;
 	private final JwtTokenProvider jwtTokenProvider;
 	private final RefreshTokenService refreshTokenService;
+	private final WebSocketAuthorizationSessions webSocketSessions;
 
 	public AuthResponse register(String username, String email, String password) {
 		// UserService.createUser уже проверяет уникальность email и username
@@ -103,6 +106,7 @@ public class AuthService {
 		return buildAuthResponse(user);
 	}
 
+	@Transactional
 	public AuthResponse refresh(String refreshTokenValue) {
 		RefreshToken validToken = refreshTokenService.validate(refreshTokenValue);
 		User user = validToken.getUser();
@@ -113,14 +117,19 @@ public class AuthService {
 				jwtTokenProvider.getJwtExpirationMs());
 	}
 
+	@Transactional
 	public void logout(String refreshTokenValue) {
+		String username = refreshTokenService.getRefreshTokenByToken(refreshTokenValue)
+				.getUser().getUsername();
 		refreshTokenService.revoke(refreshTokenValue);
+		webSocketSessions.revokeUser(username);
 	}
 
+	@Transactional
 	public void logoutFromAllDevices(String refreshTokenValue) {
-		Long userIdFromToken =
-				refreshTokenService.getRefreshTokenByToken(refreshTokenValue).getUser().getId();
-		refreshTokenService.revokeAllForUser(refreshTokenValue, userIdFromToken);
+		User user = refreshTokenService.getRefreshTokenByToken(refreshTokenValue).getUser();
+		refreshTokenService.revokeAllForUser(refreshTokenValue, user.getId());
+		webSocketSessions.revokeUser(user.getUsername());
 	}
 
 	private AuthResponse buildAuthResponse(User user) {

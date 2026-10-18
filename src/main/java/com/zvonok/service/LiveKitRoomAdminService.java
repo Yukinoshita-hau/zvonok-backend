@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 @Slf4j
@@ -145,9 +146,7 @@ public class LiveKitRoomAdminService {
 			if (!response.isSuccessful()) {
 				String errorBody = readErrorBody(response);
 
-				if (isRoomNotFoundMessage(errorBody)) {
-					return Collections.emptyList();
-				}
+				if (response.code() == 404 && isConfirmedMissingRoom(errorBody)) return Collections.emptyList();
 
 				throw temporaryError("Failed to list LiveKit participants. status="
 						+ response.code() + ", error=" + errorBody, roomName);
@@ -156,7 +155,7 @@ public class LiveKitRoomAdminService {
 			List<LivekitModels.ParticipantInfo> participants = response.body();
 
 			if (participants == null) {
-				return Collections.emptyList();
+				throw temporaryError("LiveKit participants returned an empty response body", roomName);
 			}
 
 			return participants;
@@ -167,6 +166,14 @@ public class LiveKitRoomAdminService {
 
 	public int countParticipants(String roomName) {
 		return listParticipants(roomName).size();
+	}
+
+	private boolean isConfirmedMissingRoom(String errorBody) {
+		try {
+			return "not_found".equals(new ObjectMapper().readTree(errorBody).path("code").asText());
+		} catch (IOException | RuntimeException e) {
+			return false;
+		}
 	}
 
 	public boolean roomExists(String roomName) {

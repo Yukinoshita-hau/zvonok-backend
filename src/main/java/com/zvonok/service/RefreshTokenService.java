@@ -65,8 +65,12 @@ public class RefreshTokenService {
     }
 
     public RefreshToken rotate(RefreshToken oldToken) {
-        oldToken.setRevoked(true);
-        refreshTokenRepository.save(oldToken);
+        // The database arbitrates competing transactions, including other application instances.
+        // Consumption and child insertion commit (or roll back) together.
+        if (refreshTokenRepository.consume(oldToken.getId(), LocalDateTime.now()) != 1) {
+            throw new RefreshTokenRevokedException(
+                    HttpResponseMessage.HTTP_REFRESH_TOKEN_REVOKED_RESPONSE_MESSAGE.getMessage());
+        }
         return createToken(oldToken.getUser());
     }
 

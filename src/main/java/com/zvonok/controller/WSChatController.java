@@ -40,17 +40,6 @@ public class WSChatController {
 				request.getReplyToMessageId());
 	}
 
-	@MessageMapping("/channel/{channelId}")
-	public void sendChannelMessage(@DestinationVariable Long channelId, Principal principal,
-			@Payload JsonNode payload) {
-		String sender = resolvePrincipalName(principal);
-		WebSocketMessageRequest request = parseMessageRequest(payload);
-		validateContent(request.getContent());
-
-		messageService.sendChannelMessage(sender, channelId, request.getContent(),
-				request.getReplyToMessageId());
-	}
-
 	@MessageMapping("/edit/{messageId}")
 	public void editMessage(@DestinationVariable Long messageId, Principal principal,
 			@Payload String newContent) {

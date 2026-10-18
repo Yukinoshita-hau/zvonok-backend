@@ -21,7 +21,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 				schema = @Schema(implementation = JsonErrorResponse.class),
 				examples = @ExampleObject(name = "NotEnoughRights", value = """
 							{
-								"message": "Not enough rights to manage the server",
+								"message": "Insufficient permissions",
 								"status": 403
 							}
 						""")))

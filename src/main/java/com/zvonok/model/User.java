@@ -58,10 +58,6 @@ public class User {
 	@CreationTimestamp
 	private LocalDateTime createdAt;
 
-	@OneToMany(mappedBy = "user")
-	@JsonIgnore
-	private List<ServerMember> serverMemberships;
-
 	@OneToMany(mappedBy = "sender")
 	@JsonBackReference
 	private List<Message> sentMessage;

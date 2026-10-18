@@ -13,13 +13,17 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.SQLRestriction;
 
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 @Entity
-@Table(name = "message")
+@SQLRestriction("room_id is not null")
+@Table(name = "message", uniqueConstraints = @UniqueConstraint(name = "uk_message_sender_upload_request",
+        columnNames = {"sender_id", "upload_request_key"}))
 public class Message {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -31,9 +35,6 @@ public class Message {
     @ManyToOne @JoinColumn(name = "room_id")
     private Room room; // Для приватных и групповых сообщений
 
-    @ManyToOne @JoinColumn(name = "channel_id")
-    private Channel channel; // Для сообщений в каналах серверов
-
     @Column(nullable = false, columnDefinition = "text")
     private String content;
 
@@ -42,6 +43,12 @@ public class Message {
     private MessageType type = MessageType.DEFAULT;
     
     private Long replyToMessageId;
+
+    @Column(name = "upload_request_key", length = 36)
+    private String uploadRequestKey;
+
+    @Column(name = "upload_request_hash", length = 64)
+    private String uploadRequestHash;
 
     private LocalDateTime editedAt; // null если не редактировалось
 
@@ -52,6 +59,7 @@ public class Message {
 
     @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true,
             fetch = FetchType.LAZY)
+    @BatchSize(size = 50)
     private List<MessageAttachment> attachments = new ArrayList<>();
     
     public boolean isEdited() {
@@ -65,7 +73,7 @@ public class Message {
     @PrePersist
     @PreUpdate
     private void validate() {
-        if ((room == null && channel == null) || (room != null && channel != null)) {
+        if (room == null) {
             throw new MessageTargetValidationException(
                     BusinessRuleMessage.BUSINESS_MESSAGE_TARGET_VALIDATION_FAILED_MESSAGE.getMessage());
         }

@@ -27,6 +27,9 @@ public interface CallParticipantRepository extends JpaRepository<CallParticipant
 			and p.user.username = :username
 			and p.callSession.status in :allowedCallStatuses
 			and p.status in :allowedParticipantStatuses
+			and p.leftAt is null
+			and p.callSession.room.isActive = true
+			and p.user member of p.callSession.room.members
 	""")
 	int touchLastSeenIfTokenAllowed(
 		@Param("callId") Long callId,
@@ -44,6 +47,8 @@ public interface CallParticipantRepository extends JpaRepository<CallParticipant
 			and cp.status in :participantStatuses
 			and cp.leftAt is null
 			and cs.status in :sessionStatuses
+			and r.isActive = true
+			and cp.user member of r.members
 		order by coalesce(cp.lastSeenAt, cp.acceptedAt, cp.joinedAt, cp.createdAt) desc
 	""")
 	List<CallParticipant> findRestoreCandidates(

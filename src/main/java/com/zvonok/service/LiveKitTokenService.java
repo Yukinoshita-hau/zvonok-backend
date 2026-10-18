@@ -14,6 +14,7 @@ import io.livekit.server.RoomName;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
+import java.time.Duration;
 
 @Slf4j
 @Service
@@ -31,19 +32,15 @@ public class LiveKitTokenService {
 	@Value("${livekit.token-ttl-minutes:10}")
 	private int tokenTtlMinutes;
 
-	@Deprecated
-	public LiveKitTokenResponse generateToken(String roomName, String identity,
-			String displayName) {
-		return generateCallToken(roomName, identity, displayName, null);
-	}
-
+	/** Internal signer; callers must authorize a persisted call or active invitation first. */
 	public LiveKitTokenResponse generateCallToken(String roomName, String identity,
 			String displayName, Long callId) {
 		try {
 			AccessToken token = new AccessToken(apiKey, apiSecret);
 			token.setIdentity(identity);
 			token.setName(displayName);
-			token.setTtl(tokenTtlMinutes * 60L);
+			// LiveKit server SDK 0.7.0 expects milliseconds.
+			token.setTtl(Duration.ofMinutes(tokenTtlMinutes).toMillis());
 
 			token.addGrants(new RoomJoin(true));
 			token.addGrants(new RoomName(roomName));

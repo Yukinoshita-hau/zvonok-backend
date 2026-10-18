@@ -1,6 +1,7 @@
 package com.zvonok.config;
 
 import com.zvonok.handler.JwtChannelInterceptor;
+import com.zvonok.handler.WebSocketDeliveryInterceptor;
 import com.zvonok.handler.JwtHandshakeHandler;
 import com.zvonok.handler.JwtHandshakeInterceptor;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import org.springframework.web.socket.config.annotation.WebSocketTransportRegist
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
 	private final JwtChannelInterceptor jwtChannelInterceptor;
+	private final WebSocketDeliveryInterceptor webSocketDeliveryInterceptor;
     private final JwtHandshakeInterceptor jwtHandshakeInterceptor;
     private final JwtHandshakeHandler jwtHandshakeHandler;
 
@@ -37,6 +39,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 	@Override
 	public void configureClientInboundChannel(ChannelRegistration registration) {
 		registration.interceptors(jwtChannelInterceptor);
+	}
+
+	@Override
+	public void configureClientOutboundChannel(ChannelRegistration registration) {
+		registration.interceptors(webSocketDeliveryInterceptor);
 	}
 
     @Override

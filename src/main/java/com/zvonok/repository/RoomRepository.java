@@ -14,6 +14,8 @@ import java.util.Optional;
 import java.util.Set;
 
 public interface RoomRepository extends JpaRepository<Room, Long> {
+	boolean existsByAvatarUrlAndIsActiveTrue(String avatarUrl);
+
 	@Query("SELECT r FROM Room r JOIN r.members m1 JOIN r.members m2 "
 			+ "WHERE r.type = 'PRIVATE' AND r.isActive = true "
 			+ "AND m1.id = :userId1 AND m2.id = :userId2 " + "AND SIZE(r.members) = 2")
@@ -32,6 +34,12 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
 	List<Room> findAllByTypeAndIsActiveTrue(RoomType type);
 
 	List<Room> findAllByMembersContainingAndIsActiveTrue(User user);
+
+	@Query("""
+			select distinct r from Room r left join fetch r.members
+			where r.isActive = true and :user member of r.members
+			""")
+	List<Room> findActiveRoomsWithMembers(@Param("user") User user);
 
 	@Query("SELECT SIZE(r.members) FROM Room r WHERE r.id = :roomId")
 	Integer countMembersInRoom(@Param("roomId") Long roomId);

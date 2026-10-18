@@ -17,6 +17,7 @@ import com.zvonok.repository.RoomRepository;
 import com.zvonok.service.dto.RoomEvents;
 import com.zvonok.service.enums.BrokerPath;
 import com.zvonok.service.enums.RoomEventsType;
+import com.zvonok.utils.TransactionUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -148,10 +149,13 @@ public class RoomInviteService {
 		payload.put("joinedAt", member.joinedAt());
 		RoomEvents event = RoomEvents.builder().type(RoomEventsType.ROOM_MEMBER_JOINED_BY_INVITE)
 				.payload(payload).build();
-		for (User roomMember : room.getMembers()) {
-			messagingTemplate.convertAndSendToUser(roomMember.getUsername(),
-					BrokerPath.ROOM_EVENTS_QUEUE_PATH.getPath(), event);
-		}
+		var recipients = room.getMembers().stream().map(User::getUsername).toList();
+		TransactionUtils.runAfterCommit(() -> {
+			for (String recipient : recipients) {
+				messagingTemplate.convertAndSendToUser(recipient,
+						BrokerPath.ROOM_EVENTS_QUEUE_PATH.getPath(), event);
+			}
+		});
 	}
 
 	private String generateToken() {

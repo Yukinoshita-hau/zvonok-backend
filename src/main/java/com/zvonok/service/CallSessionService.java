@@ -38,6 +38,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import com.zvonok.config.CallLifecycleProperties;
 
 @Service
 @RequiredArgsConstructor
@@ -53,7 +54,7 @@ public class CallSessionService {
 	private final CallParticipantRepository callParticipantRepository;
 	private final CallEventPublisher callEventPublisher;
 	private final LiveKitRoomAdminService liveKitRoomAdminService;
-	private final CallSessionCleanupService callSessionCleanupService;
+	private final CallLifecycleProperties lifecyclePolicy;
 
 	@Transactional
 	public CallSession startCall(String callerUsername, InviteCallDto dto) {
@@ -113,6 +114,11 @@ public class CallSessionService {
 		if (isTerminal(session.getStatus())) {
 			return session;
 		}
+		if (session.getStatus() == CallSessionStatus.RINGING && session.getStartedAt() != null
+				&& !session.getStartedAt().plusSeconds(lifecyclePolicy.getInvitationSeconds()).isAfter(LocalDateTime.now())) {
+			finishCall(session, CallEndReason.CANCELLED, null, true, true);
+			return session;
+		}
 
 		CallParticipant participant = findOrCreateGroupParticipant(session, actor);
 
@@ -146,6 +152,10 @@ public class CallSessionService {
 		}
 
 		participant.setStatus(CallParticipantStatus.ACCEPTED);
+		participant.setAcceptedAt(LocalDateTime.now());
+		participant.setLeftAt(null);
+		participant.setDeclinedAt(null);
+		participant.setLastSeenAt(LocalDateTime.now());
 		callParticipantRepository.save(participant);
 
 		publishToParticipants(session, event(CallType.CALL_PARTICIPANT_JOINED, session, username,
@@ -169,17 +179,17 @@ public class CallSessionService {
 			throw new CallStateConflictException("Call is not active");	
 		}
 
-		CallParticipant participant = callParticipantRepository
-				.findByCallSessionIdAndUserId(session.getId(), actor.getId()).orElseThrow(
-						() -> new InsufficientPermissionsException("User is not call participant"));
+		CallParticipant participant = findOrCreateGroupParticipant(session, actor);
+		if (participant.getStatus() == CallParticipantStatus.ACCEPTED
+				|| participant.getStatus() == CallParticipantStatus.JOINED) {
+			return session;
+		}
 
 		Set<CallParticipantStatus> joinableStatuses = Set.of(
 			CallParticipantStatus.RINGING,
 			CallParticipantStatus.DECLINED,
 			CallParticipantStatus.LEFT
 		);
-
-		System.out.println(participant.getStatus().toString());
 
 		if (!joinableStatuses.contains(participant.getStatus())) {
 			throw new IncorrectParticipantStatusException(
@@ -193,6 +203,7 @@ public class CallSessionService {
 		participant.setAcceptedAt(now);
 		participant.setLeftAt(null);
 		participant.setLastSeenAt(now);
+		participant.setDeclinedAt(null);
 
 		callParticipantRepository.save(participant);
 
@@ -213,15 +224,17 @@ public class CallSessionService {
 				.findByCallSessionIdAndUserId(session.getId(), actor.getId()).orElseThrow(
 						() -> new InsufficientPermissionsException("User is not call participant"));
 
-		if (isTerminal(session.getStatus())) {
+		if (isTerminal(session.getStatus()) || participant.getStatus() != CallParticipantStatus.RINGING) {
 			return session;
 		}
 
 		participant.setStatus(CallParticipantStatus.DECLINED);
+		participant.setDeclinedAt(LocalDateTime.now());
+		participant.setLeftAt(LocalDateTime.now());
 		callParticipantRepository.save(participant);
 
 		if (session.getRoomType() == RoomType.PRIVATE) {
-			finishCall(session, CallEndReason.DECLINED, actor, false, false);
+			finishCall(session, CallEndReason.DECLINED, actor, true, true);
 
 			publishToParticipants(session, event(CallType.CALL_DECLINED, session, username,
 					CallParticipantStatus.DECLINED));
@@ -244,7 +257,7 @@ public class CallSessionService {
 				.findByCallSessionIdAndUserId(session.getId(), actor.getId()).orElseThrow(
 						() -> new InsufficientPermissionsException("User is not call participant"));
 
-		if (isTerminal(session.getStatus())) {
+		if (isTerminal(session.getStatus()) || participant.getStatus() == CallParticipantStatus.LEFT) {
 			return session;
 		}
 
@@ -299,6 +312,7 @@ public class CallSessionService {
 			Set<CallSessionStatus> allowedCallStatuses,
 			Set<CallParticipantStatus> allowedParticipantStatuses) {
 
+		assertMediaRestoreWindow(getCallSessionForUpdate(callId));
 		int updated = callParticipantRepository.touchLastSeenIfTokenAllowed(callId, username,
 				LocalDateTime.now(), allowedCallStatuses, allowedParticipantStatuses);
 
@@ -307,6 +321,11 @@ public class CallSessionService {
 					HttpResponseMessage.HTTP_LIVEKIT_CALL_STATE_CONFLICT_RESPONSE_MESSAGE
 							.getMessage());
 		}
+		// Invalidate an in-flight reconciliation snapshot on concurrent token recovery.
+		// The bulk participant update clears the persistence context, so reload the session.
+		CallSession session = getCallSessionForUpdate(callId);
+		session.setMediaObservedAt(LocalDateTime.now());
+		callSessionRepository.save(session);
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -324,20 +343,6 @@ public class CallSessionService {
 		 * session.setLivekitRoomReadyAt(LocalDateTime.now()); callSessionRepository.save(session);
 		 * }
 		 */
-	}
-
-	@Transactional(propagation = Propagation.REQUIRES_NEW)
-	public void endSystemIfStale(Long callId, CallEndReason reason) {
-		if (callId == null)
-			return;
-
-		CallSession managedSession = getCallSessionForUpdate(callId);
-
-		if (isTerminal(managedSession.getStatus())) {
-			return;
-		}
-
-		finishCall(managedSession, reason, null, true, true);
 	}
 
 	@Transactional(readOnly = true)
@@ -386,9 +391,8 @@ public class CallSessionService {
 
 		CallSession freshest = candidates.getFirst();
 
-		if (candidates.size() > 1) {
-			callSessionCleanupService.cleanupDuplicateActiveSessions(roomId);
-		}
+		// A duplicate DB row is not evidence that its media room is empty.
+		// Reconciliation checks each session against LiveKit before ending it.
 
 		List<CallParticipant> participants =
 				callParticipantRepository.findAllByCallSessionId(freshest.getId());
@@ -419,6 +423,13 @@ public class CallSessionService {
 						.orElseThrow(() -> new InsufficientPermissionsException(
 								"User is not participant of this call"));
 
+		if (participant.getLeftAt() != null || session.getRoom() == null
+				|| !Boolean.TRUE.equals(session.getRoom().getIsActive())
+				|| session.getRoom().getMembers().stream().noneMatch(member -> member.getId().equals(user.getId()))) {
+			throw new InsufficientPermissionsException("Current room membership and call participation are required");
+		}
+		assertMediaRestoreWindow(session);
+
 		return new CallTokenContext(session.getId(), session.getLivekitRoomName(),
 				session.getRoomType(), session.getStatus(), session.getLivekitRoomReadyAt(),
 				username, user.getDisplayName(), participant.getStatus());
@@ -438,10 +449,11 @@ public class CallSessionService {
 		}
 
 		Room room = roomService.getRoom(roomId, username);
-		return callSessionRepository
+		CallSession candidate = callSessionRepository
 				.findFirstByRoomIdAndStatusInOrderByCreatedAtDesc(room.getId(), ACTIVE_OR_RINGING)
 				.orElseThrow(() -> new CallSessionNotFoundException(
 						"Active call session not found for room"));
+		return getCallSessionForUpdate(candidate.getId());
 	}
 
 	private void createPrivateParticipants(CallSession session, User caller, Room room) {
@@ -620,6 +632,13 @@ public class CallSessionService {
 		return status == CallSessionStatus.ENDED;
 	}
 
+	private void assertMediaRestoreWindow(CallSession session) {
+		if (session.getMediaEmptySince() != null && !session.getMediaEmptySince()
+				.plusSeconds(lifecyclePolicy.getMediaGraceSeconds()).isAfter(LocalDateTime.now())) {
+			throw new CallStateConflictException("Media restore window has expired");
+		}
+	}
+
 	private CallParticipant findOrCreateGroupParticipant(CallSession session, User actor) {
 		return callParticipantRepository
 				.findByCallSessionIdAndUserId(session.getId(), actor.getId()).orElseGet(() -> {
@@ -629,7 +648,7 @@ public class CallSessionService {
 
 					roomService.getRoom(session.getRoom().getId(), actor.getUsername());
 					CallParticipant participant = createParticipant(session, actor,
-							CallParticipantRole.MEMBER, CallParticipantStatus.ACCEPTED);
+							CallParticipantRole.MEMBER, CallParticipantStatus.RINGING);
 					return callParticipantRepository.save(participant);
 				});
 	}

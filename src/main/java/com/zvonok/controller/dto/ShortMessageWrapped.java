@@ -4,10 +4,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import com.zvonok.model.enumeration.MessageType;
 import com.zvonok.service.dto.EventType;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.Getter;
 
-@AllArgsConstructor
+@RequiredArgsConstructor
 @Getter
 public class ShortMessageWrapped {
 	private final Long id;

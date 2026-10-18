@@ -88,7 +88,9 @@ public class AuthController {
 			authService.logout(refreshCookie);
 		}
 		LogoutResponse response = new LogoutResponse("Logout successful", request.isAllDevices());
-		return ResponseEntity.ok(response);
+		return ResponseEntity.ok().header("Set-Cookie", ResponseCookie.from("refreshToken", "")
+				.httpOnly(true).secure(cookieProperties.isSecure()).path(cookieProperties.getPath())
+				.sameSite(cookieProperties.getSameSite()).maxAge(0).build().toString()).body(response);
 	}
 
 	@Operation(summary = "Проверка идентификации по токену", description = "Проверка jwt токена на валидность и возврат информации по токену")

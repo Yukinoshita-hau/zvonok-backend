@@ -32,8 +32,9 @@ public class MessageController {
 	@Operation(summary = "Получить сообщение", description = "Возвращает сообщение по messageId.")
 	@SecuredApiResponses
 	@GetMapping("/{messageId}")
-	public ResponseEntity<ShortMessageWrapped> getMessage(@PathVariable Long messageId) {
-		return ResponseEntity.ok(messageService.getShortMessageWrapped(messageId));
+	public ResponseEntity<ShortMessageWrapped> getMessage(@PathVariable Long messageId,
+			@AuthenticationPrincipal UserPrincipal principal) {
+		return ResponseEntity.ok(messageService.getShortMessageWrapped(messageId, principal.getUsername()));
 	}
 
 	@Operation(summary = "Редактировать сообщение",

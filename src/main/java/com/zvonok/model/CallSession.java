@@ -72,6 +72,11 @@ public class CallSession {
     @Version
     private Long version;
 
+    @Column(name = "media_empty_since")
+    private LocalDateTime mediaEmptySince;
+    @Column(name = "media_observed_at")
+    private LocalDateTime mediaObservedAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

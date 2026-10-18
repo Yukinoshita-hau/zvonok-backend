@@ -26,6 +26,8 @@ public class RestoreCallSessionResponse {
 	private String serverUrl;
 	private String participantToken;
 	private LocalDateTime expiresAt;
+	private LocalDateTime startedAt;
+	private LocalDateTime activatedAt;
 
 	public static RestoreCallSessionResponse empty() {
 		return RestoreCallSessionResponse.builder().restorable(false).callRestoreType(CallRestoreType.NONE).build();

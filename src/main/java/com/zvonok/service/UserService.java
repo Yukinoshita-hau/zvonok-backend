@@ -20,11 +20,17 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import com.zvonok.utils.TransactionUtils;
+import lombok.extern.slf4j.Slf4j;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import com.zvonok.exception.InvalidMessageAttachmentException;
 
 /**
  * Service for managing user entities and user-related operations. Сервис для управления сущностями
@@ -32,6 +38,7 @@ import java.util.Optional;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserService {
 
 	private final UserRepository userRepository;
@@ -144,7 +151,9 @@ public class UserService {
 		}
 
 		if (userDto.getAvatarUrl() != null && !userDto.getAvatarUrl().isEmpty()) {
-			user.setAvatarUrl(userDto.getAvatarUrl());
+			if (!userDto.getAvatarUrl().equals(user.getAvatarUrl())) {
+				throw new InvalidMessageAttachmentException("Use the avatar upload endpoint to change avatar");
+			}
 		}
 
 		if (userDto.getAboutMe() != null && !userDto.getAboutMe().isEmpty()) {
@@ -161,15 +170,39 @@ public class UserService {
 	public void uploadAvatar(String username, InputStream inputStream, long contentLength,
 			String contentType, String extension) {
 		User user = getUser(username);
-		String timestamp = String.valueOf(System.currentTimeMillis());
-		String avatarName = username + "_" + timestamp + extension;
+		String type = StorageUploadValidation.contentType(contentType);
+		if (!List.of("image/png", "image/jpeg", "image/gif", "image/webp").contains(type)) {
+			throw new InvalidMessageAttachmentException("Avatar must be a supported image");
+		}
+		String avatarName = "avatar_" + UUID.randomUUID();
 
 		s3Service.uploadFile(avatarName, inputStream, contentLength, contentType);
+		boolean synchronizedTransaction = TransactionSynchronizationManager.isActualTransactionActive()
+				&& TransactionSynchronizationManager.isSynchronizationActive();
+		if (synchronizedTransaction) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCompletion(int status) {
+					if (status == STATUS_ROLLED_BACK) cleanupUncommittedAvatar(avatarName);
+				}
+			});
+		}
+		try {
+			user.setAvatarUrl(endpoint + "/" + avatarName);
+			userRepository.save(user);
+			TransactionUtils.runAfterCommit(() -> publisherService.publishUserProfileUpdated(user));
+		} catch (RuntimeException failure) {
+			if (!synchronizedTransaction) cleanupUncommittedAvatar(avatarName);
+			throw failure;
+		}
+	}
 
-		user.setAvatarUrl(endpoint + "/" + avatarName);
-
-		publisherService.publishUserProfileUpdated(user);
-		userRepository.save(user);
+	private void cleanupUncommittedAvatar(String key) {
+		try {
+			s3Service.deleteFile(key);
+		} catch (RuntimeException failure) {
+			log.warn("Unable to remove uncommitted avatar {}", key, failure);
+		}
 	}
 
 	@Transactional

@@ -11,6 +11,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.ContentDisposition;
+import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -39,8 +42,10 @@ public class MessageAttachmentController {
 		HttpHeaders headers = new HttpHeaders();
 		headers.setContentType(resolveContentType(attachment, metadata));
 		headers.setContentLength(attachment.getSizeBytes());
-		headers.set(HttpHeaders.CONTENT_DISPOSITION,
-				"inline; filename=\"" + attachment.getOriginalFileName() + "\"");
+		headers.setContentDisposition(ContentDisposition.inline()
+				.filename(attachment.getOriginalFileName().replaceAll("[\\r\\n\\x00]", "_"), StandardCharsets.UTF_8).build());
+		headers.set(HttpHeaders.CACHE_CONTROL, "private, no-store");
+		headers.set("X-Content-Type-Options", "nosniff");
 
 		return ResponseEntity.ok().headers(headers)
 				.body(new InputStreamResource(object.getObjectContent()));
@@ -52,6 +57,10 @@ public class MessageAttachmentController {
 			contentType = metadata.getContentType();
 		}
 		if (contentType == null || contentType.isBlank()) {
+			return MediaType.APPLICATION_OCTET_STREAM;
+		}
+		if (!Set.of("image/png", "image/jpeg", "image/webp", "image/gif", "video/mp4",
+				"video/webm", "video/quicktime", "audio/webm", "audio/ogg", "audio/mpeg", "audio/mp4", "audio/wav").contains(contentType)) {
 			return MediaType.APPLICATION_OCTET_STREAM;
 		}
 		return MediaType.parseMediaType(contentType);

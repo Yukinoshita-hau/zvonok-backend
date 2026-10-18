@@ -182,11 +182,12 @@ public class RoomController {
 			@RequestParam(value = "attachmentType", required = false) AttachmentType attachmentType,
 			@RequestParam(value = "durationMs", required = false) Long durationMs,
 			@RequestParam(value = "waveform", required = false) String waveform,
+			@RequestParam(value = "clientRequestId", required = false) String clientRequestId,
 			@RequestParam(value = "replyToMessageId", required = false) Long replyToMessageId,
 			@AuthenticationPrincipal UserPrincipal principal) {
 		ShortMessageWrapped response = messageService.sendMessageWithAttachments(
 				principal.getUsername(), roomId, content, files, attachmentType, durationMs,
-				waveform, replyToMessageId);
+				waveform, replyToMessageId, clientRequestId);
 		return ResponseEntity.ok(response);
 	}
 
