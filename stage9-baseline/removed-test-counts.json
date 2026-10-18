@@ -1,0 +1,18 @@
+{
+  "classes": [
+    [
+      "unittests/controller/ChannelControllerTest.java",
+      3
+    ],
+    [
+      "unittests/service/ChannelServiceTest.java",
+      3
+    ],
+    [
+      "unittests/service/ServerServiceTest.java",
+      7
+    ]
+  ],
+  "mixed_legacy_only_methods": 10,
+  "removed_authorized_subscription_values": 1
+}

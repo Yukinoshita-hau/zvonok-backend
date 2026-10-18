@@ -1,0 +1,150 @@
+ M src/main/java/com/zvonok/config/SecurityConfig.java
+ M src/main/java/com/zvonok/config/WebSocketConfig.java
+ D src/main/java/com/zvonok/config/properties/CodeRunnerProperties.java
+ M src/main/java/com/zvonok/controller/AuthController.java
+ D src/main/java/com/zvonok/controller/CanvasBoardController.java
+ D src/main/java/com/zvonok/controller/CodeExecutionController.java
+ D src/main/java/com/zvonok/controller/CodeSessionController.java
+ M src/main/java/com/zvonok/controller/LiveKitController.java
+ M src/main/java/com/zvonok/controller/MessageAttachmentController.java
+ M src/main/java/com/zvonok/controller/MessageController.java
+ M src/main/java/com/zvonok/controller/RoomController.java
+ M src/main/java/com/zvonok/controller/S3Controller.java
+ D src/main/java/com/zvonok/controller/WSCanvasBoardController.java
+ D src/main/java/com/zvonok/controller/WSCodeSessionController.java
+ D src/main/java/com/zvonok/controller/dto/CanvasBoardEventDto.java
+ D src/main/java/com/zvonok/controller/dto/CanvasBoardObjectEventDto.java
+ D src/main/java/com/zvonok/controller/dto/CanvasBoardSessionDto.java
+ D src/main/java/com/zvonok/controller/dto/CanvasDrawEventDto.java
+ D src/main/java/com/zvonok/controller/dto/CanvasNoteVoteDto.java
+ D src/main/java/com/zvonok/controller/dto/CanvasPointDto.java
+ D src/main/java/com/zvonok/controller/dto/CanvasSnapshotDto.java
+ D src/main/java/com/zvonok/controller/dto/CanvasStickyNoteDto.java
+ D src/main/java/com/zvonok/controller/dto/CanvasStrokeDto.java
+ D src/main/java/com/zvonok/controller/dto/CodeAccessRequestDto.java
+ D src/main/java/com/zvonok/controller/dto/CodeContentSyncRequestDto.java
+ D src/main/java/com/zvonok/controller/dto/CodeCursorSyncRequestDto.java
+ D src/main/java/com/zvonok/controller/dto/CodeLanguageChangeRequestDto.java
+ D src/main/java/com/zvonok/controller/dto/CodeSessionDto.java
+ D src/main/java/com/zvonok/controller/dto/CodeSessionEventDto.java
+ D src/main/java/com/zvonok/controller/dto/CodeSessionSenderDto.java
+ D src/main/java/com/zvonok/controller/dto/CodeStdinSyncRequestDto.java
+ D src/main/java/com/zvonok/controller/dto/CreateCanvasBoardRequest.java
+ D src/main/java/com/zvonok/controller/dto/CreateCanvasStickyNoteRequest.java
+ D src/main/java/com/zvonok/controller/dto/CreateCodeSessionRequestDto.java
+ M src/main/java/com/zvonok/controller/dto/RestoreCallSessionResponse.java
+ M src/main/java/com/zvonok/controller/dto/ShortMessageWrapped.java
+ D src/main/java/com/zvonok/controller/dto/StartCanvasTimerRequest.java
+ D src/main/java/com/zvonok/controller/dto/UpdateCanvasBoardPermissionsRequest.java
+ D src/main/java/com/zvonok/controller/dto/UpdateCanvasBoardTemplateRequest.java
+ D src/main/java/com/zvonok/controller/dto/UpdateCanvasPresenterRequest.java
+ D src/main/java/com/zvonok/controller/dto/UpdateCanvasStickyNoteRequest.java
+ D src/main/java/com/zvonok/exception/CanvasBoardAccessDeniedException.java
+ D src/main/java/com/zvonok/exception/CanvasBoardNotFoundException.java
+ D src/main/java/com/zvonok/exception/CodeRunnerUnavailableException.java
+ D src/main/java/com/zvonok/exception/CodeSessionAccessDeniedException.java
+ D src/main/java/com/zvonok/exception/CodeSessionNotFoundException.java
+ D src/main/java/com/zvonok/exception/InvalidCanvasDrawEventException.java
+ D src/main/java/com/zvonok/exception/InvalidCodeSessionException.java
+ D src/main/java/com/zvonok/exception/UnsupportedExecutionLanguageException.java
+ M src/main/java/com/zvonok/exception_handler/enumeration/HttpResponseMessage.java
+ M src/main/java/com/zvonok/handler/JwtChannelInterceptor.java
+ M src/main/java/com/zvonok/model/CallSession.java
+ D src/main/java/com/zvonok/model/CanvasBoard.java
+ D src/main/java/com/zvonok/model/CanvasNoteVote.java
+ D src/main/java/com/zvonok/model/CanvasPoint.java
+ D src/main/java/com/zvonok/model/CanvasStickyNote.java
+ D src/main/java/com/zvonok/model/CanvasStroke.java
+ D src/main/java/com/zvonok/model/CodeSession.java
+ M src/main/java/com/zvonok/model/Message.java
+ D src/main/java/com/zvonok/model/enumeration/CanvasBackground.java
+ D src/main/java/com/zvonok/model/enumeration/CanvasBoardMode.java
+ D src/main/java/com/zvonok/model/enumeration/CanvasBoardObjectEventType.java
+ D src/main/java/com/zvonok/model/enumeration/CanvasDrawEventType.java
+ D src/main/java/com/zvonok/model/enumeration/CanvasDrawingAccess.java
+ D src/main/java/com/zvonok/model/enumeration/CanvasReactionType.java
+ D src/main/java/com/zvonok/model/enumeration/CanvasTemplateType.java
+ D src/main/java/com/zvonok/model/enumeration/CanvasTimerStatus.java
+ D src/main/java/com/zvonok/model/enumeration/CanvasTool.java
+ D src/main/java/com/zvonok/model/enumeration/CodeSessionEventType.java
+ M src/main/java/com/zvonok/repository/CallParticipantRepository.java
+ M src/main/java/com/zvonok/repository/CallSessionRepository.java
+ D src/main/java/com/zvonok/repository/CanvasBoardRepository.java
+ D src/main/java/com/zvonok/repository/CanvasNoteVoteRepository.java
+ D src/main/java/com/zvonok/repository/CanvasPointRepository.java
+ D src/main/java/com/zvonok/repository/CanvasStickyNoteRepository.java
+ D src/main/java/com/zvonok/repository/CanvasStrokeRepository.java
+ D src/main/java/com/zvonok/repository/CodeSessionRepository.java
+ M src/main/java/com/zvonok/repository/MessageAttachmentRepository.java
+ M src/main/java/com/zvonok/repository/MessageReadStatusRepository.java
+ M src/main/java/com/zvonok/repository/MessageRepository.java
+ M src/main/java/com/zvonok/repository/RefreshTokenRepository.java
+ M src/main/java/com/zvonok/repository/RoomReadStateRepository.java
+ M src/main/java/com/zvonok/repository/RoomRepository.java
+ M src/main/java/com/zvonok/repository/UserRepository.java
+ M src/main/java/com/zvonok/service/AuthService.java
+ M src/main/java/com/zvonok/service/CallRestoreService.java
+ M src/main/java/com/zvonok/service/CallSessionCleanupService.java
+ M src/main/java/com/zvonok/service/CallSessionService.java
+ D src/main/java/com/zvonok/service/CanvasBoardService.java
+ D src/main/java/com/zvonok/service/CodeExecutionService.java
+ D src/main/java/com/zvonok/service/CodeSessionService.java
+ M src/main/java/com/zvonok/service/LiveKitCallTokenService.java
+ M src/main/java/com/zvonok/service/LiveKitRoomAdminService.java
+ M src/main/java/com/zvonok/service/LiveKitTokenService.java
+ M src/main/java/com/zvonok/service/MessageReadStatusService.java
+ M src/main/java/com/zvonok/service/MessageService.java
+ M src/main/java/com/zvonok/service/PermissionService.java
+ M src/main/java/com/zvonok/service/RefreshTokenService.java
+ M src/main/java/com/zvonok/service/RoomReadStateService.java
+ M src/main/java/com/zvonok/service/RoomService.java
+ M src/main/java/com/zvonok/service/S3Service.java
+ M src/main/java/com/zvonok/service/UserService.java
+ D src/main/java/com/zvonok/service/client/CodeRunnerClient.java
+ M src/main/java/com/zvonok/service/dto/MessageReadStatusContent.java
+ D src/main/java/com/zvonok/service/dto/code/AvailableLanguageDto.java
+ D src/main/java/com/zvonok/service/dto/code/CodeRunRequestDto.java
+ D src/main/java/com/zvonok/service/dto/code/CodeRunResponseDto.java
+ D src/main/java/com/zvonok/service/dto/code/ExecutionResponseStatus.java
+ M src/main/java/com/zvonok/utils/TransactionUtils.java
+ M src/main/resources/application.properties.example
+ M src/test/java/com/zvonok/unittests/service/AuthServiceTest.java
+ M src/test/java/com/zvonok/unittests/service/CallSessionServiceTest.java
+ D src/test/java/com/zvonok/unittests/service/CodeExecutionServiceTest.java
+?? CORE-CLEANUP-STAGE4.md
+?? CORE-STABILIZATION-STAGE2.md
+?? CORE-STABILIZATION-STAGE3-SECURITY-FOLLOWUP.md
+?? CORE-STABILIZATION-STAGE3.md
+?? CORE-STABILIZATION-STAGE5.md
+?? CORE-STABILIZATION-STAGE6.md
+?? CORE-STABILIZATION-STAGE8.md
+?? SECURITY-P0.md
+?? ops/
+?? src/main/java/com/zvonok/config/CallLifecycleProperties.java
+?? src/main/java/com/zvonok/config/CallLifecycleScheduling.java
+?? src/main/java/com/zvonok/exception/InvalidMessageBatchException.java
+?? src/main/java/com/zvonok/handler/WebSocketDeliveryInterceptor.java
+?? src/main/java/com/zvonok/repository/RoomUnreadSummary.java
+?? src/main/java/com/zvonok/security/WebSocketAuthorizationSessions.java
+?? src/main/java/com/zvonok/service/CallLifecycleReconciler.java
+?? src/main/java/com/zvonok/service/CallRestoreStateService.java
+?? src/main/java/com/zvonok/service/MessageAccessService.java
+?? src/main/java/com/zvonok/service/S3ObjectAccessService.java
+?? src/main/java/com/zvonok/service/StorageUploadValidation.java
+?? src/main/java/com/zvonok/service/WebSocketAccessService.java
+?? src/test/java/com/zvonok/integrationtest/
+?? src/test/java/com/zvonok/unittests/security/CallTokenQuerySecurityTest.java
+?? src/test/java/com/zvonok/unittests/security/MessageHttpSecurityTest.java
+?? src/test/java/com/zvonok/unittests/security/StorageHttpSecurityTest.java
+?? src/test/java/com/zvonok/unittests/security/WebSocketAclSecurityTest.java
+?? src/test/java/com/zvonok/unittests/security/WebSocketBrokerSecurityTest.java
+?? src/test/java/com/zvonok/unittests/service/AttachmentTransactionOutcomeTest.java
+?? src/test/java/com/zvonok/unittests/service/CallActionsLifecycleTest.java
+?? src/test/java/com/zvonok/unittests/service/CallLifecycleTest.java
+?? src/test/java/com/zvonok/unittests/service/LiveKitPresenceHttpTest.java
+?? src/test/java/com/zvonok/unittests/service/LiveKitSecurityTest.java
+?? src/test/java/com/zvonok/unittests/service/MessageAccessSecurityTest.java
+?? src/test/java/com/zvonok/unittests/service/RefreshRotationConcurrencyTest.java
+?? src/test/java/com/zvonok/unittests/service/StorageUploadSecurityTest.java
+?? src/test/java/com/zvonok/unittests/service/TransactionPublicationTest.java
+?? stage9-baseline/
