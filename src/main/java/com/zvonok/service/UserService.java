@@ -156,13 +156,13 @@ public class UserService {
 			}
 		}
 
-		if (userDto.getAboutMe() != null && !userDto.getAboutMe().isEmpty()) {
+		if (userDto.getAboutMe() != null) {
 			user.setAboutMe(userDto.getAboutMe());
 		}
 
 		User response = userRepository.save(user);
 
-		publisherService.publishUserProfileUpdated(user);
+		TransactionUtils.runAfterCommit(() -> publisherService.publishUserProfileUpdated(response));
 		return myUserWrapper(response);
 	}
 

@@ -1,0 +1,9 @@
+{
+  "restoredAttachmentRows": 228,
+  "restoreDatabase": "zvonok_stage5d_restore_20261019_234447",
+  "objects": "NOT INCLUDED - database restore only",
+  "status": "PASS",
+  "durability": "same physical disk - diagnostic backup only",
+  "sha256": "5DFEB70A1B8EC9E92779F8589B2D3EFAF9537B318D92BD41C3ED01260A8549A9",
+  "bytes": 813962
+}

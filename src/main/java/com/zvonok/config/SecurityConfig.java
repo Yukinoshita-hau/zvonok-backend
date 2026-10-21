@@ -41,6 +41,7 @@ public class SecurityConfig {
 					config.setAllowedMethods(
 							List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
 					config.setAllowedHeaders(List.of("*"));
+					config.setExposedHeaders(List.of("Accept-Ranges", "Content-Range", "Content-Length", "Content-Disposition"));
 					config.setAllowCredentials(true);
 					config.setMaxAge(3600L);
 					return config;
@@ -54,6 +55,8 @@ public class SecurityConfig {
 						UsernamePasswordAuthenticationFilter.class)
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+						.requestMatchers(HttpMethod.GET, "/message-attachments/*/stream").permitAll()
+						.requestMatchers(HttpMethod.HEAD, "/message-attachments/*/stream").permitAll()
 						.requestMatchers("/auth/login", "/auth/register", "/s3/download/**",
 								"/auth/refresh", "/health", "/swagger-ui.html", "/swagger-ui/**",
 								"/v3/api-docs/**", "/ws/**", "/ws-raw/**", "/ws-raw")

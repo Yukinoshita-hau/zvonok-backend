@@ -1,0 +1,7 @@
+{
+  "backupLocation" : "operator-selected protected filesystem root",
+  "offHostDurability" : "BLOCKED - physical independence not verified",
+  "restoreBucket" : "stage5d-restore-bd0a4b02-04df-4346-9acd-20ecafee635d",
+  "restoredObjects" : 8,
+  "status" : "PASS"
+}

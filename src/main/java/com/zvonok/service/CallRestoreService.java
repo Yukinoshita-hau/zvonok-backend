@@ -13,14 +13,15 @@ public class CallRestoreService {
     private final LiveKitCallTokenService tokenService;
     private final CallRestoreStateService restoreStateService;
 
-    public Optional<RestoreCallSessionResponse> restoreCallSession(String username) {
+    public Optional<RestoreCallSessionResponse> restoreCallSession(String username, String clientId) {
         Optional<RestoreCallSessionResponse> candidate = restoreStateService.findCandidate(username);
         if (candidate.isEmpty() || candidate.get().getCallRestoreType() != CallRestoreType.ACTIVE_CALL) {
             return candidate;
         }
         // No database transaction or row lock is held across LiveKit REST.
         RestoreCallSessionResponse response = candidate.get();
-        LiveKitTokenResponse token = tokenService.issueCallToken(response.getCallId(), username);
+        LiveKitTokenResponse token = tokenService.issueCallToken(response.getCallId(), username, clientId, false);
+        response.setMediaOwnership(token.getMediaOwnership());
         response.setServerUrl(token.getServerUrl());
         response.setParticipantToken(token.getParticipantToken());
         response.setExpiresAt(token.getExpiresAt());

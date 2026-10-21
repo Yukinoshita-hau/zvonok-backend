@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 public class LiveKitTokenResponse {
+	private String mediaOwnership;
 	private String serverUrl;
 
 	private String participantToken;

@@ -61,6 +61,15 @@ public class CallParticipant {
 	@Column(name = "last_seen_at")
 	private LocalDateTime lastSeenAt;
 
+	@Column(name = "media_client_id", length = 36)
+	private String mediaClientId;
+
+	@Column(name = "media_lease_until")
+	private LocalDateTime mediaLeaseUntil;
+
+	@Column(name = "media_transfer_client_id", length = 36)
+	private String mediaTransferClientId;
+
 	@Version
 	private Long version;
 

@@ -49,7 +49,7 @@ class AttachmentTransactionOutcomeTest {
         var service = new MessageService(repository, mock(MessageAccessService.class), broker, rooms, users,
                 mock(MessageAttachmentRepository.class),
                 storage, mock(RoomReadStateService.class), manager);
-        var file = new MockMultipartFile("files", "voice", "audio/webm", new byte[]{1, 2, 3});
+        var file = new MockMultipartFile("files", "voice.webm", "audio/webm", new byte[]{1, 2, 3});
         assertEquals("commit outcome unknown", assertThrows(TransactionSystemException.class,
                 () -> service.sendMessageWithAttachments("alice", 2L, "", List.of(file), AttachmentType.AUDIO, 1000L, null, null)).getMessage());
         verify(storage).uploadFile(startsWith("message-attachments/"), any(), eq(3L), eq("audio/webm"));

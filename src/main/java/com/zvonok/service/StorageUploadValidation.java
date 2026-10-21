@@ -27,6 +27,11 @@ final class StorageUploadValidation {
             byte[] bytes = stream.readNBytes(32);
             stream.reset();
             boolean valid = switch (type) {
+                case "application/pdf" -> text(bytes, 0, "%PDF-");
+                case "application/zip", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                     "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> starts(bytes, 0, 80, 75, 3, 4) || starts(bytes, 0, 80, 75, 5, 6);
+                case "text/plain", "text/markdown", "application/json", "text/csv" -> AttachmentFilePolicy.validUtf8(stream, size);
                 case "image/png" -> starts(bytes, 0, 137, 80, 78, 71, 13, 10, 26, 10);
                 case "image/jpeg" -> starts(bytes, 0, 255, 216, 255);
                 case "image/gif" -> text(bytes, 0, "GIF87a") || text(bytes, 0, "GIF89a");

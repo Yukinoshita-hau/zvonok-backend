@@ -46,7 +46,7 @@ public class LiveKitTokenService {
 			token.addGrants(new RoomName(roomName));
 			token.addGrants(new CanPublish(true));
 			token.addGrants(new CanSubscribe(true));
-			token.addGrants(new CanPublishData(true));
+			token.addGrants(new CanPublishData(false));
 
 			String jwt = token.toJwt();
 

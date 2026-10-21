@@ -4,5 +4,6 @@ public enum AttachmentType {
 	IMAGE,
 	VIDEO,
 	AUDIO,
-	VIDEO_NOTE
+	VIDEO_NOTE,
+	FILE
 }

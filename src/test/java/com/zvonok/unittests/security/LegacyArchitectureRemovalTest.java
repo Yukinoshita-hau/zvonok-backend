@@ -36,12 +36,17 @@ class LegacyArchitectureRemovalTest {
             assertTrue(paths.stream().anyMatch(p -> p.startsWith(domain)), domain);
         }
         assertTrue(paths.stream().noneMatch(p -> p.matches(".*(?:server|channel|folder|discover).*")), paths.toString());
+        assertTrue(paths.stream().noneMatch(p -> p.contains("/recording")), paths.toString());
     }
 
     @Test void legacyClassesAndCommonEntityAssociationsAreAbsent() {
         for (String name : new String[]{"model.Server", "model.Channel", "model.ChannelFolder",
                 "model.ServerRole", "model.ServerMember", "model.ServerBan",
                 "model.ServerMemberRole", "model.ChannelPermissionOverride", "model.FolderPermissionOverride",
+                "model.CallRecording", "model.enumeration.CallRecordingStatus",
+                "repository.CallRecordingRepository", "controller.CallRecordingController",
+                "service.CallRecordingService", "service.LiveKitEgressAdminService",
+                "service.enums.CallRecordingAction", "service.interfaces.CallRecordingPayload",
                 "service.PermissionService", "service.InviteCodeService"}) {
             assertThrows(ClassNotFoundException.class, () -> Class.forName("com.zvonok." + name), name);
         }

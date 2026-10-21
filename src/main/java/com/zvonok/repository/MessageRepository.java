@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface MessageRepository extends JpaRepository<Message, Long> {
+    @EntityGraph(attributePaths = {"sender", "room"})
+    List<Message> findByRoomIdAndDeletedAtIsNullAndIdGreaterThanOrderByIdAsc(Long roomId, Long id, Pageable pageable);
     @Query("select m.room.id from Message m where m.id = :messageId")
     Long findRoomIdByMessageId(@Param("messageId") Long messageId);
 

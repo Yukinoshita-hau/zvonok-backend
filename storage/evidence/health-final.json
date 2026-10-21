@@ -1,0 +1,10 @@
+{
+  "hostFreeBytes": 8922992640,
+  "backupAgeHours": 0.05,
+  "storageReady": true,
+  "diskStatus": "PASS",
+  "backupStatus": "Coordinated diagnostic backup verified; production off-host backup NOT CONFIGURED",
+  "disasterRecovery": "BLOCKED - independent destination not confirmed",
+  "provider": "rustfs",
+  "minimumFreeBytes": 8589934592
+}

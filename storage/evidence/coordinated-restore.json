@@ -1,0 +1,12 @@
+{
+  "referencesMatch": true,
+  "databaseSha256": "26B7210D99725988F89408BACA0D96766B83223AD928DFEC3F5DCC10E504DC65",
+  "restoreDatabase": "zvonok_stage5d_local_restore_20261020_004753_629",
+  "objectsManifestSha256": "10E61D776C3C7C5D77015D5F7BF7B380F79D113C8EF2777A12FC9C1A842E22D4",
+  "restoreBucket": "stage5d-restore-bd0a4b02-04df-4346-9acd-20ecafee635d",
+  "objects": 8,
+  "referencesSha256": "84D015CB0F7DDCC14FF52A3C7A231847D8D2AEEDCB27A29C6A6E061BD935419E",
+  "scope": "Quiesced isolated RustFS diagnostic database and referenced objects",
+  "status": "PASS",
+  "durability": "BLOCKED - destination physical independence not verified"
+}

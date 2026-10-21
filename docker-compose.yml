@@ -25,6 +25,10 @@ services:
       dockerfile: Dockerfile
     container_name: zvonok-backend
     restart: unless-stopped
+    # Browser signaling and Docker API traffic use separate addresses.
+    environment:
+      LIVEKIT_SERVER_URL: ${LIVEKIT_SERVER_URL:-ws://127.0.0.1:7880}
+      LIVEKIT_API_URL: ${LIVEKIT_API_URL:-http://livekit:7880}
     env_file:
       - .env
     ports:

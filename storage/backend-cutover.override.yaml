@@ -1,0 +1,15 @@
+# PREPARED ONLY. Do not apply until inventory/copy/SHA256/TLS/backup gates and separate approval.
+services:
+  backend:
+    environment:
+      S3_PROVIDER: rustfs
+      S3_ENDPOINT: http://zvonok-local-s3:9000
+      S3_SIGNING_ENDPOINT: ${ZVONOK_STORAGE_PUBLIC_ENDPOINT:?Approved external HTTPS endpoint required}
+      S3_BUCKET: zvonok-data
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY: ${ZVONOK_STORAGE_APP_ACCESS_KEY:?Bucket-scoped application credential required}
+      S3_SECRET_ACCESS_KEY: ${ZVONOK_STORAGE_APP_SECRET_KEY:?Application secret required}
+      S3_ALLOW_LOOPBACK_HTTP: 'false'
+      S3_CONNECT_TIMEOUT_MS: '10000'
+      S3_SOCKET_TIMEOUT_MS: '180000'
+      S3_UPLOAD_EXECUTION_TIMEOUT_MS: '300000'

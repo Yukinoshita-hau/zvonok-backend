@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
-import java.net.URI;
 import java.util.Map;
 
 @Component
@@ -59,17 +58,10 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 	}
 
 	private String extractToken(ServerHttpRequest request) {
-		// Способ 1: Из query параметра ?token=xxx
-		URI uri = request.getURI();
-		String query = uri.getQuery();
-		if (query != null) {
-			String[] params = query.split("&");
-			for (String param : params) {
-				if (param.startsWith("token=")) {
-					if (!param.substring(6).isEmpty()) {
-						return param.substring(6);
-					}
-				}
+		// Authentication offer is not selected as the negotiated STOMP subprotocol.
+		for (String protocol : request.getHeaders().getValuesAsList("Sec-WebSocket-Protocol")) {
+			if (protocol.startsWith("zvonok.auth.")) {
+				return protocol.substring("zvonok.auth.".length());
 			}
 		}
 

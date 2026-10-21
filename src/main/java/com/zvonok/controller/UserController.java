@@ -1,6 +1,7 @@
 package com.zvonok.controller;
 
 import java.io.IOException;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.StringUtils;
@@ -54,7 +55,7 @@ public class UserController {
 
 	@PutMapping("/my")
 	public MyUser updateMyUser(@AuthenticationPrincipal UserPrincipal principal,
-			@RequestBody UpdateUserDto dto) {
+			@Valid @RequestBody UpdateUserDto dto) {
 		return userService.updateMyUser(principal.getUsername(), dto);
 	}
 

@@ -27,6 +27,7 @@ import com.zvonok.model.MessageAttachment;
 import com.zvonok.service.dto.EventType;
 import com.zvonok.controller.dto.MessageResponse;
 import com.zvonok.controller.dto.ShortMessageWrapped;
+import com.zvonok.controller.dto.RoomAttachmentPage;
 import com.zvonok.controller.dto.RoomShortDto;
 import com.zvonok.controller.dto.SenderDto;
 import com.zvonok.model.Message;
@@ -41,7 +42,9 @@ import com.zvonok.service.enums.BrokerPath;
 import com.zvonok.service.enums.RoomEventsType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -66,6 +69,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Locale;
+import java.util.EnumSet;
 
 /**
  * Service for managing messages in private and group rooms. Сервис для управления
@@ -88,9 +93,9 @@ public class MessageService {
 
 	private static final int MAX_ATTACHMENTS_PER_MESSAGE = 10;
 	private static final long MAX_IMAGE_SIZE_BYTES = 10L * 1024L * 1024L;
-	private static final long MAX_VIDEO_SIZE_BYTES = 100L * 1024L * 1024L;
+	private static final long MAX_VIDEO_SIZE_BYTES = 50L * 1024L * 1024L;
 	private static final long MAX_AUDIO_SIZE_BYTES = 25L * 1024L * 1024L;
-	private static final long MAX_VIDEO_NOTE_SIZE_BYTES = 100L * 1024L * 1024L;
+	private static final long MAX_VIDEO_NOTE_SIZE_BYTES = 50L * 1024L * 1024L;
 	private static final long MAX_AUDIO_DURATION_MS = 5L * 60L * 1000L;
 	private static final long MAX_VIDEO_NOTE_DURATION_MS = 60L * 1000L;
 	private static final Set<String> ALLOWED_IMAGE_CONTENT_TYPES =
@@ -168,6 +173,7 @@ public class MessageService {
     public ShortMessageWrapped sendMessageWithAttachments(String senderUsername, long roomId,
             String content, List<MultipartFile> files, AttachmentType attachmentType,
             Long durationMs, String waveform, Long replyToMessageId, String clientRequestId) {
+        long preflightStart = System.nanoTime();
         List<MultipartFile> normalized = normalizeFiles(files);
         if ((content == null || content.isBlank()) && normalized.isEmpty()) {
             throw new InvalidMessageAttachmentException(HttpResponseMessage.HTTP_MESSAGE_EMPTY_RESPONSE_MESSAGE.getMessage());
@@ -183,8 +189,13 @@ public class MessageService {
             validateAttachmentSize(file, type);
             validateAttachmentDuration(file, type, durationMs);
         }
+        if (normalized.stream().mapToLong(MultipartFile::getSize).sum() > MAX_VIDEO_SIZE_BYTES)
+            throw new InvalidMessageAttachmentException("Суммарный размер вложений больше 50 MiB");
+        uploadTiming("authorization_policy", preflightStart);
+        long fingerprintStart = System.nanoTime();
         String requestHash = requestKey == null ? null : attachmentRequestHash(roomId, content, normalized,
                 attachmentType, durationMs, waveform, replyToMessageId);
+        uploadTiming("fingerprint", fingerprintStart);
         ShortMessageWrapped previous = tx.execute(status -> findPreviousUpload(senderUsername, roomId, requestKey, requestHash));
         if (previous != null) return previous;
         List<String> createdKeys = new ArrayList<>();
@@ -194,7 +205,8 @@ public class MessageService {
             for (MultipartFile file : normalized) {
                 attachments.add(createAttachment(file, attachmentType, durationMs, waveform, createdKeys));
             }
-            return tx.execute(status -> {
+            long commitStart = System.nanoTime();
+            ShortMessageWrapped committed = tx.execute(status -> {
                 // Reauthorize after network I/O and serialize with send/edit/delete/clear.
                 Room room = roomService.getRoomForUpdate(roomId, senderUsername);
                 ShortMessageWrapped duplicate = findPreviousUpload(senderUsername, roomId, requestKey, requestHash);
@@ -228,10 +240,17 @@ public class MessageService {
                 roomService.updateRoom(roomId, senderUsername, room.getName(), saved.getId(), previewContent(saved), saved.getSentAt());
                 return response;
             });
+            uploadTiming("db_commit_and_publish", commitStart);
+            return committed;
         } catch (RuntimeException e) {
             if (!completionOwnsCleanup[0]) cleanupUploads(createdKeys);
             throw e;
         }
+    }
+
+    private void uploadTiming(String stage, long start) {
+        String trace = MDC.get("attachmentUpload");
+        if (trace != null) log.info("attachment_upload trace={} stage={} duration_ms={}", trace, stage, (System.nanoTime() - start) / 1_000_000);
     }
 
 	@Transactional
@@ -471,6 +490,63 @@ public class MessageService {
 		return attachment;
 	}
 
+    @Transactional(readOnly = true)
+    public RoomAttachmentPage attachments(long roomId, String username,
+            String category, String cursor, int limit, String query, String direction) {
+        roomService.getRoom(roomId, username);
+        if (limit < 1 || limit > 60 || query.length() > 128 || (!direction.equals("asc") && !direction.equals("desc")))
+            throw new InvalidMessageAttachmentException("Invalid pagination or query");
+        query = query.strip().toLowerCase(Locale.ROOT);
+        AttachmentCursor position = AttachmentCursor.decode(cursor, roomId, category, query, direction);
+        Set<AttachmentType> types = switch (category) {
+            case "all" -> EnumSet.allOf(AttachmentType.class);
+            case "media" -> Set.of(AttachmentType.IMAGE, AttachmentType.VIDEO, AttachmentType.VIDEO_NOTE);
+            case "image" -> Set.of(AttachmentType.IMAGE);
+            case "video" -> Set.of(AttachmentType.VIDEO, AttachmentType.VIDEO_NOTE);
+            case "document" -> Set.of(AttachmentType.FILE);
+            case "audio" -> Set.of(AttachmentType.AUDIO);
+            default -> throw new InvalidMessageAttachmentException("Invalid category");
+        };
+        List<MessageAttachment> rows = messageAttachmentRepository.library(roomId,
+                position == null ? null : position.sentAt(), position == null ? 0 : position.id(), direction.equals("asc"), types, query,
+                PageRequest.of(0, limit + 1, Sort.by(Sort.Direction.fromString(direction), "message.sentAt", "id")));
+        var items = rows.stream().limit(limit).map(a -> new RoomAttachmentPage.Item(
+                libraryAttachmentDto(a), a.getMessage().getId(), a.getMessage().getSentAt(),
+                a.getMessage().getSender().getId(), a.getMessage().getSender().getDisplayName())).toList();
+        return new RoomAttachmentPage(items,
+                rows.size() > limit ? new AttachmentCursor(rows.get(limit - 1).getMessage().getSentAt(),
+                        rows.get(limit - 1).getId()).encode(roomId, category, query, direction) : null);
+    }
+
+    @Transactional(readOnly = true)
+    public ShortMessageWrapped readableMessage(long roomId, long messageId, String username) {
+        Message message = messageAccessService.getReadableMessage(messageId, username);
+        if (!message.getRoom().getId().equals(roomId)) throw new MessageNotFoundException("Message not found");
+        return toWrappedShortMessage(message, EventType.MESSAGE);
+    }
+
+    private MessageAttachmentDto libraryAttachmentDto(MessageAttachment a) {
+        String name = a.getOriginalFileName().replace('\\', '/');
+        name = name.substring(name.lastIndexOf('/') + 1).replaceAll("[\\p{Cntrl}\\p{Cf}]", "");
+        if (name.isBlank()) name = "file";
+        return new MessageAttachmentDto(a.getId(), a.getType(), null, null, name, a.getContentType(),
+                a.getSizeBytes(), a.getWidth(), a.getHeight(), a.getDurationMs(), null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ShortMessageWrapped> messageContext(long roomId, long messageId, String username) {
+        Message target = messageAccessService.getReadableMessage(messageId, username);
+        if (!target.getRoom().getId().equals(roomId)) throw new MessageNotFoundException("Message not found");
+        var rows = new ArrayList<>(messageRepository.findByRoomIdAndDeletedAtIsNullAndIdLessThanOrderByIdDesc(
+                roomId, messageId, PageRequest.of(0, 15)).getContent());
+        rows.add(target);
+        rows.addAll(messageRepository.findByRoomIdAndDeletedAtIsNullAndIdGreaterThanOrderByIdAsc(
+                roomId, messageId, PageRequest.of(0, 15)));
+        rows.sort(java.util.Comparator.comparing(Message::getId));
+        var previews = buildReplyPreviewByParentId(rows);
+        return rows.stream().map(m -> toWrappedShortMessage(m, EventType.MESSAGE, previews.get(m.getReplyToMessageId()))).toList();
+    }
+
 	// ===== PRIVATE HELPER METHODS =====
 
     private String normalizeUploadRequestKey(String value) {
@@ -590,7 +666,7 @@ public class MessageService {
         createdKeys.add(storageKey);
 		try (var input = file.getInputStream()) {
 			s3Service.uploadFile(storageKey, input, file.getSize(),
-					file.getContentType());
+					AttachmentFilePolicy.contentType(file));
 		} catch (IOException e) {
 			throw new InvalidMessageAttachmentException(
 					HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_UPLOAD_FAILED_RESPONSE_MESSAGE
@@ -601,7 +677,7 @@ public class MessageService {
 		attachment.setType(type);
 		attachment.setStorageKey(storageKey);
 		attachment.setOriginalFileName(resolveOriginalFileName(file));
-		attachment.setContentType(file.getContentType());
+		attachment.setContentType(AttachmentFilePolicy.contentType(file));
 		attachment.setSizeBytes(file.getSize());
 		attachment.setDurationMs(durationMs);
 		attachment.setWaveformJson(waveform);
@@ -612,7 +688,7 @@ public class MessageService {
 	}
 
 	private AttachmentType resolveAttachmentType(MultipartFile file, AttachmentType requestedType) {
-		String contentType = file.getContentType();
+		String contentType = AttachmentFilePolicy.contentType(file);
 		if (contentType == null || contentType.isBlank()) {
 			logAttachmentValidationFailure("missing_content_type", file, requestedType, null);
 			throw new InvalidMessageAttachmentException(
@@ -630,6 +706,8 @@ public class MessageService {
 		if (ALLOWED_VIDEO_CONTENT_TYPES.contains(normalized)) {
 			return AttachmentType.VIDEO;
 		}
+		if (ALLOWED_AUDIO_CONTENT_TYPES.contains(normalized)) return AttachmentType.AUDIO;
+		if (AttachmentFilePolicy.isDocument(normalized)) return AttachmentType.FILE;
 		logAttachmentValidationFailure("unsupported_content_type", file, requestedType, null);
 		throw new InvalidMessageAttachmentException(
 				HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_TYPE_INVALID_RESPONSE_MESSAGE
@@ -643,6 +721,7 @@ public class MessageService {
 	private void validateRequestedAttachmentType(MultipartFile file, AttachmentType requestedType,
 			String contentType) {
 		boolean valid = switch (requestedType) {
+			case FILE -> AttachmentFilePolicy.isDocument(contentType);
 			case IMAGE -> ALLOWED_IMAGE_CONTENT_TYPES.contains(contentType);
 			case VIDEO -> ALLOWED_VIDEO_CONTENT_TYPES.contains(contentType);
 			case AUDIO -> ALLOWED_AUDIO_CONTENT_TYPES.contains(contentType);
@@ -659,6 +738,7 @@ public class MessageService {
 
 	private void validateAttachmentSize(MultipartFile file, AttachmentType type) {
 		long maxSize = switch (type) {
+			case FILE -> 50L * 1024 * 1024;
 			case IMAGE -> MAX_IMAGE_SIZE_BYTES;
 			case VIDEO -> MAX_VIDEO_SIZE_BYTES;
 			case AUDIO -> MAX_AUDIO_SIZE_BYTES;
@@ -672,6 +752,7 @@ public class MessageService {
 
 	private String attachmentSizeErrorMessage(AttachmentType type) {
 		return switch (type) {
+			case FILE -> "File exceeds 50 MB";
 			case IMAGE -> HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_IMAGE_TOO_LARGE_RESPONSE_MESSAGE
 					.getMessage();
 			case VIDEO -> HttpResponseMessage.HTTP_MESSAGE_ATTACHMENT_VIDEO_TOO_LARGE_RESPONSE_MESSAGE
@@ -741,6 +822,7 @@ public class MessageService {
 	}
 
 	private String buildAttachmentLastMessageText(Message message) {
+		if (message.getAttachments().stream().anyMatch(a -> a.getType() == AttachmentType.FILE)) return "Файл";
 		if (message.getAttachments().stream()
 				.anyMatch(attachment -> attachment.getType() == AttachmentType.AUDIO)) {
 			return "[voice]";
@@ -798,7 +880,7 @@ public class MessageService {
 				.toList();
 	}
 
-	private MessageAttachmentDto toAttachmentDto(MessageAttachment attachment) {
+	public MessageAttachmentDto toAttachmentDto(MessageAttachment attachment) {
 		String downloadUrl = "/api/message-attachments/" + attachment.getId() + "/download";
 		return new MessageAttachmentDto(attachment.getId(), attachment.getType(), downloadUrl,
 				downloadUrl, attachment.getOriginalFileName(), attachment.getContentType(),

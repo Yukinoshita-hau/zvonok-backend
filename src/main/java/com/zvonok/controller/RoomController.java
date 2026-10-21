@@ -7,6 +7,7 @@ import com.zvonok.controller.dto.CreateRoomInviteRequest;
 import com.zvonok.controller.dto.CreateRoomInviteResponse;
 import com.zvonok.controller.dto.MessageResponse;
 import com.zvonok.controller.dto.RoomResponse;
+import com.zvonok.controller.dto.RoomAttachmentPage;
 import com.zvonok.controller.dto.ShortMessageWrapped;
 import com.zvonok.documentation.RoomApiDescriptions;
 import com.zvonok.documentation.UserApiDescriptions;
@@ -31,12 +32,16 @@ import com.zvonok.service.RoomReadStateService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
+import jakarta.servlet.http.HttpServletRequest;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.context.request.async.WebAsyncTask;
 
 import java.util.List;
 
@@ -47,6 +52,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/rooms")
 @RequiredArgsConstructor
+@Slf4j
 public class RoomController {
 
 	private final RoomService roomService;
@@ -175,7 +181,7 @@ public class RoomController {
 	}
 
 	@PostMapping("/{roomId}/messages/attachments")
-	public ResponseEntity<ShortMessageWrapped> sendMessageWithAttachments(
+	public WebAsyncTask<ResponseEntity<ShortMessageWrapped>> sendMessageWithAttachments(
 			@PathVariable Long roomId,
 			@RequestParam(value = "content", required = false) String content,
 			@RequestParam(value = "files", required = false) List<MultipartFile> files,
@@ -184,12 +190,42 @@ public class RoomController {
 			@RequestParam(value = "waveform", required = false) String waveform,
 			@RequestParam(value = "clientRequestId", required = false) String clientRequestId,
 			@RequestParam(value = "replyToMessageId", required = false) Long replyToMessageId,
-			@AuthenticationPrincipal UserPrincipal principal) {
-		ShortMessageWrapped response = messageService.sendMessageWithAttachments(
-				principal.getUsername(), roomId, content, files, attachmentType, durationMs,
-				waveform, replyToMessageId, clientRequestId);
-		return ResponseEntity.ok(response);
+			@AuthenticationPrincipal UserPrincipal principal, HttpServletRequest request) {
+		String username = principal.getUsername();
+        long queued = System.nanoTime();
+        String trace = (String) request.getAttribute("attachmentUploadTrace");
+        Long received = (Long) request.getAttribute("attachmentUploadStart");
+        log.info("attachment_upload trace={} stage=multipart_ready multipart_mvc_ms={} file_count={}", trace,
+                received == null ? -1 : (queued - received) / 1_000_000, files == null ? 0 : files.size());
+        return new WebAsyncTask<>(360_000L, "attachmentUploadExecutor", () -> {
+            try (MDC.MDCCloseable ignored = MDC.putCloseable("attachmentUpload", trace)) {
+                log.info("attachment_upload trace={} stage=executor_started queue_ms={}", trace, (System.nanoTime() - queued) / 1_000_000);
+                return ResponseEntity.ok(messageService.sendMessageWithAttachments(username, roomId, content, files,
+                        attachmentType, durationMs, waveform, replyToMessageId, clientRequestId));
+            }
+        });
 	}
+
+    @GetMapping("/{roomId}/attachments")
+    public RoomAttachmentPage attachments(@PathVariable long roomId,
+            @RequestParam(defaultValue = "all") String category,
+            @RequestParam(required = false) String cursor, @RequestParam(defaultValue = "30") int limit,
+            @RequestParam(defaultValue = "") String filenameQuery,
+            @RequestParam(defaultValue = "desc") String sortDirection, @AuthenticationPrincipal UserPrincipal principal) {
+        return messageService.attachments(roomId, principal.getUsername(), category, cursor, limit, filenameQuery, sortDirection);
+    }
+
+    @GetMapping("/{roomId}/messages/{messageId}")
+    public ShortMessageWrapped message(@PathVariable long roomId, @PathVariable long messageId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return messageService.readableMessage(roomId, messageId, principal.getUsername());
+    }
+
+    @GetMapping("/{roomId}/messages/{messageId}/context")
+    public List<ShortMessageWrapped> messageContext(@PathVariable long roomId, @PathVariable long messageId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return messageService.messageContext(roomId, messageId, principal.getUsername());
+    }
 
 	@PostMapping("/{roomId}/read")
 	public ResponseEntity<Void> markRoomRead(@PathVariable Long roomId,

@@ -25,7 +25,7 @@ class LiveKitSecurityTest {
     LiveKitRoomAdminService admin = mock(LiveKitRoomAdminService.class);
     CallSessionService sessions = new CallSessionService(mock(RoomService.class), users, calls,
             participants, mock(CallEventPublisher.class), admin, new com.zvonok.config.CallLifecycleProperties());
-    LiveKitCallTokenService tokens = new LiveKitCallTokenService(sessions, signer, admin);
+    LiveKitCallTokenService tokens = new LiveKitCallTokenService(sessions, signer, admin, new CallMediaOwnershipService(calls, participants));
     User user = new User();
     Room room = new Room();
     CallSession call = new CallSession();
@@ -39,23 +39,24 @@ class LiveKitSecurityTest {
         participant.setUser(user); participant.setCallSession(call); participant.setStatus(CallParticipantStatus.JOINED);
         when(users.getUser("alice")).thenReturn(user);
         when(calls.findById(3L)).thenReturn(Optional.of(call));
+        lenient().when(participants.findByCallSessionIdAndUserUsername(3L, "alice")).thenReturn(Optional.of(participant));
         lenient().when(calls.findByIdForUpdate(3L)).thenReturn(Optional.of(call));
         when(participants.findByCallSessionIdAndUserId(3L, 1L)).thenReturn(Optional.of(participant));
         lenient().when(participants.touchLastSeenIfTokenAllowed(eq(3L), eq("alice"), any(), any(), any())).thenReturn(1);
         lenient().when(signer.generateCallToken("call-3", "alice", "Alice", 3L)).thenReturn(new LiveKitTokenResponse());
     }
 
-    @Test void participantCanReconnect() { assertNotNull(tokens.issueCallToken(3L, "alice")); }
+    @Test void participantCanReconnect() { assertNotNull(tokens.issueCallToken(3L, "alice", "client", false)); }
     @Test void confirmedEmptyMediaPastGraceCannotMintToken() {
         call.setMediaEmptySince(LocalDateTime.now().minusSeconds(91));
-        assertThrows(CallStateConflictException.class, () -> tokens.issueCallToken(3L, "alice"));
+        assertThrows(CallStateConflictException.class, () -> tokens.issueCallToken(3L, "alice", "client", false));
         verifyNoInteractions(admin, signer);
     }
     @Test void emptyRoomRemovedBySfuCanBeRecreatedDuringGraceWithoutNewSession() {
         call.setLivekitRoomReadyAt(LocalDateTime.now().minusMinutes(5));
         call.setMediaEmptySince(LocalDateTime.now().minusSeconds(89));
         when(admin.requireExistingRoom("call-3")).thenThrow(new com.zvonok.exception.LiveKitRoomNotFoundException("room missing"));
-        assertNotNull(tokens.issueCallToken(3L, "alice"));
+        assertNotNull(tokens.issueCallToken(3L, "alice", "client", false));
         verify(admin).ensureRoomReady("call-3");
         verify(signer).generateCallToken("call-3", "alice", "Alice", 3L);
         verify(calls, never()).save(argThat(s -> s.getId() == null));
@@ -63,7 +64,7 @@ class LiveKitSecurityTest {
     @Test void restoreUsesSameAuthorizedIssuancePath() {
         call.setHostUser(user);
         when(participants.findRestoreCandidates(eq(1L), any(), any(), any())).thenReturn(List.of(participant));
-        var response = new CallRestoreService(tokens, new CallRestoreStateService(participants, users, new com.zvonok.config.CallLifecycleProperties())).restoreCallSession("alice");
+        var response = new CallRestoreService(tokens, new CallRestoreStateService(participants, users, new com.zvonok.config.CallLifecycleProperties())).restoreCallSession("alice", "client");
         assertTrue(response.isPresent());
         verify(signer).generateCallToken("call-3", "alice", "Alice", 3L);
     }
@@ -71,40 +72,40 @@ class LiveKitSecurityTest {
         room.setMembers(List.of());
         when(participants.findRestoreCandidates(eq(1L), any(), any(), any())).thenReturn(List.of(participant));
         assertTrue(new CallRestoreService(tokens, new CallRestoreStateService(participants, users, new com.zvonok.config.CallLifecycleProperties()))
-                .restoreCallSession("alice").isEmpty());
+                .restoreCallSession("alice", "client").isEmpty());
         verifyNoInteractions(signer, admin);
     }
-    @Test void groupParticipantCanJoin() { call.setRoomType(RoomType.GROUP); assertNotNull(tokens.issueCallToken(3L, "alice")); }
-    @Test void privateCallerCanConnectWhileRinging() { call.setStatus(CallSessionStatus.RINGING); assertNotNull(tokens.issueCallToken(3L, "alice")); }
+    @Test void groupParticipantCanJoin() { call.setRoomType(RoomType.GROUP); assertNotNull(tokens.issueCallToken(3L, "alice", "client", false)); }
+    @Test void privateCallerCanConnectWhileRinging() { call.setStatus(CallSessionStatus.RINGING); assertNotNull(tokens.issueCallToken(3L, "alice", "client", false)); }
     @Test void strangerDenied() {
         when(participants.findByCallSessionIdAndUserId(3L, 1L)).thenReturn(Optional.empty());
-        assertThrows(InsufficientPermissionsException.class, () -> tokens.issueCallToken(3L, "alice")); verifyNoInteractions(signer, admin);
+        assertThrows(InsufficientPermissionsException.class, () -> tokens.issueCallToken(3L, "alice", "client", false)); verifyNoInteractions(signer, admin);
     }
     @Test void removedMemberDenied() {
         room.setMembers(new ArrayList<>());
-        assertThrows(InsufficientPermissionsException.class, () -> tokens.issueCallToken(3L, "alice")); verifyNoInteractions(signer, admin);
+        assertThrows(InsufficientPermissionsException.class, () -> tokens.issueCallToken(3L, "alice", "client", false)); verifyNoInteractions(signer, admin);
     }
     @Test void inactiveRoomDenied() {
         room.setIsActive(false);
-        assertThrows(InsufficientPermissionsException.class, () -> tokens.issueCallToken(3L, "alice")); verifyNoInteractions(signer, admin);
+        assertThrows(InsufficientPermissionsException.class, () -> tokens.issueCallToken(3L, "alice", "client", false)); verifyNoInteractions(signer, admin);
     }
     @Test void leftParticipantDeniedEvenWithStaleStatus() {
         participant.setLeftAt(LocalDateTime.now());
-        assertThrows(InsufficientPermissionsException.class, () -> tokens.issueCallToken(3L, "alice")); verifyNoInteractions(signer, admin);
+        assertThrows(InsufficientPermissionsException.class, () -> tokens.issueCallToken(3L, "alice", "client", false)); verifyNoInteractions(signer, admin);
     }
     @ParameterizedTest @EnumSource(value=CallParticipantStatus.class, names={"ACCEPTED", "JOINED"}, mode=EnumSource.Mode.EXCLUDE)
     void otherParticipantStatesDenied(CallParticipantStatus status) {
         participant.setStatus(status);
-        assertThrows(InsufficientPermissionsException.class, () -> tokens.issueCallToken(3L, "alice")); verifyNoInteractions(signer, admin);
+        assertThrows(InsufficientPermissionsException.class, () -> tokens.issueCallToken(3L, "alice", "client", false)); verifyNoInteractions(signer, admin);
     }
     @ParameterizedTest @EnumSource(value=CallSessionStatus.class, names={"ACTIVE", "RINGING"}, mode=EnumSource.Mode.EXCLUDE)
     void terminalCallDenied(CallSessionStatus status) {
         call.setStatus(status);
-        assertThrows(InsufficientPermissionsException.class, () -> tokens.issueCallToken(3L, "alice")); verifyNoInteractions(signer, admin);
+        assertThrows(InsufficientPermissionsException.class, () -> tokens.issueCallToken(3L, "alice", "client", false)); verifyNoInteractions(signer, admin);
     }
     @Test void stateRevocationDuringRoomRequestPreventsSigning() {
         when(participants.touchLastSeenIfTokenAllowed(eq(3L), eq("alice"), any(), any(), any())).thenReturn(0);
-        assertThrows(CallStateConflictException.class, () -> tokens.issueCallToken(3L, "alice")); verifyNoInteractions(signer);
+        assertThrows(CallStateConflictException.class, () -> tokens.issueCallToken(3L, "alice", "client", false)); verifyNoInteractions(signer);
     }
     @Test void arbitraryRoomCannotUseLegacyEndpoint() {
         assertThrows(InsufficientPermissionsException.class, () -> new LiveKitController().getToken("victim-room", () -> "alice"));
@@ -134,6 +135,8 @@ class LiveKitSecurityTest {
         var grant = payload.get("video");
         assertEquals("call-3", grant.get("room").asText()); assertTrue(grant.get("roomJoin").asBoolean());
         assertFalse(grant.path("roomAdmin").asBoolean()); assertFalse(grant.path("roomCreate").asBoolean());
+        assertTrue(grant.path("canPublish").asBoolean()); assertTrue(grant.path("canSubscribe").asBoolean());
+        assertFalse(grant.path("canPublishData").asBoolean());
         long remaining = payload.get("exp").asLong() - java.time.Instant.now().getEpochSecond();
         assertTrue(remaining > 590 && remaining <= 600);
     }

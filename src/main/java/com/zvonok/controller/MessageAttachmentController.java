@@ -42,10 +42,11 @@ public class MessageAttachmentController {
 		HttpHeaders headers = new HttpHeaders();
 		headers.setContentType(resolveContentType(attachment, metadata));
 		headers.setContentLength(attachment.getSizeBytes());
-		headers.setContentDisposition(ContentDisposition.inline()
+		headers.setContentDisposition(ContentDisposition.attachment()
 				.filename(attachment.getOriginalFileName().replaceAll("[\\r\\n\\x00]", "_"), StandardCharsets.UTF_8).build());
 		headers.set(HttpHeaders.CACHE_CONTROL, "private, no-store");
 		headers.set("X-Content-Type-Options", "nosniff");
+		headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
 
 		return ResponseEntity.ok().headers(headers)
 				.body(new InputStreamResource(object.getObjectContent()));

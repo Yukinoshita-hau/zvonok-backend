@@ -1,0 +1,6 @@
+{
+  "status" : "PASS",
+  "sourceObjectReads" : 0,
+  "objects" : 8,
+  "restoreBucket" : "stage5d-archive-b2030b88-8413-4c87-b984-b0352cfd478a"
+}

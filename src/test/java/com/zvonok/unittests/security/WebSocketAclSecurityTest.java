@@ -59,7 +59,7 @@ class WebSocketAclSecurityTest {
 	}
 
 	@ParameterizedTest @ValueSource(strings = {"/topic/room.10",
-			"/user/queue/messages", "/user/queue/call", "/user/queue/call-recording", "/user/queue/errors",
+			"/user/queue/messages", "/user/queue/call", "/user/queue/errors",
 			"/user/queue/friend-requests", "/user/queue/message-read", "/user/queue/room-events", "/user/queue/users"})
 	void authorizedSubscriptionsWork(String destination) {
 		Message<?> frame = frame(StompCommand.SUBSCRIBE, destination);
@@ -70,7 +70,8 @@ class WebSocketAclSecurityTest {
 	@ParameterizedTest @ValueSource(strings = {"/topic/channel.20", "/topic/channel.999", "/topic/room.999",
 			"/topic/calls/40/boards", "/topic/calls/40/boards/50", "/topic/calls/40/code-sessions",
 			"/topic/code-sessions/60", "/queue/messages", "/topic/**",
-			"/user/bob/queue/messages", "/user/queue/unknown", "/topic/unknown", "/app/chat/send/10", "/topic/channel.20/extra"})
+			"/user/bob/queue/messages", "/user/queue/unknown", "/user/queue/call-recording",
+			"/topic/unknown", "/app/chat/send/10", "/topic/channel.20/extra"})
 	void forbiddenSubscriptionsDenied(String destination) {
 		RuntimeException denied = assertThrows(RuntimeException.class, () -> inbound.preSend(frame(StompCommand.SUBSCRIBE, destination), null));
 		assertTrue(denied instanceof InsufficientPermissionsException || denied instanceof UserNotMemberRoomException

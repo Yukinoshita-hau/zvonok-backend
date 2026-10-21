@@ -29,6 +29,12 @@ import java.util.Map;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 	private final JwtTokenProvider jwtTokenProvider;
+
+	@Override
+	protected boolean shouldNotFilterAsyncDispatch() {
+		// Stateless requests must authenticate again when an async upload dispatches its response.
+		return false;
+	}
 	private final List<String> banWords = new ArrayList<>(
 			Arrays.asList("password", "pass", "pwd", "token", "access_token", "refresh_token", "auth_token",
 					"authorization", "secret", "client_secret", "api_key", "key"));

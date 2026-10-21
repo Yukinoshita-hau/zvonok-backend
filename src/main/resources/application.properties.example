@@ -1,4 +1,20 @@
 spring.application.name=zvonok
+# Defaults preserve the external provider. Switch only after verified migration approval.
+s3.provider=external
+s3.endpoint=${S3_ENDPOINT}
+s3.signing-endpoint=${S3_SIGNING_ENDPOINT:${S3_ENDPOINT}}
+s3.bucket=${S3_BUCKET:zvonok-data}
+s3.region=${S3_REGION:ru-central-1}
+s3.access-key=${S3_ACCESS_KEY}
+s3.secret-access-key=${S3_SECRET_ACCESS_KEY}
+s3.path-style=true
+s3.connect-timeout-ms=10000
+s3.socket-timeout-ms=180000
+s3.upload-execution-timeout-ms=300000
+s3.max-retries=3
+s3.access-ttl-seconds=900
+# Diagnostic opt-in only, exact localhost/127.0.0.1 URLs for local providers.
+s3.allow-loopback-http=false
 spring.jpa.hibernate.ddl-auto=update
 spring.jpa.properties.hibernate.globally_quoted_identifiers=true
 spring.datasource.url=jdbc:postgresql://localhost:5432/zvonok
@@ -23,3 +39,16 @@ call.lifecycle.invitation-seconds=60
 call.lifecycle.media-grace-seconds=90
 call.lifecycle.initial-connect-seconds=120
 call.lifecycle.reconcile-delay-ms=30000
+
+# Browser signaling URL; use a reachable LAN/public URL for remote clients.
+livekit.server-url=${LIVEKIT_SERVER_URL:ws://127.0.0.1:7880}
+# Internal Docker API URL; localhost would refer to the backend container.
+livekit.api-url=${LIVEKIT_API_URL:http://livekit:7880}
+
+# Disabled by default. Only the integration API may join a trusted Core service network; never the Worker.
+browser.activity.enabled=false
+# When explicitly enabled, supply a dedicated random 43+ character BROWSER_INTEGRATION_KEY.
+# browser.activity.key=${BROWSER_INTEGRATION_KEY}
+# browser.activity.url=http://127.0.0.1:48035/integration
+# Container Core: browser.activity.url=http://browser-api:3000/integration
+# This endpoint alone does not configure public media or make the current local pipeline production-ready.

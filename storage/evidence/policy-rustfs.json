@@ -1,0 +1,6 @@
+{
+  "metadata" : "PASS",
+  "bucketPolicyEnforced" : "PASS",
+  "privateCannedAcl" : "PASS - accepted, anonymous GET denied",
+  "status" : "PASS"
+}

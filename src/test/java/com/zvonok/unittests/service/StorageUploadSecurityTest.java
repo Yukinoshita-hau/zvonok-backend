@@ -36,6 +36,14 @@ class StorageUploadSecurityTest {
     void upload(String extension) { users.uploadAvatar("alice", new ByteArrayInputStream(png), png.length, "image/png", extension); }
 
     @Test void ownerUploadsAndReplacesAvatarWithoutDeletingOldObject() throws IOException {
+        java.util.List<java.nio.file.Path> staged = new java.util.ArrayList<>();
+        when(client.putObject(any(PutObjectRequest.class))).thenAnswer(invocation -> {
+            PutObjectRequest request = invocation.getArgument(0);
+            var path = request.getFile().toPath(); staged.add(path);
+            assertArrayEquals(png, java.nio.file.Files.readAllBytes(path));
+            assertArrayEquals(png, java.nio.file.Files.readAllBytes(path));
+            return null;
+        });
         upload("../../bob.png"); String first = user.getAvatarUrl();
         upload("../../bob.png"); String second = user.getAvatarUrl();
         assertNotEquals(first, second); assertTrue(first.matches("http://localhost/avatar_[0-9a-f-]{36}"));
@@ -43,14 +51,22 @@ class StorageUploadSecurityTest {
         verify(client, times(2)).putObject(capture.capture());
         for (var request : capture.getAllValues()) {
             assertEquals(CannedAccessControlList.Private, request.getCannedAcl());
-            assertArrayEquals(png, request.getInputStream().readAllBytes());
+            assertEquals(png.length, request.getMetadata().getContentLength());
+            assertEquals(300_000, request.getSdkClientExecutionTimeout());
+            assertNotNull(request.getRequestMetricCollector());
         }
+        staged.forEach(path -> assertFalse(java.nio.file.Files.exists(path)));
         verify(client, never()).deleteObject(anyString(), anyString()); verify(repository, times(2)).save(user);
     }
     @Test void storageFailureKeepsPreviousAvatar() {
-        when(client.putObject(any(PutObjectRequest.class))).thenThrow(new IllegalStateException("storage unavailable"));
+        java.util.List<java.nio.file.Path> staged = new java.util.ArrayList<>();
+        when(client.putObject(any(PutObjectRequest.class))).thenAnswer(invocation -> {
+            staged.add(((PutObjectRequest) invocation.getArgument(0)).getFile().toPath());
+            throw new IllegalStateException("storage unavailable");
+        });
         assertThrows(IllegalStateException.class, () -> upload(".png")); assertEquals("http://localhost/old.png", user.getAvatarUrl());
         verify(repository, never()).save(any()); verify(client, never()).deleteObject(anyString(), anyString());
+        staged.forEach(path -> assertFalse(java.nio.file.Files.exists(path)));
     }
     @Test void spoofedContentRejectedBeforeWrite() {
         assertThrows(InvalidMessageAttachmentException.class, () -> users.uploadAvatar("alice",

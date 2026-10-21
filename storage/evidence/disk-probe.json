@@ -1,0 +1,16 @@
+[
+  {
+    "kind": "volume",
+    "containerStartAndWriteMs": 476,
+    "bytes": 33554432,
+    "note": "Single sequential zero-write fsync probe, warm cache; not an S3 benchmark",
+    "dd": "32+0 records in\n32+0 records out\n33554432 bytes (32.0MB) copied, 0.084689 seconds, 377.9MB/s"
+  },
+  {
+    "kind": "bind",
+    "containerStartAndWriteMs": 564,
+    "bytes": 33554432,
+    "note": "Single sequential zero-write fsync probe, warm cache; not an S3 benchmark",
+    "dd": "32+0 records in\n32+0 records out\n33554432 bytes (32.0MB) copied, 0.195891 seconds, 163.4MB/s"
+  }
+]

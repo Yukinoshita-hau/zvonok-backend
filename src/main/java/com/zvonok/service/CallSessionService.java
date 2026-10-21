@@ -307,7 +307,7 @@ public class CallSessionService {
 		return session;
 	}
 
-	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	@Transactional
 	public void assertTokenStillAllowedAndTouch(Long callId, String username,
 			Set<CallSessionStatus> allowedCallStatuses,
 			Set<CallParticipantStatus> allowedParticipantStatuses) {

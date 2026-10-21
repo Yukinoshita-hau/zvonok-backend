@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.transaction.PlatformTransactionManager;
 import com.zvonok.config.SecurityConfig;
 import com.zvonok.controller.MessageController;
+import com.zvonok.controller.AttachmentStreamController;
 import com.zvonok.exception_handler.GlobalExceptionHandler;
 import com.zvonok.model.Message;
 import com.zvonok.repository.MessageAttachmentRepository;
@@ -73,7 +74,8 @@ class MessageHttpSecurityTest {
 			"/servers/1/regenerate-invite", "/servers/1/leave", "/servers/1/members",
 			"/server/1/roles/all", "/server/1/bans", "/server/1/members/1/roles/1",
 			"/server/1/channel-folders", "/servers/1/channel-folders/1/channels/1",
-			"/servers/1/channel-folders/1/channels/1/messages", "/servers/discover"})
+			"/servers/1/channel-folders/1/channels/1/messages", "/servers/discover",
+			"/calls/1/recording/start", "/calls/1/recording/stop"})
 	void retiredEndpointsHaveNoHttpHandler(String path) throws Exception {
 		for (var method : List.of(org.springframework.http.HttpMethod.GET, org.springframework.http.HttpMethod.POST,
 				org.springframework.http.HttpMethod.PUT, org.springframework.http.HttpMethod.DELETE)) {
@@ -116,10 +118,69 @@ class MessageHttpSecurityTest {
 				.content("{\"messageIds\":[]}")).andExpect(status().isBadRequest());
 	}
 
+    @Test void playbackGrantUsesActualMessageMembershipAndNeverAcceptsAnObjectKey() throws Exception {
+        var attachment = new com.zvonok.model.MessageAttachment();
+        attachment.setId(7L); attachment.setMessage(message);
+        attachment.setType(com.zvonok.model.enumeration.AttachmentType.VIDEO);
+        attachment.setContentType("video/mp4"); attachment.setSizeBytes(123L); attachment.setStorageKey("private/7");
+        when(context.getBean(MessageAttachmentRepository.class).findById(7L)).thenReturn(Optional.of(attachment));
+        when(context.getBean(S3Service.class).playbackUrl(eq("private/7"), eq("video/mp4"), any()))
+                .thenReturn("https://storage.invalid/object-signature");
+        mvc.perform(post("/message-attachments/7/playback-access").header("Authorization", aliceToken))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.attachmentId").value(7)).andExpect(jsonPath("$.variant").value("original"));
+        mvc.perform(post("/message-attachments/7/playback-access").header("Authorization", bobToken))
+                .andExpect(status().isNotFound());
+        fixture.room.setMembers(List.of());
+        mvc.perform(post("/message-attachments/7/playback-access").header("Authorization", aliceToken))
+                .andExpect(status().isNotFound());
+        verify(context.getBean(S3Service.class), times(1)).playbackUrl(anyString(), anyString(), any());
+    }
+
+    @Test void anonymousPlaybackGrantRequiresJwt() throws Exception {
+        mvc.perform(post("/message-attachments/7/playback-access")).andExpect(status().isUnauthorized());
+    }
+
+    @Test void archiveDownloadGrantRequiresCurrentMembershipAndNeverAcceptsAClientKey() throws Exception {
+        var attachment = new com.zvonok.model.MessageAttachment(); attachment.setId(7L); attachment.setMessage(message);
+        attachment.setType(com.zvonok.model.enumeration.AttachmentType.FILE); attachment.setContentType("application/zip");
+        attachment.setSizeBytes(123L); attachment.setStorageKey("private/7"); attachment.setOriginalFileName("archive.zip");
+        when(context.getBean(MessageAttachmentRepository.class).findById(7L)).thenReturn(Optional.of(attachment));
+        when(context.getBean(S3Service.class).downloadUrl(eq("private/7"), eq("archive.zip"), any())).thenReturn("https://storage.invalid/download");
+        mvc.perform(post("/message-attachments/7/download-access").header("Authorization", aliceToken))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.mimeType").value("application/octet-stream"));
+        mvc.perform(post("/message-attachments/7/download-access").header("Authorization", bobToken)).andExpect(status().isNotFound());
+        mvc.perform(post("/message-attachments/7/download-access")).andExpect(status().isUnauthorized());
+        fixture.room.setMembers(List.of());
+        mvc.perform(post("/message-attachments/7/download-access").header("Authorization", aliceToken)).andExpect(status().isNotFound());
+        verify(context.getBean(S3Service.class), times(1)).downloadUrl(anyString(), anyString(), any());
+    }
+
+    @Test void asyncResponseReauthenticatesTheOriginalBearer() throws Exception {
+        var result = mvc.perform(get("/async-auth-test").header("Authorization", aliceToken))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(result)).andExpect(status().isOk()).andExpect(content().string("alice"));
+        mvc.perform(get("/async-auth-test")).andExpect(status().isUnauthorized());
+    }
+
+    @org.springframework.web.bind.annotation.RestController
+    static class AsyncAuthController {
+        @org.springframework.web.bind.annotation.GetMapping("/async-auth-test")
+        public java.util.concurrent.Callable<String> test(
+                @org.springframework.security.core.annotation.AuthenticationPrincipal com.zvonok.security.dto.UserPrincipal principal) {
+            return principal::getUsername;
+        }
+    }
+
 	@Configuration(proxyBeanMethods = false)
 	@EnableWebMvc
-	@Import({SecurityConfig.class, MessageController.class, GlobalExceptionHandler.class})
+	@Import({SecurityConfig.class, MessageController.class, AttachmentStreamController.class, GlobalExceptionHandler.class, AsyncAuthController.class})
 	static class Config {
+
+        @Bean MessageAttachmentRepository attachments() { return mock(MessageAttachmentRepository.class); }
+        @Bean S3Service storage() { return mock(S3Service.class); }
+        @Bean AttachmentMediaAccess access(MessageService messages, S3Service storage) { return new AttachmentMediaAccess(messages, storage); }
 		@Bean WebSocketAclSecurityTest fixture() { var f = new WebSocketAclSecurityTest(); f.setup(); return f; }
 		@Bean JwtTokenProvider tokens(WebSocketAclSecurityTest f) { return f.tokens; }
 		@Bean JwtAuthenticationFilter jwtFilter(JwtTokenProvider tokens) { return new JwtAuthenticationFilter(tokens); }
@@ -128,9 +189,9 @@ class MessageHttpSecurityTest {
 		@Bean MessageReadStatusService statuses(WebSocketAclSecurityTest f) {
 			return new MessageReadStatusService(mock(MessageReadStatusRepository.class), mock(SimpMessagingTemplate.class), f.messageAccess, f.users);
 		}
-		@Bean MessageService messages(WebSocketAclSecurityTest f) {
+		@Bean MessageService messages(WebSocketAclSecurityTest f, MessageAttachmentRepository attachments, S3Service storage) {
 			return new MessageService(f.messages, f.messageAccess, mock(SimpMessagingTemplate.class), mock(RoomService.class),
-					f.users, mock(MessageAttachmentRepository.class), mock(S3Service.class), mock(RoomReadStateService.class), mock(PlatformTransactionManager.class));
+					f.users, attachments, storage, mock(RoomReadStateService.class), mock(PlatformTransactionManager.class));
 		}
 	}
 }

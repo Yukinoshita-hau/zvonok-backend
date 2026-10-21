@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.core.task.TaskRejectedException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -62,6 +63,12 @@ public class GlobalExceptionHandler {
 
 		JsonErrorResponse errorResponse = new JsonErrorResponse(e.getMessage(), status.value());
 		return new ResponseEntity<>(errorResponse, status);
+	}
+
+	@ExceptionHandler(TaskRejectedException.class)
+	public ResponseEntity<JsonErrorResponse> uploadBusy(TaskRejectedException failure) {
+		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+				.body(new JsonErrorResponse("File upload is busy. Retry later.", 503));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)

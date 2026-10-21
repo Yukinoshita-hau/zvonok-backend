@@ -1,0 +1,36 @@
+name: zvonok-local-s3
+services:
+  rustfs:
+    image: rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b
+    restart: unless-stopped
+    stop_grace_period: 60s
+    env_file:
+      - ${RUSTFS_ENV_FILE:?Set absolute path to credentials outside repository}
+    environment:
+      RUSTFS_ADDRESS: ':9000'
+      RUSTFS_CONSOLE_ENABLE: 'false'
+      RUSTFS_CORS_ALLOWED_ORIGINS: 'http://localhost:3000,http://localhost:3001'
+    command: ['/data']
+    ports:
+      - '127.0.0.1:19000:9000'
+    volumes:
+      - data:/data
+    networks:
+      zvonok-net:
+        aliases: [zvonok-local-s3]
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:9000/health/ready']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+volumes:
+  data:
+networks:
+  zvonok-net:
+    external: true

@@ -21,8 +21,9 @@ public class LiveKitCallTokenService {
     private final CallSessionService callSessionService;
     private final LiveKitTokenService liveKitTokenService;
 	private final LiveKitRoomAdminService liveKitRoomAdminService;
+	private final CallMediaOwnershipService ownership;
 
-	public LiveKitTokenResponse issueCallToken(Long callId, String username) {
+	public LiveKitTokenResponse issueCallToken(Long callId, String username, String clientId, boolean transfer) {
 		CallTokenContext context = callSessionService.getCallTokenContext(callId, username);
 
 		validateCallStatus(context);
@@ -35,14 +36,28 @@ public class LiveKitCallTokenService {
 				? Set.of(CallSessionStatus.ACTIVE, CallSessionStatus.RINGING)
 				: Set.of(CallSessionStatus.ACTIVE);
 
+		boolean present = liveKitRoomAdminService.listParticipants(context.livekitRoomName()).stream()
+			.anyMatch(p -> username.equals(p.getIdentity()));
+		return ownership.issue(callId, username, clientId, transfer, present, () -> {
 		callSessionService.assertTokenStillAllowedAndTouch(context.callId(), username, allowedCallStatuses, ALLOWED_PARTICIPANT_STATUSES);
-
 		return liveKitTokenService.generateCallToken(
 				context.livekitRoomName(),
 				username,
 				context.displayName(),
 				context.callId()
 		);
+		});
+	}
+
+	public String renewMedia(Long callId, String username, String clientId) {
+		CallTokenContext context = callSessionService.getCallTokenContext(callId, username);
+		validateCallStatus(context);
+		validateParticipantStatus(context);
+		return ownership.renew(callId, username, clientId);
+	}
+
+	public void releaseMedia(Long callId, String username, String clientId) {
+		ownership.release(callId, username, clientId);
 	}
 
 	private void ensureLiveKitRoomForToken(CallTokenContext context) {

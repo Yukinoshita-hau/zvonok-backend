@@ -1,0 +1,32 @@
+{
+  "endpoint" : "http://127.0.0.1:19000",
+  "1048576" : {
+    "putMs" : 59,
+    "getMs" : 16,
+    "status" : "PASS",
+    "sha256" : "7589d75672c2f79bafba4d660bde5ebd23893236dba3e38a8e0a7da9cc6945d7"
+  },
+  "5242880" : {
+    "putMs" : 101,
+    "getMs" : 66,
+    "status" : "PASS",
+    "sha256" : "c9bbc8cfa616876323f943d3e8b88a30c3abf3c7a06ff47eefc502c329319475"
+  },
+  "limitedObjectRestore" : "PASS (host temp copy; not a database recovery test)",
+  "25545779" : {
+    "putMs" : 296,
+    "getMs" : 258,
+    "status" : "PASS",
+    "sha256" : "073a17e2cbfd7967a788c78c72dbfef988e09914cf6265987231f70015a393bf"
+  },
+  "52428800" : {
+    "putMs" : 543,
+    "getMs" : 388,
+    "status" : "PASS",
+    "sha256" : "0579fe094b0611c2669ff7f3e1fee0d1fa95367827428d83369d839d682d6f5c"
+  },
+  "multipartCompleteAndAbort" : "PASS",
+  "anonymousGetListPutDenied" : "PASS",
+  "range206And416" : "PASS",
+  "status" : "PASS"
+}

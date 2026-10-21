@@ -13,6 +13,7 @@ import lombok.Setter;
 @Setter
 @Builder
 public class RestoreCallSessionResponse {
+	private String mediaOwnership;
 	private CallRestoreType callRestoreType;
 	private boolean restorable;
 	private Long callId;

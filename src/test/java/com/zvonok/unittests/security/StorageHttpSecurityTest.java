@@ -72,7 +72,7 @@ class StorageHttpSecurityTest {
     @Test void publicOldAvatarStillWorks() throws Exception {
         when(users.existsByAvatarUrl("http://localhost/api/s3/download/alice_123.png")).thenReturn(true);
         mvc.perform(get("/s3/download/alice_123.png")).andExpect(status().isOk()).andExpect(content().contentType("image/png"));
-        verify(s3).getObject("zvonok-avatars", "alice_123.png");
+        verify(s3).getObject("zvonok-data", "alice_123.png");
     }
     @Test void existingGroupRoomAvatarRemainsPublic() throws Exception {
         when(fixture.rooms.existsByAvatarUrlAndIsActiveTrue("http://localhost/api/s3/download/group.png")).thenReturn(true);
@@ -155,6 +155,37 @@ class StorageHttpSecurityTest {
     }
     @Test void anonymousLegacyLivekitRequiresJwt() throws Exception {
         mvc.perform(get("/livekit/token").param("room", "victim")).andExpect(status().isUnauthorized());
+    }
+
+    @Test void profileUpdateRequiresAuthentication() throws Exception {
+        mvc.perform(put("/users/my").contentType("application/json").content("{\"aboutMe\":\"\"}"))
+                .andExpect(status().isUnauthorized());
+        verify(users, never()).save(any());
+    }
+
+    @Test void profileValidationRejectsInvalidFieldsBeforePersistence() throws Exception {
+        for (String body : List.of("{\"displayName\":\"\"}", "{\"displayName\":\"   \"}",
+                "{\"displayName\":\"" + "a".repeat(51) + "\"}", "{\"aboutMe\":\"" + "a".repeat(1001) + "\"}")) {
+            mvc.perform(put("/users/my").header("Authorization", token).contentType("application/json").content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        verify(users, never()).save(any());
+    }
+
+    @Test void profileClearingUsesPrincipalAndMissingOrNullPreservesBiography() throws Exception {
+        when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        var alice = fixture.users.getUser("alice"); alice.setAboutMe("Existing biography");
+        for (String body : List.of("{}", "{\"aboutMe\":null}")) {
+            mvc.perform(put("/users/my").header("Authorization", token).contentType("application/json").content(body))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.aboutMe").value("Existing biography"));
+        }
+        mvc.perform(put("/users/my").header("Authorization", token).contentType("application/json")
+                .content("{\"username\":\"bob\",\"id\":999,\"aboutMe\":\"\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.username").value("alice"))
+                .andExpect(jsonPath("$.aboutMe").value(""));
+        verify(users, never()).findByUsername("bob");
+        mvc.perform(get("/users/my").header("Authorization", token)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.aboutMe").value(""));
     }
 
     @Configuration(proxyBeanMethods=false) @EnableWebMvc

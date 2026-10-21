@@ -15,6 +15,8 @@ import java.util.Optional;
 
 public interface CallParticipantRepository extends JpaRepository<CallParticipant, Long> {
 
+	Optional<CallParticipant> findByCallSessionIdAndUserUsername(Long callId, String username);
+
 	Optional<CallParticipant> findByCallSessionIdAndUserId(Long callSessionId, Long userId);
 
 	List<CallParticipant> findAllByCallSessionId(Long callSessionId);

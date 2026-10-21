@@ -1,11 +1,13 @@
 package com.zvonok.service.dto;
 
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 @Data
 public class UpdateUserDto {
 	@Size(min = 3, max = 50, message = "Display name must be between 3 and 50 characters")
+	@Pattern(regexp = "(?s).*\\S.*", message = "Display name must not be blank")
 	private String displayName;
 
     //@Email(message = "Invalid email format")

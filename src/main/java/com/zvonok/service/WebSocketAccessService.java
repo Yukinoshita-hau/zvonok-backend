@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 public class WebSocketAccessService {
 
 	private static final Pattern ROOM = Pattern.compile("^/topic/room\\.([1-9][0-9]*)$");
-	private static final Set<String> PERSONAL = Set.of("messages", "call", "call-recording",
+	private static final Set<String> PERSONAL = Set.of("messages", "call",
 			"friend-requests", "errors", "message-read", "room-events", "users");
 	private static final Pattern COMMAND = Pattern.compile(
 			"^/app/(?:chat/(?:send|edit|delete|read)/[1-9][0-9]*"

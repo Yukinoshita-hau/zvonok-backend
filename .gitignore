@@ -67,6 +67,7 @@ bin/
 *.env
 
 # Application properties (may contain sensitive data like passwords, secrets)
+deployment.properties
 **/application.properties
 **/application-local.properties
 **/application-dev.properties
@@ -75,6 +76,7 @@ bin/
 **/application.yml
 **/application-*.yml
 !**/application.properties.example
+!src/main/resources/application-prod.yml
 
 # OS files
 .DS_Store
