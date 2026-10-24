@@ -52,6 +52,18 @@ class BrowserActivityTest {
         when(browser.command(any(), anyString(), anyString(), any(), any(), any()))
                 .thenReturn(mapper.readTree("{\"sessionId\":\"browser-one\",\"status\":\"active\",\"media\":{\"epoch\":\"epoch-one\"}}"));
     }
+    @Test void independentCallsHaveDifferentActivitiesAndCannotAddressEachOthersActivity() {
+        when(calls.findById(8L)).thenReturn(Optional.of(call));
+        when(participants.findAllByCallSessionId(8L)).thenReturn(List.of(alice, bob));
+        var first = activities.create(7L, "alice");
+        var second = activities.create(8L, "bob");
+        assertNotEquals(first.activityId(), second.activityId());
+        assertThrows(RuntimeException.class, () -> activities.command(7L, second.activityId(), "alice", "close", null, null, null));
+        assertThrows(RuntimeException.class, () -> activities.command(8L, first.activityId(), "bob", "join", null, null, null));
+        activities.command(7L, first.activityId(), "alice", "close", null, null, null);
+        assertNull(activities.find(7L, "alice"));
+        assertEquals(second.activityId(), activities.find(8L, "bob").activityId());
+    }
     @Test void authenticMemberOwnsOneActivityAndGuestCannotSpoofOwner() {
         var a = activities.create(7L, "alice");
         assertTrue(a.owner()); assertTrue(a.joined());
@@ -93,6 +105,17 @@ class BrowserActivityTest {
         call.setStatus(CallSessionStatus.ENDED); activities.reconcile();
         verify(browser).command(a.activityId(), "1", "close", null, null, null);
     }
+    @Test void transientKeepaliveFailureDoesNotDeleteAuthorizedActivityAndNextTickCanRenew() {
+        var a = activities.create(7L, "alice");
+        when(browser.command(a.activityId(), "1", "keepalive", null, null, null))
+                .thenThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE))
+                .thenReturn(mapper.createObjectNode().put("status", "alive"));
+        activities.reconcile();
+        verify(browser, never()).command(a.activityId(), "1", "close", null, null, null);
+        activities.reconcile();
+        verify(browser, times(2)).command(a.activityId(), "1", "keepalive", null, null, null);
+        assertEquals(a.activityId(), activities.find(7L, "alice").activityId());
+    }
     @Test void forwardsExactFenceInsteadOfGrantingNewGenerationToQueuedInput() {
         var a = activities.create(7L, "alice");
         var input = mapper.createObjectNode().put("type", "text").put("text", "hello");
@@ -100,6 +123,36 @@ class BrowserActivityTest {
         verify(browser).command(a.activityId(), "1", "input", input, "epoch-one", "4");
         assertThrows(InsufficientPermissionsException.class, () -> activities.command(7L, a.activityId(), "alice", "invite", null, null, null));
         assertThrows(RuntimeException.class, () -> activities.command(7L, UUID.randomUUID(), "alice", "media", null, null, null));
+    }
+    @Test void forwardsQualitySelectionWithTheCurrentControlFence() {
+        var a = activities.create(7L, "alice");
+        var body = mapper.createObjectNode().put("profile", "1080p60");
+        activities.command(7L, a.activityId(), "alice", "quality", body, "epoch-one", "4");
+        verify(browser).command(a.activityId(), "1", "quality", body, "epoch-one", "4");
+    }
+    @Test void slowStateReadDoesNotBlockLeaseRenewalOrReturnReplacementIdentity() throws Exception {
+        var a = activities.create(7L, "alice");
+        var entered = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        when(browser.command(a.activityId(), "1", "state", null, null, null)).thenAnswer(invocation -> {
+            entered.countDown();
+            assertTrue(release.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            return mapper.createObjectNode().put("sessionId", "old-session");
+        });
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var read = pool.submit(() -> activities.find(7L, "alice"));
+            assertTrue(entered.await(1, java.util.concurrent.TimeUnit.SECONDS));
+            try {
+                pool.submit(activities::reconcile).get(1, java.util.concurrent.TimeUnit.SECONDS);
+                verify(browser).command(a.activityId(), "1", "keepalive", null, null, null);
+                activities.command(7L, a.activityId(), "alice", "close", null, null, null);
+                var replacement = activities.create(7L, "alice");
+                assertNotEquals(a.activityId(), replacement.activityId());
+            } finally { release.countDown(); }
+            var error = assertThrows(java.util.concurrent.ExecutionException.class, () -> read.get(1, java.util.concurrent.TimeUnit.SECONDS));
+            assertInstanceOf(org.springframework.web.server.ResponseStatusException.class, error.getCause());
+            assertEquals(409, ((org.springframework.web.server.ResponseStatusException) error.getCause()).getStatusCode().value());
+        }
     }
     @Test void expiredGuestMembershipCanRejoinOnlyAfterCoreAuthorization() {
         var a = activities.create(7L, "alice");

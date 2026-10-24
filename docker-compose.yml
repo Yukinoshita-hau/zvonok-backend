@@ -29,6 +29,9 @@ services:
     environment:
       LIVEKIT_SERVER_URL: ${LIVEKIT_SERVER_URL:-ws://127.0.0.1:7880}
       LIVEKIT_API_URL: ${LIVEKIT_API_URL:-http://livekit:7880}
+      BROWSER_ACTIVITY_ENABLED: ${BROWSER_ACTIVITY_ENABLED:-false}
+      BROWSER_ACTIVITY_KEY: ${BROWSER_ACTIVITY_KEY:-${BROWSER_INTEGRATION_KEY:-}}
+      BROWSER_ACTIVITY_URL: ${BROWSER_ACTIVITY_URL:-http://browser-api:3000/integration}
     env_file:
       - .env
     ports:

@@ -44,7 +44,8 @@ public class BrowserIntegrationClient {
         try {
             var claims = new LinkedHashMap<String, Object>();
             claims.put("aud", "zvonok-browser");
-            claims.put("exp", System.currentTimeMillis() + 10000);
+            // Leave clock/transit margin inside the API's unchanged ten-second validation envelope.
+            claims.put("exp", System.currentTimeMillis() + 8000);
             claims.put("nonce", UUID.randomUUID().toString());
             claims.put("activityId", activity.toString());
             claims.put("subject", subject);

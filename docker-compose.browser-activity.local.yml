@@ -1,0 +1,8 @@
+# Explicit opt-in for local Core + Browser Activity integration.
+# The base compose project and its data volumes are left intact.
+services:
+  backend:
+    environment:
+      BROWSER_ACTIVITY_ENABLED: "true"
+      BROWSER_ACTIVITY_KEY: "${BROWSER_INTEGRATION_KEY:?Set the local Browser integration key}"
+      BROWSER_ACTIVITY_URL: http://browser-api:3000/integration
